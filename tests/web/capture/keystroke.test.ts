@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { attachKeystrokeCapture } from '../../../src/web/capture/keystroke';
 import type { KeyEvent } from '../../../src/shared/types';
 
-function key(input: HTMLInputElement, type: 'keydown' | 'keyup', k: string, repeat = false) {
-  input.dispatchEvent(new KeyboardEvent(type, { key: k, repeat, cancelable: true, bubbles: true }));
+function key(input: HTMLInputElement, type: 'keydown' | 'keyup', k: string, repeat = false, code?: string) {
+  const c = code ?? (k.length === 1 ? `Key${k.toUpperCase()}` : k);
+  input.dispatchEvent(new KeyboardEvent(type, { key: k, code: c, repeat, cancelable: true, bubbles: true }));
 }
 
 describe('attachKeystrokeCapture', () => {
@@ -83,5 +84,64 @@ describe('attachKeystrokeCapture', () => {
     input.dispatchEvent(ev);
     expect(onDone).not.toHaveBeenCalled();
     expect(ev.defaultPrevented).toBe(false);
+  });
+
+  it("matches by physical key: 'A' down then 'a' up gives one 'a' event", () => {
+    const onDone = vi.fn<(e: KeyEvent[]) => void>();
+    attachKeystrokeCapture(input, onDone);
+    now = 10;
+    key(input, 'keydown', 'A');
+    now = 70;
+    key(input, 'keyup', 'a');
+    key(input, 'keydown', 'Enter');
+    expect(onDone.mock.calls[0][0]).toEqual([{ key: 'a', down: 10, up: 70 }]);
+  });
+
+  it('never records modifiers', () => {
+    const onDone = vi.fn<(e: KeyEvent[]) => void>();
+    attachKeystrokeCapture(input, onDone);
+    now = 0;
+    key(input, 'keydown', 'Shift');
+    now = 10;
+    key(input, 'keydown', 'A');
+    now = 20;
+    key(input, 'keyup', 'Shift');
+    now = 50;
+    key(input, 'keyup', 'A');
+    key(input, 'keydown', 'Enter');
+    expect(onDone.mock.calls[0][0]).toEqual([{ key: 'a', down: 10, up: 50 }]);
+  });
+
+  it('Backspace after a capital removes the character, not a modifier', () => {
+    const onDone = vi.fn<(e: KeyEvent[]) => void>();
+    attachKeystrokeCapture(input, onDone);
+    type('b', 1, 5);
+    key(input, 'keydown', 'Shift');
+    type('A', 10, 40);
+    key(input, 'keyup', 'Shift');
+    type('Backspace', 50, 60);
+    key(input, 'keydown', 'Enter');
+    expect(onDone.mock.calls[0][0].map((e) => e.key)).toEqual(['b']);
+  });
+
+  it('Backspace does not drop other held keys', () => {
+    const onDone = vi.fn<(e: KeyEvent[]) => void>();
+    attachKeystrokeCapture(input, onDone);
+    type('a', 1, 5);
+    now = 10;
+    key(input, 'keydown', 'b');
+    type('Backspace', 12, 14);
+    now = 30;
+    key(input, 'keyup', 'b');
+    key(input, 'keydown', 'Enter');
+    expect(onDone.mock.calls[0][0]).toEqual([{ key: 'b', down: 10, up: 30 }]);
+  });
+
+  it('calls onDone only once', () => {
+    const onDone = vi.fn();
+    attachKeystrokeCapture(input, onDone);
+    key(input, 'keydown', 'Enter');
+    key(input, 'keydown', 'Enter');
+    expect(onDone).toHaveBeenCalledTimes(1);
   });
 });

@@ -54,9 +54,13 @@ describe('collectOrientation', () => {
 
   it('resolves [] when no event arrives and stops listening', async () => {
     vi.useFakeTimers();
+    const remove = vi.spyOn(window, 'removeEventListener');
     const p = collectOrientation(500);
     vi.advanceTimersByTime(500);
-    expect(await p).toEqual([]);
+    const result = await p;
+    expect(result).toEqual([]);
     fire(1, 1, 1);
+    expect(result).toHaveLength(0);
+    expect(remove).toHaveBeenCalledWith('deviceorientation', expect.any(Function));
   });
 });

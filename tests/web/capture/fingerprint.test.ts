@@ -3,7 +3,7 @@ import { collectFingerprint } from '../../../src/web/capture/fingerprint';
 
 describe('collectFingerprint', () => {
   beforeEach(() => {
-    // jsdom n'implémente pas le canvas : on simule l'absence de contexte sans bruit.
+    // jsdom n'implÃ©mente pas le canvas : on simule l'absence de contexte sans bruit.
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   });
 

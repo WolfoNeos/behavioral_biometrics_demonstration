@@ -1,33 +1,39 @@
 import type { KeyEvent } from '../../shared/types';
 
+const IGNORED_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Dead', 'Process', 'Unidentified']);
+
+const normalize = (key: string): string => (key.length === 1 ? key.toLowerCase() : key);
+
 /** Capture la dynamique de frappe sur un champ ; renvoie la fonction de détachement. */
 export function attachKeystrokeCapture(
   input: HTMLInputElement,
   onDone: (events: KeyEvent[]) => void,
 ): () => void {
   const events: KeyEvent[] = [];
-  const pending = new Map<string, number>();
+  const pending = new Map<string, { key: string; down: number }>();
+  let done = false;
 
   const onKeyDown = (e: KeyboardEvent): void => {
     if (e.repeat) return;
     if (e.key === 'Enter') {
+      if (done) return;
+      done = true;
       onDone(events.slice());
       return;
     }
     if (e.key === 'Backspace') {
       events.pop();
-      pending.clear();
       return;
     }
-    pending.set(e.key, performance.now());
+    if (IGNORED_KEYS.has(e.key)) return;
+    pending.set(e.code, { key: normalize(e.key), down: performance.now() });
   };
 
   const onKeyUp = (e: KeyboardEvent): void => {
-    if (e.key === 'Enter' || e.key === 'Backspace') return;
-    const down = pending.get(e.key);
-    if (down === undefined) return;
-    pending.delete(e.key);
-    events.push({ key: e.key, down, up: performance.now() });
+    const start = pending.get(e.code);
+    if (start === undefined) return;
+    pending.delete(e.code);
+    events.push({ key: start.key, down: start.down, up: performance.now() });
   };
 
   const onPaste = (e: Event): void => e.preventDefault();
