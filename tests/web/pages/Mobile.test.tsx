@@ -2,13 +2,15 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_THRESHOLDS } from '../../../src/shared/types';
 import type { Snapshot } from '../../../src/shared/types';
 
-const send = vi.fn();
+const send = vi.fn((_msg: Record<string, any>) => true);
 let snapshot: Snapshot | null = null;
 let connected = true;
+let lost = false;
 vi.mock('../../../src/web/ws', () => ({
-  usePhoneSession: () => ({ snapshot, connected, send }),
+  usePhoneSession: () => ({ snapshot, connected, lost, send }),
 }));
 
 const fp = {
@@ -38,6 +40,9 @@ const snap = (over: Partial<Snapshot>): Snapshot => ({
   expected: { keystroke: null, fingerprint: null, beta: null },
   phoneConnected: true,
   sessionUrl: 'http://pc/m/abc',
+  lastVerdict: null,
+  liveOrientation: null,
+  thresholds: DEFAULT_THRESHOLDS,
   ...over,
 });
 
@@ -55,7 +60,9 @@ function ui() {
 }
 
 beforeEach(() => {
-  send.mockClear();
+  send.mockReset();
+  send.mockImplementation(() => true);
+  lost = false;
   requestOrientation.mockReset();
   collectOrientation.mockReset();
   snapshot = snap({});
@@ -155,5 +162,78 @@ describe('Mobile', () => {
     connected = false;
     render(ui());
     expect(screen.getByText('Reconnexion…')).toBeTruthy();
+  });
+
+  it('PIN : Valider desactive hors connexion', () => {
+    connected = false;
+    render(ui());
+    expect(screen.getByRole('button', { name: 'Valider' })).toBeDisabled();
+  });
+
+  it('PIN : envoi echoue -> chiffres conserves et message, puis renvoi possible', async () => {
+    send.mockImplementation(() => false);
+    const user = userEvent.setup();
+    render(ui());
+    for (const d of ['1', '2', '3', '4']) await user.click(screen.getByRole('button', { name: d }));
+    await user.click(screen.getByRole('button', { name: 'Valider' }));
+    expect(await screen.findByText('Pas de connexion — réessayez')).toBeTruthy();
+    expect(screen.getByLabelText('4 chiffres saisis')).toBeTruthy();
+    send.mockImplementation(() => true);
+    await user.click(screen.getByRole('button', { name: 'Valider' }));
+    await waitFor(() => expect(screen.getByLabelText('0 chiffres saisis')).toBeTruthy());
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[1][0]).toMatchObject({ type: 'pin', pin: '1234' });
+    expect(screen.queryByText('Pas de connexion — réessayez')).toBeNull();
+  });
+
+  it('posture : Valider desactive hors connexion', async () => {
+    requestOrientation.mockResolvedValue('granted');
+    snapshot = level3();
+    connected = false;
+    const user = userEvent.setup();
+    render(ui());
+    await user.click(screen.getByRole('button', { name: 'Autoriser le capteur' }));
+    expect(await screen.findByRole('button', { name: 'Valider' })).toBeDisabled();
+  });
+
+  it('session inconnue (1008) : demande de rescanner, sans reconnexion', () => {
+    lost = true;
+    render(ui());
+    expect(screen.getByText('Session introuvable — rescannez le QR code')).toBeTruthy();
+    expect(screen.queryByText('Reconnexion…')).toBeNull();
+  });
+
+  it('echec du niveau 2 : message neutre, sans la raison', () => {
+    snapshot = snap({
+      level: 3,
+      state: { status: 'pending', level: 3 },
+      lastVerdict: { level: 2, score: 0, granted: false, reason: 'PIN incorrect' },
+    });
+    render(ui());
+    expect(screen.getByText("Vérification refusée, regardez l'écran")).toBeTruthy();
+    expect(screen.queryByText(/PIN incorrect/)).toBeNull();
+    expect(screen.queryByText(/Appareil non reconnu/)).toBeNull();
+  });
+
+  it('posture autorisee : diffuse l orientation en direct (limitee)', async () => {
+    requestOrientation.mockResolvedValue('granted');
+    snapshot = level3();
+    const user = userEvent.setup();
+    render(ui());
+    await user.click(screen.getByRole('button', { name: 'Autoriser le capteur' }));
+    await screen.findByRole('button', { name: 'Valider' });
+    const fire = (beta: number | null) => {
+      const ev = new Event('deviceorientation') as Event & Record<string, unknown>;
+      Object.assign(ev, { alpha: null, beta, gamma: 3 });
+      act(() => {
+        window.dispatchEvent(ev);
+      });
+    };
+    fire(30);
+    fire(31); // trop rapproche : non envoye
+    fire(null); // beta invalide : ignore
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith({ type: 'orientationLive', alpha: 0, beta: 30, gamma: 3 });
+    expect(screen.getByLabelText('angle beta')).toHaveTextContent('31°');
   });
 });

@@ -40,7 +40,8 @@ const handler = async (url: string, init?: RequestInit): Promise<Response> => {
   calls.push({ method, url, body });
   if (url === '/api/profile' && method === 'GET') return json(profile);
   if (url === '/api/profile' && method === 'PUT') {
-    profile = body;
+    // comme le serveur : un nouveau mot de passe efface le profil de frappe
+    profile = body.password === profile.password ? body : { ...body, keystroke: null };
     return json(profile);
   }
   if (url === '/api/thresholds' && method === 'GET') return json(DEFAULT_THRESHOLDS);
@@ -231,7 +232,23 @@ describe('Config', () => {
     expect(screen.getByText('0 / 10')).toBeInTheDocument();
   });
 
+  it('changer le mot de passe apres enrolement retire « Frappe deja enrolee »', async () => {
+    const user = userEvent.setup();
+    profile = { ...baseProfile, keystroke: { mean: {}, std: {}, samples: 7 } };
+    renderPage();
+    expect(await screen.findByText(/Frappe déjà enrôlée/)).toBeInTheDocument();
+    const pw = screen.getByLabelText('Mot de passe');
+    await waitFor(() => expect(pw).toHaveValue('secret'));
+    await user.clear(pw);
+    await user.type(pw, 'nouveau');
+    await user.click(screen.getByRole('button', { name: "Enregistrer l'identité" }));
+    expect(await screen.findByText('Identité enregistrée')).toBeInTheDocument();
+    expect(screen.queryByText(/déjà enrôlée/)).toBeNull();
+    expect(profile.keystroke).toBeNull();
+  });
+
   it('pas de bandeau sans profil de frappe', async () => {
+
     renderPage();
     await screen.findByText('0 / 10');
     expect(screen.queryByText(/déjà enrôlée/)).toBeNull();

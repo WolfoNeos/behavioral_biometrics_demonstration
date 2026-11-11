@@ -18,4 +18,15 @@ describe('DeviceTable', () => {
     expect(screen.getByText('en-US')).toBeInTheDocument();
     expect(screen.getByText('fr-FR')).toBeInTheDocument();
   });
+
+  it('libelles en francais, jamais les noms de champs bruts', () => {
+    const fields = ['userAgent', 'platform', 'language', 'screen', 'timezone', 'canvasHash'];
+    render(
+      <DeviceTable lines={fields.map((field) => ({ field, expected: 'x', actual: 'x', match: true }))} />,
+    );
+    for (const label of ['Navigateur', 'Système', 'Langue', 'Écran', 'Fuseau horaire', 'Empreinte canvas']) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+    for (const raw of fields) expect(screen.queryByText(raw)).toBeNull();
+  });
 });

@@ -6,8 +6,10 @@ import { scoreOrientation } from '../shared/scoring/orientation';
 import { summarizeTouch } from '../shared/scoring/tactile';
 import type {
   AuthState,
+  FailReason,
   Fingerprint,
   KeyEvent,
+  LastVerdict,
   Level,
   LiveResults,
   OrientationReading,
@@ -17,6 +19,7 @@ import type {
   Thresholds,
   Verdict,
 } from '../shared/types';
+import { LIVE_ORIENTATION_INTERVAL_MS } from '../shared/types';
 
 /** Sous-ensemble de WebSocket utilise ici (facilite les faux dans les tests). */
 export interface WsLike {
@@ -31,8 +34,14 @@ export interface Session {
   id: string;
   state: AuthState;
   live: LiveResults;
-  phone: WsLike | null;
+  /** Tous les telephones attaches : chacun peut soumettre (B puis A sur le meme QR). */
+  phones: Set<WsLike>;
   pcs: Set<WsLike>;
+  lastVerdict: LastVerdict | null;
+  liveOrientation: OrientationReading | null;
+  /** Horodatage de la derniere diffusion due a l'orientation en direct. */
+  liveSentAt: number;
+  liveTimer: ReturnType<typeof setTimeout> | null;
 }
 
 export interface SessionManagerOptions {
@@ -95,6 +104,17 @@ function parsePayload(msg: Record<string, unknown>): SubmitPayload | null {
   return null;
 }
 
+/** Valide un message `orientationLive` : beta fini, alpha/gamma finis ou null (-> 0). */
+function parseLiveOrientation(msg: Record<string, unknown>): OrientationReading | null {
+  const angle = (v: unknown) => v == null || fin(v);
+  if (!fin(msg.beta) || !angle(msg.alpha) || !angle(msg.gamma)) return null;
+  return {
+    alpha: (msg.alpha as number | null | undefined) ?? 0,
+    beta: msg.beta,
+    gamma: (msg.gamma as number | null | undefined) ?? 0,
+  };
+}
+
 const isLevel = (v: unknown): v is Level => v === 1 || v === 2 || v === 3;
 
 /** Frappe synthetique du mot de passe ; `offset` en ecarts-types ajoute a dwell et flight. */
@@ -136,8 +156,12 @@ export class SessionManager {
       id: randomUUID(),
       state: startState(),
       live: {},
-      phone: null,
+      phones: new Set(),
       pcs: new Set(),
+      lastVerdict: null,
+      liveOrientation: null,
+      liveSentAt: 0,
+      liveTimer: null,
     };
     this.sessions.set(session.id, session);
     return session;
@@ -165,15 +189,27 @@ export class SessionManager {
       level: currentLevel(s.state),
       live: s.live,
       expected: { keystroke: p.keystroke, fingerprint: p.fingerprint, beta: p.beta },
-      phoneConnected: s.phone !== null,
+      phoneConnected: s.phones.size > 0,
       sessionUrl: this.url(id),
+      lastVerdict: s.lastVerdict,
+      liveOrientation: s.liveOrientation,
+      thresholds: this.opts.getThresholds(),
     };
+  }
+
+  /** Diffuse l'etat a toutes les sessions (seuils ou profil modifies). */
+  broadcastAll(): void {
+    for (const id of this.sessions.keys()) this.broadcast(id);
   }
 
   private broadcast(id: string): void {
     const s = this.get(id);
+    if (s.liveTimer) {
+      clearTimeout(s.liveTimer);
+      s.liveTimer = null;
+    }
     const msg = JSON.stringify({ type: 'state', ...this.snapshot(id) });
-    for (const ws of [...s.pcs, ...(s.phone ? [s.phone] : [])]) {
+    for (const ws of [...s.pcs, ...s.phones]) {
       try {
         ws.send(msg);
       } catch (err) {
@@ -191,19 +227,15 @@ export class SessionManager {
     this.broadcast(id);
   }
 
-  /** Un seul telephone actif : le nouveau remplace (et ferme) l'ancien. */
+  /** Plusieurs telephones possibles (B puis A sur le meme QR) : aucun n'en ferme un autre. */
   attachPhone(id: string, ws: WsLike): void {
     const s = this.get(id);
-    const previous = s.phone;
-    s.phone = ws;
-    previous?.close();
-    ws.on('message', (data) => {
-      if (s.phone === ws) this.handleMessage(id, data);
-    });
+    s.phones.add(ws);
+    ws.on('message', (data) => this.handleMessage(id, data));
     ws.on('close', () => {
-      if (s.phone !== ws) return;
-      s.phone = null;
-      this.broadcast(id);
+      if (!s.phones.delete(ws)) return;
+      if (s.phones.size === 0) s.liveOrientation = null;
+      if (this.sessions.has(id)) this.broadcast(id);
     });
     ws.on('error', (err) => console.error('erreur ws telephone', err));
     this.broadcast(id);
@@ -214,13 +246,13 @@ export class SessionManager {
     const profile = this.opts.getProfile();
     const th = this.opts.getThresholds();
     let score = 0;
-    let failed = false;
+    let failed: FailReason | null = null;
 
     if (payload.kind === 'keystroke') {
       const result = profile.keystroke ? scoreKeystroke(profile.keystroke, payload.events) : null;
       if (result) s.live.keystroke = result;
       score = result?.score ?? 0;
-      failed = payload.password !== profile.password;
+      if (payload.password !== profile.password) failed = 'password incorrect';
     } else if (payload.kind === 'pin') {
       const result = profile.fingerprint
         ? compareFingerprint(profile.fingerprint, payload.fingerprint)
@@ -228,7 +260,7 @@ export class SessionManager {
       if (result) s.live.device = result;
       s.live.tactile = summarizeTouch(payload.taps);
       score = result?.score ?? 0;
-      failed = payload.pin !== profile.pin;
+      if (payload.pin !== profile.pin) failed = 'PIN incorrect';
     } else {
       const result =
         profile.beta !== null
@@ -238,9 +270,9 @@ export class SessionManager {
       score = result?.score ?? 0;
     }
 
+    const before = s.state;
     let verdict: Verdict;
     if (failed) {
-      const before = s.state;
       s.state = hardFail(before, level);
       verdict =
         before.status === 'pending'
@@ -251,12 +283,32 @@ export class SessionManager {
       s.state = r.state;
       verdict = r.verdict;
     }
+    if (before.status === 'pending') {
+      s.lastVerdict = {
+        level,
+        score: verdict.score,
+        granted: verdict.granted,
+        reason: verdict.granted ? null : (failed ?? 'signal hors seuil'),
+      };
+    }
+    // une soumission quitte toujours l'etape en cours : l'orientation en direct n'a plus cours
+    s.liveOrientation = null;
     this.broadcast(id);
     return verdict;
   }
 
+  /** Saut direct : le niveau cible et les suivants repartent sans mesure. */
   jump(id: string, level: Level): void {
-    this.get(id).state = jumpTo(level);
+    const s = this.get(id);
+    s.state = jumpTo(level);
+    if (level <= 1) delete s.live.keystroke;
+    if (level <= 2) {
+      delete s.live.device;
+      delete s.live.tactile;
+    }
+    delete s.live.orientation;
+    s.lastVerdict = null;
+    s.liveOrientation = null;
     this.broadcast(id);
   }
 
@@ -264,7 +316,27 @@ export class SessionManager {
     const s = this.get(id);
     s.state = startState();
     s.live = {};
+    s.lastVerdict = null;
+    s.liveOrientation = null;
     this.broadcast(id);
+  }
+
+  /** Orientation en direct (niveau 3 en attente) ; diffusion limitee a une par intervalle. */
+  private liveOrientationUpdate(id: string, reading: OrientationReading): void {
+    const s = this.get(id);
+    s.liveOrientation = reading;
+    const wait = s.liveSentAt + LIVE_ORIENTATION_INTERVAL_MS - Date.now();
+    if (wait <= 0) {
+      s.liveSentAt = Date.now();
+      this.broadcast(id);
+    } else if (!s.liveTimer) {
+      s.liveTimer = setTimeout(() => {
+        s.liveTimer = null;
+        if (!this.sessions.has(id)) return;
+        s.liveSentAt = Date.now();
+        this.broadcast(id);
+      }, wait);
+    }
   }
 
   /** A = mesures qui passent le score normal ; B = mesures de l'imposteur. */
@@ -303,6 +375,12 @@ export class SessionManager {
           if (state.status !== 'pending' || state.level !== level) return;
           const payload = parsePayload(msg);
           if (payload) this.submit(id, level, payload);
+          return;
+        }
+        case 'orientationLive': {
+          if (state.status !== 'pending' || state.level !== 3) return;
+          const reading = parseLiveOrientation(msg);
+          if (reading) this.liveOrientationUpdate(id, reading);
           return;
         }
         case 'jump':

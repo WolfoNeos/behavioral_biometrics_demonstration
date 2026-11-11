@@ -9,9 +9,10 @@ export interface DeviceTableProps {
   lines: DeviceTableLine[];
 }
 
-const LABELS: Record<string, string> = {
+/** Libelles francais des champs d'empreinte (tableau et panneau « Profil de A »). */
+export const FIELD_LABELS: Record<string, string> = {
   userAgent: 'Navigateur',
-  platform: 'Plateforme',
+  platform: 'Système',
   language: 'Langue',
   screen: 'Écran',
   timezone: 'Fuseau horaire',
@@ -32,7 +33,7 @@ export function DeviceTable({ lines }: DeviceTableProps) {
       <tbody>
         {lines.map((l) => (
           <tr key={l.field}>
-            <td>{LABELS[l.field] ?? l.field}</td>
+            <td>{FIELD_LABELS[l.field] ?? l.field}</td>
             <td>{l.expected}</td>
             <td>{l.actual}</td>
             <td>

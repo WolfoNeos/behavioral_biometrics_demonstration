@@ -18,6 +18,19 @@ describe('Gauge', () => {
     render(<Gauge score={30} accept={80} warn={50} />);
     expect(screen.getByRole('meter')).toHaveClass('red');
   });
+  it('sans mesure : neutre, « — », pas de rouge', () => {
+    render(<Gauge score={null} accept={80} warn={50} />);
+    const g = screen.getByRole('meter');
+    expect(g).toHaveAttribute('data-color', 'neutral');
+    expect(g).not.toHaveClass('red');
+    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.queryByText('0')).toBeNull();
+  });
+  it('couleur coherente avec la valeur arrondie affichee', () => {
+    const { container } = render(<Gauge score={79.7} accept={80} warn={50} />);
+    expect(container.querySelector('.gauge-score')).toHaveTextContent('80');
+    expect(screen.getByRole('meter')).toHaveAttribute('data-color', 'green');
+  });
   it('affiche les marqueurs de seuils', () => {
     render(<Gauge score={30} accept={80} warn={50} />);
     expect(screen.getByLabelText('seuil acceptation 80')).toBeInTheDocument();

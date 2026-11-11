@@ -43,7 +43,16 @@ const base: Snapshot = {
   },
   phoneConnected: false,
   sessionUrl: 'http://pc:5173/m/abc',
+  lastVerdict: null,
+  liveOrientation: null,
+  thresholds: DEFAULT_THRESHOLDS,
 };
+
+const perKey = [{ key: 'a', dwell: 220, flight: 300, expectedDwell: 90, expectedFlight: 40, bandDwell: 20, bandFlight: 16 }];
+const deviceLines = [
+  { field: 'userAgent' as const, expected: 'UA', actual: 'Autre', match: false },
+  { field: 'canvasHash' as const, expected: 'h', actual: 'x', match: false },
+];
 
 function renderDemo() {
   return render(
@@ -56,10 +65,6 @@ function renderDemo() {
 beforeEach(() => {
   send.mockClear();
   snapshot = base;
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue({ ok: true, json: async () => DEFAULT_THRESHOLDS }),
-  );
 });
 
 describe('Demo', () => {
@@ -149,9 +154,122 @@ describe('Demo', () => {
     expect(screen.getByText('Échec')).toBeInTheDocument();
   });
 
-  it('charge les seuils', async () => {
+  it('les seuils de la jauge viennent du snapshot (serveur)', () => {
+    snapshot = {
+      ...base,
+      state: { status: 'granted', level: 1, verdict: { level: 1, score: 75, color: 'green', granted: true } },
+      live: { keystroke: { score: 75, perKey } },
+      thresholds: { ...DEFAULT_THRESHOLDS, keystroke: { accept: 70, warn: 40 } },
+    };
     renderDemo();
-    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/thresholds'));
+    const gauge = within(screen.getByTestId('panel-direct')).getByRole('meter');
+    expect(gauge).toHaveAttribute('data-color', 'green');
+    expect(screen.getByLabelText('seuil acceptation 70')).toBeInTheDocument();
+  });
+
+  it('echec du niveau 1 : le panneau garde la frappe de B avec le bandeau, la zone principale passe au QR', async () => {
+    snapshot = {
+      ...base,
+      level: 2,
+      state: { status: 'pending', level: 2 },
+      live: { keystroke: { score: 23, perKey } },
+      lastVerdict: { level: 1, score: 23, granted: false, reason: 'signal hors seuil' },
+    };
+    renderDemo();
+    const direct = screen.getByTestId('panel-direct');
+    expect(within(direct).getByText(/Direct — Dynamique de frappe/)).toBeInTheDocument();
+    expect(within(direct).getByTestId('chart')).toBeInTheDocument();
+    const banner = within(direct).getByTestId('fail-banner');
+    expect(banner).toHaveTextContent('Échec niveau 1 — passage au niveau suivant');
+    expect(banner).toHaveTextContent('Signal hors seuil (score 23 / 100)');
+    const gauge = within(direct).getByRole('meter');
+    expect(gauge).toHaveAttribute('data-color', 'red');
+    expect(within(gauge).getByText('23')).toBeInTheDocument();
+    // le profil de A montre aussi la frappe pour comparer
+    expect(within(screen.getByTestId('panel-profil')).getByText(/Profil appris sur 10/)).toBeInTheDocument();
+    expect(await screen.findByAltText(/QR code/)).toBeInTheDocument();
+  });
+
+  it('echec du niveau 2 (PIN) : tableau appareil conserve et raison affichee', () => {
+    snapshot = {
+      ...base,
+      level: 3,
+      state: { status: 'pending', level: 3 },
+      live: { device: { score: 25, lines: deviceLines } },
+      lastVerdict: { level: 2, score: 0, granted: false, reason: 'PIN incorrect' },
+    };
+    renderDemo();
+    const direct = screen.getByTestId('panel-direct');
+    expect(within(direct).getByText(/Direct — Empreinte de l'appareil/)).toBeInTheDocument();
+    expect(within(direct).getByText('Autre')).toBeInTheDocument();
+    expect(within(direct).getByTestId('fail-banner')).toHaveTextContent('Échec niveau 2');
+    expect(within(direct).getByTestId('fail-banner')).toHaveTextContent('PIN incorrect');
+  });
+
+  it('mauvais mot de passe : raison affichee sur le bandeau', () => {
+    snapshot = {
+      ...base,
+      level: 2,
+      state: { status: 'pending', level: 2 },
+      lastVerdict: { level: 1, score: 0, granted: false, reason: 'password incorrect' },
+    };
+    renderDemo();
+    expect(screen.getByTestId('fail-banner')).toHaveTextContent('Mot de passe incorrect');
+  });
+
+  it('niveau sans mesure : jauge neutre, pas de 0 rouge', () => {
+    snapshot = { ...base, level: 2, state: { status: 'pending', level: 2 } };
+    renderDemo();
+    const gauge = within(screen.getByTestId('panel-direct')).getByRole('meter');
+    expect(gauge).toHaveAttribute('data-color', 'neutral');
+    expect(within(gauge).getByText('—')).toBeInTheDocument();
+    expect(screen.queryByTestId('fail-banner')).toBeNull();
+  });
+
+  it('indicateur de telephone : zone principale (niveaux 2-3) et zone de controle', () => {
+    snapshot = { ...base, level: 2, state: { status: 'pending', level: 2 } };
+    const { unmount } = renderDemo();
+    expect(within(screen.getByTestId('main-zone')).getByText('Téléphone en attente')).toBeInTheDocument();
+    expect(screen.getAllByText('Téléphone en attente')).toHaveLength(2);
+    unmount();
+    snapshot = { ...base, level: 3, state: { status: 'pending', level: 3 }, phoneConnected: true };
+    renderDemo();
+    expect(within(screen.getByTestId('main-zone')).getByText('Téléphone connecté')).toBeInTheDocument();
+
+  });
+
+  it('niveau 1 : indicateur seulement dans la zone de controle', () => {
+    renderDemo();
+    expect(within(screen.getByTestId('main-zone')).queryByText(/Téléphone/)).toBeNull();
+    expect(screen.getByText('Téléphone en attente')).toBeInTheDocument();
+  });
+
+  it('niveau 3 : l aiguille suit liveOrientation en direct', () => {
+    snapshot = {
+      ...base,
+      level: 3,
+      state: { status: 'pending', level: 3 },
+      live: { device: { score: 25, lines: deviceLines } },
+      lastVerdict: { level: 2, score: 25, granted: false, reason: 'signal hors seuil' },
+      liveOrientation: { alpha: 0, beta: 12.4, gamma: 0 },
+    };
+    renderDemo();
+    const direct = screen.getByTestId('panel-direct');
+    // une mesure en direct existe : le panneau passe au niveau 3
+    expect(within(direct).getByText(/Direct — Posture du téléphone/)).toBeInTheDocument();
+    expect(within(direct).getByTestId('needle')).toBeInTheDocument();
+    expect(within(direct).getByLabelText('angle mesuré')).toHaveTextContent('12°');
+    expect(within(direct).getByRole('meter')).toHaveAttribute('data-color', 'neutral');
+  });
+
+  it('profil de A : libelles francais', () => {
+    snapshot = { ...base, level: 2, state: { status: 'pending', level: 2 } };
+    renderDemo();
+    const profil = screen.getByTestId('panel-profil');
+    for (const label of ['Navigateur', 'Système', 'Langue', 'Écran', 'Fuseau horaire', 'Empreinte canvas']) {
+      expect(within(profil).getByText(label)).toBeInTheDocument();
+    }
+    expect(within(profil).queryByText('userAgent')).toBeNull();
   });
 });
 

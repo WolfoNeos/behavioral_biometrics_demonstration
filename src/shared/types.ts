@@ -75,6 +75,9 @@ export type SubmitPayload =
     }
   | { kind: 'orientation'; readings: OrientationReading[] };
 
+/** Intervalle minimal entre deux envois de l'orientation en direct (telephone et serveur). */
+export const LIVE_ORIENTATION_INTERVAL_MS = 100;
+
 /** Derniere mesure calculee par niveau (JSON-serialisable). */
 export interface LiveResults {
   keystroke?: { score: number; perKey: PerKeyScore[] };
@@ -96,6 +99,17 @@ export interface ExpectedReference {
   beta: number | null;
 }
 
+/** Raison d'un echec ; null quand l'acces est accorde. */
+export type FailReason = 'password incorrect' | 'PIN incorrect' | 'signal hors seuil';
+
+/** Dernier verdict rendu dans la session (efface par reset et jump). */
+export interface LastVerdict {
+  level: Level;
+  score: number;
+  granted: boolean;
+  reason: FailReason | null;
+}
+
 export interface Snapshot {
   state: AuthState;
   level: Level;
@@ -103,4 +117,9 @@ export interface Snapshot {
   expected: ExpectedReference;
   phoneConnected: boolean;
   sessionUrl: string;
+  lastVerdict: LastVerdict | null;
+  /** Orientation courante diffusee par le telephone au niveau 3 (avant « Valider »). */
+  liveOrientation: OrientationReading | null;
+  /** Seuils en vigueur cote serveur (la jauge ne peut pas les contredire). */
+  thresholds: Thresholds;
 }

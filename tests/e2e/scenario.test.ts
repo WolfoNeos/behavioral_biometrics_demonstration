@@ -94,13 +94,53 @@ describe('scenario de demo (seuils par defaut)', () => {
     expect(m.snapshot(id).state.status).toBe('blocked');
   });
 
-  it('B enchaine les trois niveaux -> bloque', () => {
+  it('B enchaine les trois niveaux -> bloque ; chaque echec reste visible (lastVerdict + mesure)', () => {
     const { m, id } = newSession();
     m.submit(id, 1, keystroke(typing(77, 240, 160, 40)));
+    let snap = m.snapshot(id);
+    expect(snap.level).toBe(2);
+    expect(snap.lastVerdict).toMatchObject({ level: 1, granted: false, reason: 'signal hors seuil' });
+    expect(snap.live.keystroke?.score).toBe(snap.lastVerdict?.score);
     m.submit(id, 2, pin(fpB));
+    snap = m.snapshot(id);
+    expect(snap.level).toBe(3);
+    expect(snap.lastVerdict).toMatchObject({ level: 2, granted: false, reason: 'signal hors seuil' });
+    expect(snap.live.device?.lines.some((l) => !l.match)).toBe(true);
     m.submit(id, 3, orient(2));
-    expect(m.snapshot(id).state.status).toBe('blocked');
+    snap = m.snapshot(id);
+    expect(snap.state.status).toBe('blocked');
+    expect(snap.lastVerdict).toMatchObject({ level: 3, granted: false });
   });
+
+  it('B puis A sur le meme QR : les deux telephones restent connectes et soumettent', () => {
+    const { m, id } = newSession();
+    const phone = () => {
+      const sent: string[] = [];
+      const handlers: Record<string, (d?: unknown) => void> = {};
+      const ws = {
+        send: (d: string) => sent.push(d),
+        close: () => handlers.close?.(),
+        on: (ev: string, cb: (d?: unknown) => void) => {
+          handlers[ev] = cb;
+        },
+      };
+      return { ws, sent, emit: (d: unknown) => handlers.message?.(JSON.stringify(d)) };
+    };
+    const b = phone();
+    const a = phone();
+    m.submit(id, 1, keystroke(typing(77, 240, 160, 40)));
+    m.attachPhone(id, b.ws);
+    b.emit({ type: 'pin', pin: profile.pin, fingerprint: fpB, taps });
+    m.attachPhone(id, a.ws);
+    a.emit({ type: 'orientationLive', alpha: 0, beta: 3, gamma: 0 });
+    expect(m.snapshot(id).liveOrientation?.beta).toBe(3);
+    a.emit({ type: 'orientation', readings: [{ alpha: 0, beta: 2, gamma: 0 }] });
+    const snap = m.snapshot(id);
+    expect(snap.state.status).toBe('blocked');
+    expect(snap.phoneConnected).toBe(true);
+    expect(JSON.parse(b.sent[b.sent.length - 1]).state.status).toBe('blocked');
+  });
+
 
   it('A niveau 1 : sa frappe -> granted', () => {
     const { m, id } = newSession();

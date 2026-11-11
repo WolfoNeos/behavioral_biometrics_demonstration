@@ -3,7 +3,8 @@ import type { Fingerprint, KeyEvent, Level, OrientationReading, Snapshot } from 
 
 export type PhoneMessage =
   | { type: 'pin'; pin: string; fingerprint: Fingerprint; taps: { down: number; up: number }[] }
-  | { type: 'orientation'; readings: OrientationReading[] };
+  | { type: 'orientation'; readings: OrientationReading[] }
+  | ({ type: 'orientationLive' } & OrientationReading);
 
 export type ClientMessage =
   | { type: 'keystroke'; events: KeyEvent[]; password: string }
@@ -12,6 +13,8 @@ export type ClientMessage =
   | { type: 'god'; who: 'A' | 'B' };
 
 const STORAGE_KEY = 'demo-session-id';
+/** Code de fermeture du serveur pour une session ou un role inconnus. */
+export const CLOSE_UNKNOWN_SESSION = 1008;
 const MAX_BACKOFF_MS = 3000;
 
 function readStored(): string | null {
@@ -122,14 +125,20 @@ export function useSession(): { snapshot: Snapshot | null; send: (msg: ClientMes
   return { snapshot, send };
 }
 
-/** Session de demo cote telephone : WebSocket role=phone, reconnexion automatique. */
+/**
+ * Session de demo cote telephone : WebSocket role=phone, reconnexion automatique,
+ * sauf si le serveur ne connait pas la session (1008, ex. apres un redemarrage) : `lost`.
+ * `send` renvoie false quand le message n'a pas pu partir.
+ */
 export function usePhoneSession(id: string): {
   snapshot: Snapshot | null;
   connected: boolean;
-  send: (msg: PhoneMessage) => void;
+  lost: boolean;
+  send: (msg: PhoneMessage) => boolean;
 } {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [connected, setConnected] = useState(false);
+  const [lost, setLost] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -151,15 +160,20 @@ export function usePhoneSession(id: string): {
           console.error('message ws illisible', err);
         }
       };
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
         if (wsRef.current === ws) wsRef.current = null;
         setConnected(false);
         if (disposed) return;
+        if (ev.code === CLOSE_UNKNOWN_SESSION) {
+          setLost(true);
+          return;
+        }
         timer = setTimeout(connect, backoffDelay(attempt));
         attempt += 1;
       };
     };
 
+    setLost(false);
     connect();
     return () => {
       disposed = true;
@@ -173,10 +187,17 @@ export function usePhoneSession(id: string): {
     };
   }, [id]);
 
-  const send = useCallback((msg: PhoneMessage) => {
+  const send = useCallback((msg: PhoneMessage): boolean => {
     const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    try {
+      ws.send(JSON.stringify(msg));
+      return true;
+    } catch (err) {
+      console.error('envoi ws impossible', err);
+      return false;
+    }
   }, []);
 
-  return { snapshot, connected, send };
+  return { snapshot, connected, lost, send };
 }

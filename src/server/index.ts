@@ -57,7 +57,11 @@ export async function buildServer(opts: ServerOptions = {}) {
     if (!b || typeof b.password !== 'string' || typeof b.pin !== 'string') {
       return reply.code(400).send({ error: 'password et pin (texte) requis' });
     }
-    saveProfile(b as Profile, profilePath);
+    // nouveau mot de passe : l'ancien profil de frappe ne correspond plus aux touches tapees
+    const previous = loadProfile(profilePath);
+    const next = b.password === previous.password ? (b as Profile) : { ...(b as Profile), keystroke: null };
+    saveProfile(next, profilePath);
+    sessions.broadcastAll();
     return loadProfile(profilePath);
   });
 
@@ -68,6 +72,7 @@ export async function buildServer(opts: ServerOptions = {}) {
       return reply.code(400).send({ error: 'seuils invalides ou incomplets' });
     }
     saveThresholds(b, thresholdsPath);
+    sessions.broadcastAll();
     return loadThresholds(thresholdsPath);
   });
 
@@ -78,6 +83,7 @@ export async function buildServer(opts: ServerOptions = {}) {
     }
     const profile = { ...loadProfile(profilePath), keystroke: buildKeystrokeProfile(samples) };
     saveProfile(profile, profilePath);
+    sessions.broadcastAll();
     return profile;
   });
 
@@ -88,6 +94,7 @@ export async function buildServer(opts: ServerOptions = {}) {
     }
     const profile = { ...loadProfile(profilePath), fingerprint, beta };
     saveProfile(profile, profilePath);
+    sessions.broadcastAll();
     return profile;
   });
 

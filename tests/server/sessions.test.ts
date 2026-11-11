@@ -149,22 +149,209 @@ describe('SessionManager.inject', () => {
   });
 });
 
+describe('SessionManager lastVerdict', () => {
+  it('echec de frappe : etat niveau 2, lastVerdict niveau 1 avec score bas', () => {
+    const m = setup();
+    const s = m.create();
+    m.submit(s.id, 1, { kind: 'keystroke', events: typing(200, 200), password: PASSWORD });
+    const snap = m.snapshot(s.id);
+    expect(snap.state).toEqual({ status: 'pending', level: 2 });
+    expect(snap.lastVerdict).toMatchObject({
+      level: 1,
+      granted: false,
+      reason: 'signal hors seuil',
+    });
+    expect(snap.lastVerdict!.score).toBeLessThan(DEFAULT_THRESHOLDS.keystroke.warn);
+  });
+
+  it('mauvais mot de passe : raison password incorrect', () => {
+    const m = setup();
+    const s = m.create();
+    m.submit(s.id, 1, { kind: 'keystroke', events: typing(110, 80), password: 'nope' });
+    expect(m.snapshot(s.id).lastVerdict).toEqual({
+      level: 1,
+      score: 0,
+      granted: false,
+      reason: 'password incorrect',
+    });
+  });
+
+  it('PIN faux : raison PIN incorrect', () => {
+    const m = setup();
+    const s = m.create();
+    m.jump(s.id, 2);
+    m.submit(s.id, 2, { kind: 'pin', pin: '0000', fingerprint: fp, taps: [] });
+    expect(m.snapshot(s.id).lastVerdict).toMatchObject({
+      level: 2,
+      granted: false,
+      reason: 'PIN incorrect',
+    });
+  });
+
+  it('acces accorde (y compris God) : reason null', () => {
+    const m = setup();
+    const s = m.create();
+    m.inject(s.id, 'A', 1);
+    expect(m.snapshot(s.id).lastVerdict).toMatchObject({ level: 1, granted: true, reason: null });
+  });
+
+  it('jump efface live du niveau cible et lastVerdict ; reset efface tout', () => {
+    const m = setup();
+    const s = m.create();
+    m.submit(s.id, 1, { kind: 'keystroke', events: typing(200, 200), password: PASSWORD });
+    m.submit(s.id, 2, { kind: 'pin', pin: '1234', fingerprint: { ...fp, canvasHash: 'x' }, taps: [] });
+    expect(m.snapshot(s.id).live.device).toBeDefined();
+    m.jump(s.id, 2);
+    const snap = m.snapshot(s.id);
+    expect(snap.live.device).toBeUndefined();
+    expect(snap.live.tactile).toBeUndefined();
+    expect(snap.live.keystroke).toBeDefined();
+    expect(snap.lastVerdict).toBeNull();
+    m.submit(s.id, 2, { kind: 'pin', pin: '0000', fingerprint: fp, taps: [] });
+    m.reset(s.id);
+    expect(m.snapshot(s.id).lastVerdict).toBeNull();
+    expect(m.snapshot(s.id).live).toEqual({});
+  });
+
+  it('les seuils du serveur sont dans le snapshot', () => {
+    const th = { ...DEFAULT_THRESHOLDS, keystroke: { accept: 70, warn: 40 } };
+    const m = new SessionManager({
+      getProfile: () => profile,
+      getThresholds: () => th,
+      baseUrl: 'https://x',
+    });
+    expect(m.snapshot(m.create().id).thresholds).toEqual(th);
+  });
+
+  it('broadcastAll diffuse un nouvel etat a toutes les sessions', () => {
+    const m = setup();
+    const a = m.create();
+    const b = m.create();
+    const pa = new FakeWs();
+    const pb = new FakeWs();
+    m.attachPc(a.id, pa);
+    m.attachPc(b.id, pb);
+    pa.send.mockClear();
+    pb.send.mockClear();
+    m.broadcastAll();
+    expect(pa.send).toHaveBeenCalledTimes(1);
+    expect(pb.send).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('SessionManager orientation en direct', () => {
+  const live = (beta: unknown, alpha: unknown = 1, gamma: unknown = 2) =>
+    JSON.stringify({ type: 'orientationLive', alpha, beta, gamma });
+
+  it('acceptee au niveau 3, diffusee, puis effacee apres Valider', () => {
+    const m = setup();
+    const s = m.create();
+    const phone = new FakeWs();
+    m.attachPhone(s.id, phone);
+    m.jump(s.id, 3);
+    phone.emit('message', live(30));
+    expect(m.snapshot(s.id).liveOrientation).toEqual({ alpha: 1, beta: 30, gamma: 2 });
+    expect(phone.lastState().liveOrientation).toEqual({ alpha: 1, beta: 30, gamma: 2 });
+    phone.emit(
+      'message',
+      JSON.stringify({ type: 'orientation', readings: [{ alpha: 0, beta: 45, gamma: 0 }] }),
+    );
+    expect(m.snapshot(s.id).liveOrientation).toBeNull();
+  });
+
+  it('alpha et gamma null -> 0 ; beta invalide ignore', () => {
+    const m = setup();
+    const s = m.create();
+    const phone = new FakeWs();
+    m.attachPhone(s.id, phone);
+    m.jump(s.id, 3);
+    phone.emit('message', live(12, null, null));
+    expect(m.snapshot(s.id).liveOrientation).toEqual({ alpha: 0, beta: 12, gamma: 0 });
+    for (const bad of [live(null), live('x'), live(20, 'a'), live(20, 1, {})]) {
+      expect(() => phone.emit('message', bad)).not.toThrow();
+      expect(m.snapshot(s.id).liveOrientation).toEqual({ alpha: 0, beta: 12, gamma: 0 });
+    }
+  });
+
+  it('ignoree hors du niveau 3 ; effacee par jump et reset', () => {
+    const m = setup();
+    const s = m.create();
+    const phone = new FakeWs();
+    m.attachPhone(s.id, phone);
+    phone.emit('message', live(30));
+    expect(m.snapshot(s.id).liveOrientation).toBeNull();
+    m.jump(s.id, 3);
+    phone.emit('message', live(30));
+    m.jump(s.id, 3);
+    expect(m.snapshot(s.id).liveOrientation).toBeNull();
+    phone.emit('message', live(30));
+    m.reset(s.id);
+    expect(m.snapshot(s.id).liveOrientation).toBeNull();
+  });
+
+  it('diffusion limitee : au plus une par intervalle, la derniere valeur part en differe', () => {
+    vi.useFakeTimers();
+    try {
+      const m = setup();
+      const s = m.create();
+      const pc = new FakeWs();
+      const phone = new FakeWs();
+      m.attachPc(s.id, pc);
+      m.attachPhone(s.id, phone);
+      m.jump(s.id, 3);
+      vi.advanceTimersByTime(1000);
+      pc.send.mockClear();
+      for (let b = 1; b <= 10; b++) phone.emit('message', live(b));
+      expect(pc.send).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(150);
+      expect(pc.send).toHaveBeenCalledTimes(2);
+      expect(pc.lastState().liveOrientation.beta).toBe(10);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('SessionManager telephone et WebSocket', () => {
-  it('un deuxieme attachPhone remplace le premier (un seul telephone actif)', () => {
+  it('deux telephones attaches : aucun n est ferme, les deux peuvent soumettre', () => {
     const m = setup();
     const s = m.create();
     const first = new FakeWs();
     const second = new FakeWs();
     m.attachPhone(s.id, first);
     m.attachPhone(s.id, second);
-    expect(first.close).toHaveBeenCalled();
-    // la fermeture de l'ancien ne doit pas detacher le nouveau
+    expect(first.close).not.toHaveBeenCalled();
+    expect(second.close).not.toHaveBeenCalled();
     expect(m.snapshot(s.id).phoneConnected).toBe(true);
-    // les messages de l'ancien telephone sont ignores
-    first.emit('message', keystrokeMsg());
-    expect(m.snapshot(s.id).state.status).toBe('pending');
-    second.emit('message', keystrokeMsg());
+    // le premier telephone soumet le PIN au niveau 2
+    m.jump(s.id, 2);
+    first.emit(
+      'message',
+      JSON.stringify({ type: 'pin', pin: '0000', fingerprint: fp, taps: [] }),
+    );
+    expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level: 3 });
+    // le second soumet la posture au niveau 3
+    second.emit(
+      'message',
+      JSON.stringify({ type: 'orientation', readings: [{ alpha: 0, beta: 45, gamma: 0 }] }),
+    );
     expect(m.snapshot(s.id).state.status).toBe('granted');
+    // les deux recoivent l'etat
+    expect(first.lastState().state.status).toBe('granted');
+    expect(second.lastState().state.status).toBe('granted');
+  });
+
+  it('phoneConnected reste vrai tant qu un telephone est attache', () => {
+    const m = setup();
+    const s = m.create();
+    const first = new FakeWs();
+    const second = new FakeWs();
+    m.attachPhone(s.id, first);
+    m.attachPhone(s.id, second);
+    first.emit('close');
+    expect(m.snapshot(s.id).phoneConnected).toBe(true);
+    second.emit('close');
+    expect(m.snapshot(s.id).phoneConnected).toBe(false);
   });
 
   it('telephone deconnecte puis rattache : la session garde son niveau', () => {

@@ -1,12 +1,11 @@
 import QRCode from 'qrcode';
 import { useEffect, useRef, useState } from 'react';
-import { DEFAULT_THRESHOLDS } from '../../shared/types';
-import type { Level, Snapshot, Thresholds, Verdict } from '../../shared/types';
+import type { FailReason, LastVerdict, Level, Snapshot, Thresholds, Verdict } from '../../shared/types';
 import { attachKeystrokeCapture } from '../capture/keystroke';
 import { AngleDial } from '../components/AngleDial';
 import { Barcode } from '../components/Barcode';
 import { ControlBar } from '../components/ControlBar';
-import { DeviceTable } from '../components/DeviceTable';
+import { DeviceTable, FIELD_LABELS } from '../components/DeviceTable';
 import { Gauge } from '../components/Gauge';
 import { ThresholdChart } from '../components/ThresholdChart';
 import { VerdictCard } from '../components/VerdictCard';
@@ -19,6 +18,12 @@ const SIGNAL_NAME: Record<Level, string> = {
   1: 'Dynamique de frappe',
   2: "Empreinte de l'appareil",
   3: 'Posture du téléphone',
+};
+
+const REASON_LABEL: Record<FailReason, string> = {
+  'password incorrect': 'Mot de passe incorrect',
+  'PIN incorrect': 'PIN incorrect',
+  'signal hors seuil': 'Signal hors seuil',
 };
 
 function isTextTarget(t: EventTarget | null): boolean {
@@ -37,23 +42,6 @@ function useGodMode(send: Send): void {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [send]);
-}
-
-function useThresholds(): Thresholds {
-  const [thresholds, setThresholds] = useState<Thresholds>(DEFAULT_THRESHOLDS);
-  useEffect(() => {
-    let alive = true;
-    fetch('/api/thresholds')
-      .then((r) => (r.ok ? (r.json() as Promise<Thresholds>) : null))
-      .then((t) => {
-        if (alive && t) setThresholds(t);
-      })
-      .catch((err) => console.error('seuils indisponibles', err));
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return thresholds;
 }
 
 function LoginForm({ send }: { send: Send }) {
@@ -111,6 +99,41 @@ function QrBlock({ url, level }: { url: string; level: 2 | 3 }) {
   );
 }
 
+function PhoneStatus({ connected }: { connected: boolean }) {
+  return (
+    <p className={connected ? 'phone-status ok' : 'phone-status'} role="status">
+      {connected ? 'Téléphone connecté' : 'Téléphone en attente'}
+    </p>
+  );
+}
+
+function FailBanner({ verdict }: { verdict: LastVerdict }) {
+  const reason = verdict.reason ? REASON_LABEL[verdict.reason] : null;
+  const detail =
+    verdict.reason === 'signal hors seuil'
+      ? `${reason} (score ${Math.round(verdict.score)} / 100)`
+      : reason;
+  return (
+    <div className="fail-banner" role="alert" data-testid="fail-banner">
+      <strong>Échec niveau {verdict.level} — passage au niveau suivant</strong>
+      {detail && <span> · {detail}</span>}
+    </div>
+  );
+}
+
+/**
+ * Niveau dont on montre le signal : apres un echec, le niveau echoue reste affiche (avec un
+ * bandeau) tant que le nouveau niveau n'a pas de mesure ; l'orientation en direct en est une.
+ */
+function shownLevel(snap: Snapshot): { level: Level; failed: LastVerdict | null } {
+  const v = snap.lastVerdict;
+  const measuring = snap.level === 3 && snap.liveOrientation !== null;
+  if (snap.state.status === 'pending' && v && !v.granted && v.level < snap.level && !measuring) {
+    return { level: v.level, failed: v };
+  }
+  return { level: snap.level, failed: null };
+}
+
 function FinalVerdict({ verdict, onReset }: { verdict: Verdict; onReset: () => void }) {
   return (
     <div className="final-verdict">
@@ -123,8 +146,8 @@ function FinalVerdict({ verdict, onReset }: { verdict: Verdict; onReset: () => v
   );
 }
 
-function DirectSignal({ snap, thresholds }: { snap: Snapshot; thresholds: Thresholds }) {
-  if (snap.level === 1) {
+function DirectSignal({ snap, level }: { snap: Snapshot; level: Level }) {
+  if (level === 1) {
     const perKey = snap.live.keystroke?.perKey ?? [];
     const dev = perKey.length
       ? perKey.reduce((a, p) => a + Math.abs(p.dwell - p.expectedDwell), 0) / perKey.length
@@ -144,21 +167,22 @@ function DirectSignal({ snap, thresholds }: { snap: Snapshot; thresholds: Thresh
       </>
     );
   }
-  if (snap.level === 2) {
+  if (level === 2) {
     return <DeviceTable lines={snap.live.device?.lines ?? []} />;
   }
-  const o = snap.live.orientation;
+  // avant « Valider » : l'aiguille suit le telephone en direct ; apres : la mesure notee
+  const beta = snap.liveOrientation?.beta ?? snap.live.orientation?.beta ?? null;
   return (
     <AngleDial
       expectedBeta={snap.expected.beta ?? 0}
-      tolerance={thresholds.orientation.toleranceDeg}
-      beta={o ? o.beta : null}
+      tolerance={snap.thresholds.orientation.toleranceDeg}
+      beta={beta}
     />
   );
 }
 
-function ProfileSignal({ snap, thresholds }: { snap: Snapshot; thresholds: Thresholds }) {
-  if (snap.level === 1) {
+function ProfileSignal({ snap, level }: { snap: Snapshot; level: Level }) {
+  if (level === 1) {
     const ks = snap.expected.keystroke;
     if (!ks) return <p className="hint">Aucun profil de frappe enregistré.</p>;
     return (
@@ -168,14 +192,14 @@ function ProfileSignal({ snap, thresholds }: { snap: Snapshot; thresholds: Thres
       </>
     );
   }
-  if (snap.level === 2) {
+  if (level === 2) {
     const fp = snap.expected.fingerprint;
     if (!fp) return <p className="hint">Aucune empreinte enregistrée.</p>;
     return (
       <dl className="profile-list">
         {(Object.keys(fp) as (keyof typeof fp)[]).map((field) => (
           <div key={field}>
-            <dt>{field}</dt>
+            <dt>{FIELD_LABELS[field] ?? field}</dt>
             <dd>{fp[field]}</dd>
           </div>
         ))}
@@ -186,16 +210,17 @@ function ProfileSignal({ snap, thresholds }: { snap: Snapshot; thresholds: Thres
     <p className="hint">Aucune posture enregistrée.</p>
   ) : (
     <p className="profile-beta">
-      Angle attendu : {Math.round(snap.expected.beta)}° ± {thresholds.orientation.toleranceDeg}°
+      Angle attendu : {Math.round(snap.expected.beta)}° ± {snap.thresholds.orientation.toleranceDeg}°
     </p>
   );
 }
 
-function liveScore(snap: Snapshot): number {
+/** Score mesure pour ce niveau ; null si aucune mesure (jauge neutre). */
+function liveScore(snap: Snapshot, level: Level): number | null {
   const l = snap.live;
-  if (snap.level === 1) return l.keystroke?.score ?? 0;
-  if (snap.level === 2) return l.device?.score ?? 0;
-  return l.orientation?.score ?? 0;
+  if (level === 1) return l.keystroke?.score ?? null;
+  if (level === 2) return l.device?.score ?? null;
+  return l.orientation?.score ?? null;
 }
 
 function levelThresholds(level: Level, t: Thresholds): { accept: number; warn: number } {
@@ -204,7 +229,6 @@ function levelThresholds(level: Level, t: Thresholds): { accept: number; warn: n
 
 export function Demo() {
   const { snapshot, send } = useSession();
-  const thresholds = useThresholds();
   useGodMode(send);
 
   const onJump = (level: Level): void => send({ type: 'jump', level });
@@ -221,7 +245,8 @@ export function Demo() {
   }
 
   const { state, level } = snapshot;
-  const th = levelThresholds(level, thresholds);
+  const shown = shownLevel(snapshot);
+  const th = levelThresholds(shown.level, snapshot.thresholds);
 
   let main;
   if (state.status === 'granted' || state.status === 'blocked') {
@@ -229,7 +254,12 @@ export function Demo() {
   } else if (level === 1) {
     main = <LoginForm send={send} />;
   } else {
-    main = <QrBlock url={snapshot.sessionUrl} level={level} />;
+    main = (
+      <div className="qr-zone">
+        <QrBlock url={snapshot.sessionUrl} level={level} />
+        <PhoneStatus connected={snapshot.phoneConnected} />
+      </div>
+    );
   }
 
   return (
@@ -239,19 +269,21 @@ export function Demo() {
       </main>
       <aside className="side">
         <section className="panel" data-testid="panel-direct" aria-label="Direct">
-          <h2>Direct — {SIGNAL_NAME[level]}</h2>
+          <h2>Direct — {SIGNAL_NAME[shown.level]}</h2>
+          {shown.failed && <FailBanner verdict={shown.failed} />}
           <div className="direct-body">
-            <Gauge score={liveScore(snapshot)} accept={th.accept} warn={th.warn} />
+            <Gauge score={liveScore(snapshot, shown.level)} accept={th.accept} warn={th.warn} />
             <div className="signal">
-              <DirectSignal snap={snapshot} thresholds={thresholds} />
+              <DirectSignal snap={snapshot} level={shown.level} />
             </div>
           </div>
         </section>
         <section className="panel panel-profil" data-testid="panel-profil" aria-label="Profil de A">
           <h2>Profil de A</h2>
-          <ProfileSignal snap={snapshot} thresholds={thresholds} />
+          <ProfileSignal snap={snapshot} level={shown.level} />
         </section>
         <div className="control-zone">
+          <PhoneStatus connected={snapshot.phoneConnected} />
           <ControlBar onJump={onJump} onReset={onReset} />
         </div>
       </aside>

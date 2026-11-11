@@ -55,7 +55,7 @@ const jsonInit = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-function Identity({ profile, onSaved }: { profile: Profile | null; onSaved: (password: string, pin: string) => void }) {
+function Identity({ profile, onSaved }: { profile: Profile | null; onSaved: (saved: Profile) => void }) {
   const [password, setPassword] = useState('');
   const [pin, setPin] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -76,7 +76,8 @@ function Identity({ profile, onSaved }: { profile: Profile | null; onSaved: (pas
       const current = (await (await fetch('/api/profile')).json()) as Profile;
       const res = await fetch('/api/profile', jsonInit('PUT', { ...current, password, pin }));
       if (res.ok) {
-        onSaved(password, pin);
+        // le serveur efface le profil de frappe si le mot de passe a change
+        onSaved((await res.json()) as Profile);
         setMsg({ ok: true, text: 'Identité enregistrée' });
       } else {
         setMsg({ ok: false, text: await errorMessage(res) });
@@ -413,7 +414,8 @@ export function Config() {
       <div className="cfg-columns">
         <Identity
           profile={profile}
-          onSaved={(password, pin) => setProfile((p) => (p ? { ...p, password, pin } : p))}
+          onSaved={setProfile}
+
         />
         {thresholds ? (
           <KeystrokeEnrol profile={profile} target={thresholds.enrollSamples} />

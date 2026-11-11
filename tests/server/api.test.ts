@@ -47,6 +47,24 @@ describe('API REST', () => {
     expect(bad.statusCode).toBe(400);
   });
 
+  it('PUT /api/profile avec un autre mot de passe efface le profil de frappe', async () => {
+    const samples = [0, 1, 2].map(() => [{ key: 'p', down: 0, up: 100 }]);
+    const put = (payload: Record<string, unknown>) =>
+      app.inject({ method: 'PUT', url: '/api/profile', payload });
+    await put({ password: 'pw', pin: '1111', keystroke: null, fingerprint: null, beta: 40 });
+    await app.inject({ method: 'POST', url: '/api/enroll/keystroke', payload: { samples } });
+    const enrolled = (await app.inject({ url: '/api/profile' })).json();
+    expect(enrolled.keystroke.samples).toBe(3);
+    // meme mot de passe (PIN change) : le profil de frappe reste
+    const same = (await put({ ...enrolled, pin: '2222' })).json();
+    expect(same.keystroke.samples).toBe(3);
+    // nouveau mot de passe : profil de frappe efface, le reste conserve
+    const changed = (await put({ ...enrolled, password: 'autre' })).json();
+    expect(changed.keystroke).toBeNull();
+    expect(changed.beta).toBe(40);
+    expect((await app.inject({ url: '/api/profile' })).json().keystroke).toBeNull();
+  });
+
   it('POST /api/enroll/keystroke construit le profil de frappe', async () => {
     const samples = [0, 1, 2].map(() => [
       { key: 'a', down: 0, up: 100 },
