@@ -246,6 +246,35 @@ describe('SessionManager robustesse des messages entrants', () => {
     }
   });
 
+  it('orientation avec alpha et gamma null est acceptee et notee (granted)', () => {
+    const m = setup();
+    const s = m.create();
+    const pc = new FakeWs();
+    m.attachPc(s.id, pc);
+    m.jump(s.id, 3);
+    pc.emit(
+      'message',
+      JSON.stringify({ type: 'orientation', readings: [{ alpha: null, beta: 45, gamma: null }] }),
+    );
+    const snap = m.snapshot(s.id);
+    expect(snap.state.status).toBe('granted');
+    expect(snap.live.orientation).toMatchObject({ alpha: 0, gamma: 0, beta: 45 });
+  });
+
+  it('orientation avec beta null est rejetee sans exception', () => {
+    const m = setup();
+    const s = m.create();
+    const pc = new FakeWs();
+    m.attachPc(s.id, pc);
+    m.jump(s.id, 3);
+    const raw = JSON.stringify({
+      type: 'orientation',
+      readings: [{ alpha: 0, beta: null, gamma: 0 }],
+    });
+    expect(() => pc.emit('message', raw)).not.toThrow();
+    expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level: 3 });
+  });
+
   it('god sur une session granted ne change rien', () => {
     const m = setup();
     const s = m.create();

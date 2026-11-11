@@ -79,13 +79,23 @@ function parsePayload(msg: Record<string, unknown>): SubmitPayload | null {
       : null;
   }
   if (msg.type === 'orientation') {
-    const ok = arrOf(msg.readings, (r) => fin(r.alpha) && fin(r.beta) && fin(r.gamma));
-    return ok ? { kind: 'orientation', readings: msg.readings as OrientationReading[] } : null;
+    // alpha et gamma peuvent etre null cote navigateur : normalises a 0 ; beta doit etre fini.
+    const angle = (v: unknown) => v == null || fin(v);
+    const ok = arrOf(msg.readings, (r) => fin(r.beta) && angle(r.alpha) && angle(r.gamma));
+    if (!ok) return null;
+    const readings = (msg.readings as Record<string, unknown>[]).map(
+      (r): OrientationReading => ({
+        alpha: (r.alpha as number | null | undefined) ?? 0,
+        beta: r.beta as number,
+        gamma: (r.gamma as number | null | undefined) ?? 0,
+      }),
+    );
+    return { kind: 'orientation', readings };
   }
   return null;
 }
 
-const isLevel =(v: unknown): v is Level => v === 1 || v === 2 || v === 3;
+const isLevel = (v: unknown): v is Level => v === 1 || v === 2 || v === 3;
 
 /** Frappe synthetique du mot de passe ; `offset` en ecarts-types ajoute a dwell et flight. */
 function syntheticKeystroke(profile: Profile, offset: number): KeyEvent[] {
