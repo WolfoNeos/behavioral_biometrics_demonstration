@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+dist/
+build/
+.turbo/
+.vite/
+
+# Environment variables — TOUT `.env`, SAUF LES EXEMPLES.
+# Un fichier de secrets ne doit pas dépendre de la mémoire de celui qui le crée.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Testing
+coverage/
+playwright-report/
+test-results/
+
+# Misc
+*.log
+*.tsbuildinfo
+
+# Vault — config Obsidian locale
+vault/.obsidian
+
+# LLM tooling (non-projet)
+.claude/
+.superpowers/
+docs/superpowers/
+.agents/
+skills-lock.json
+CLAUDE.md
+.claude/settings.local.json
+.serena/
+.sonar/
+.impeccable/
+
+# Artefacts de validation locale
+.artifacts/
+
+# SSL Certificates & Private Keys (SENSITIVE)
+*.crt
+*.key
+.ssl/
+ssl/
