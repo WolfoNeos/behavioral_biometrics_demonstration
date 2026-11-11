@@ -223,6 +223,63 @@ describe('Config', () => {
     expect(await screen.findByText('Téléphone enregistré ✓ (inclinaison 42°)')).toBeInTheDocument();
   });
 
+  it('signale une frappe deja enrolee apres rechargement', async () => {
+    profile = { ...baseProfile, keystroke: { mean: {}, std: {}, samples: 7 } };
+    renderPage();
+    expect(await screen.findByText(/Frappe déjà enrôlée \(7 échantillons\)/)).toBeInTheDocument();
+    expect(screen.getByText('0 / 10')).toBeInTheDocument();
+  });
+
+  it('pas de bandeau sans profil de frappe', async () => {
+    renderPage();
+    await screen.findByText('0 / 10');
+    expect(screen.queryByText(/déjà enrôlée/)).toBeNull();
+    expect(screen.getByText(/doit correspondre au mot de passe enregistré/)).toBeInTheDocument();
+  });
+
+  it('un changement de mot de passe remet le compteur a zero', async () => {
+    const user = userEvent.setup();
+    const small = { ...DEFAULT_THRESHOLDS, enrollSamples: 4 };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) =>
+        url === '/api/thresholds' && !init?.method ? json(small) : handler(url, init),
+      ),
+    );
+    renderPage();
+    await screen.findByText('0 / 4');
+    for (let i = 0; i < 3; i++) await enter('secret');
+    expect(await screen.findByText('3 / 4')).toBeInTheDocument();
+    const pw = screen.getByLabelText('Mot de passe');
+    await user.clear(pw);
+    await user.type(pw, 'nouveau');
+    await user.click(screen.getByRole('button', { name: "Enregistrer l'identité" }));
+    expect(await screen.findByText('0 / 4')).toBeInTheDocument();
+    for (let i = 0; i < 4; i++) await enter('nouveau');
+    await waitFor(() => expect(enrollCalls()).toHaveLength(1));
+    expect((enrollCalls()[0].body as { samples: unknown[] }).samples).toHaveLength(4);
+  });
+
+  it('un POST d enrolement echoue est retente a l Entree suivante', async () => {
+    let fail = true;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) =>
+        url === '/api/enroll/keystroke' && fail ? json({ error: 'boom' }, 500) : handler(url, init),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('0 / 10');
+    await user.click(screen.getByRole('button', { name: 'Recalibrage rapide' }));
+    for (let i = 0; i < 3; i++) await enter('secret');
+    expect(await screen.findByText(/boom/)).toBeInTheDocument();
+    fail = false;
+    await enter('secret');
+    expect(await screen.findByText(/Enrôlement terminé/)).toBeInTheDocument();
+    expect((enrollCalls().at(-1)!.body as { samples: unknown[] }).samples).toHaveLength(3);
+  });
+
   it('a un lien retour vers la demo', async () => {
     renderPage();
     await screen.findByText('0 / 10');

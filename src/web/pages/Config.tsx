@@ -55,7 +55,7 @@ const jsonInit = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-function Identity({ profile }: { profile: Profile | null }) {
+function Identity({ profile, onSaved }: { profile: Profile | null; onSaved: (password: string, pin: string) => void }) {
   const [password, setPassword] = useState('');
   const [pin, setPin] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -75,7 +75,12 @@ function Identity({ profile }: { profile: Profile | null }) {
     try {
       const current = (await (await fetch('/api/profile')).json()) as Profile;
       const res = await fetch('/api/profile', jsonInit('PUT', { ...current, password, pin }));
-      setMsg(res.ok ? { ok: true, text: 'Identité enregistrée' } : { ok: false, text: await errorMessage(res) });
+      if (res.ok) {
+        onSaved(password, pin);
+        setMsg({ ok: true, text: 'Identité enregistrée' });
+      } else {
+        setMsg({ ok: false, text: await errorMessage(res) });
+      }
     } catch {
       setMsg({ ok: false, text: 'Serveur injoignable' });
     }
@@ -113,12 +118,16 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const samples = useRef<KeyEvent[][]>([]);
+  const collectedFor = useRef<string | null>(null);
+  const finished = useRef(false);
   const target = quick ? QUICK_SAMPLES : configured;
   const latest = useRef({ password: profile?.password ?? '', target });
   latest.current = { password: profile?.password ?? '', target };
 
   const reset = useCallback((nextQuick: boolean): void => {
     samples.current = [];
+    collectedFor.current = null;
+    finished.current = false;
     setCount(0);
     setDone(null);
     setError(null);
@@ -128,9 +137,24 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
 
   useEffect(() => {
     samples.current = [];
+    collectedFor.current = null;
+    finished.current = false;
     setCount(0);
     setDone(null);
   }, [configured]);
+
+  // mot de passe modifie : les echantillons deja collectes ne valent plus
+  const savedPassword = profile?.password;
+  useEffect(() => {
+    if (samples.current.length > 0 && collectedFor.current !== savedPassword) {
+      samples.current = [];
+      collectedFor.current = null;
+      finished.current = false;
+      setCount(0);
+      setDone(null);
+      setError(null);
+    }
+  }, [savedPassword]);
 
   const submit = useCallback(async (): Promise<void> => {
     const all = samples.current.slice();
@@ -141,6 +165,7 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
         return;
       }
       const keys = all.reduce((s, a) => s + a.length, 0) / all.length;
+      finished.current = true;
       setDone({ n: all.length, keys: Math.round(keys) });
     } catch {
       setError('Serveur injoignable');
@@ -154,12 +179,17 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
       const typed = input.value;
       input.value = '';
       const { password, target: goal } = latest.current;
-      if (samples.current.length >= goal) return;
+      if (samples.current.length >= goal) {
+        // envoi precedent echoue : l'Entree suivante retente le POST
+        if (!finished.current) void submit();
+        return;
+      }
       if (typed !== password) {
         setError('Le texte saisi ne correspond pas au mot de passe : échantillon refusé');
         return;
       }
       setError(null);
+      collectedFor.current = password;
       samples.current.push(events);
       setCount(samples.current.length);
       if (samples.current.length === goal) void submit();
@@ -172,6 +202,15 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
       <p className="hint">
         Saisissez le mot de passe puis appuyez sur Entrée, à chaque échantillon.
         {quick && ' Recalibrage rapide : moins précis, remplace le profil de frappe.'}
+      </p>
+      {profile?.keystroke && count === 0 && (
+        <p className="cfg-ok" role="status">
+          {`Frappe déjà enrôlée (${profile.keystroke.samples} échantillons). Ré-enrôler ou « Recalibrage rapide » la remplace.`}
+        </p>
+      )}
+      <p className="hint">
+        Le texte saisi doit correspondre au mot de passe enregistré (modifiez-le d&apos;abord dans « Identité » puis
+        enregistrez).
       </p>
       <div className="cfg-counter" aria-live="polite">
         <span className="cfg-count">{`${count} / ${target}`}</span>
@@ -359,7 +398,10 @@ export function Config() {
         <Link to="/">← Retour à la démo</Link>
       </header>
       <div className="cfg-columns">
-        <Identity profile={profile} />
+        <Identity
+          profile={profile}
+          onSaved={(password, pin) => setProfile((p) => (p ? { ...p, password, pin } : p))}
+        />
         {thresholds ? (
           <KeystrokeEnrol profile={profile} target={thresholds.enrollSamples} />
         ) : (
