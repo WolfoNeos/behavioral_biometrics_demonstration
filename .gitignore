@@ -61,3 +61,6 @@ ssl/
 
 # Donnees locales de la demo
 /data/
+
+# Certificats HTTPS locaux (mkcert)
+certs/

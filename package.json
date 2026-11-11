@@ -10,7 +10,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
-    "server": "tsx src/server/index.ts"
+    "server": "tsx src/server/index.ts",
+    "start": "node scripts/start.mjs"
   },
   "dependencies": {
     "@fastify/websocket": "^11.3.7",

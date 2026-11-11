@@ -7,7 +7,9 @@
 - [Développement](core/04-development.md) — setup local, commandes
 
 ## Features
-_(à compléter au fil du projet)_
+- [Démo biométrie](features/demo-biometrie/README.md) — état, fichiers clés, liens design/plan
+- [Répétition](features/demo-biometrie/rehearsal-checklist.md) — script de répétition sur téléphones réels
+- HTTPS / réseau : `scripts/dev-https.md`
 
 ## Conventions
 _(à compléter)_
