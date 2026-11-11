@@ -1,3 +1,6 @@
+import type { PerKeyScore } from './scoring/keystroke';
+import type { DeviceLine } from './scoring/device';
+
 export type Level = 1 | 2 | 3;
 
 /** Timestamps en ms (performance.now()). */
@@ -56,3 +59,48 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
   orientation: { accept: 80, warn: 50, toleranceDeg: 5 },
   enrollSamples: 10,
 };
+
+export type AuthState =
+  | { status: 'pending'; level: Level }
+  | { status: 'granted'; level: Level; verdict: Verdict }
+  | { status: 'blocked'; verdict: Verdict };
+
+export type SubmitPayload =
+  | { kind: 'keystroke'; events: KeyEvent[]; password: string }
+  | {
+      kind: 'pin';
+      pin: string;
+      fingerprint: Fingerprint;
+      taps: { down: number; up: number }[];
+    }
+  | { kind: 'orientation'; readings: OrientationReading[] };
+
+/** Derniere mesure calculee par niveau (JSON-serialisable). */
+export interface LiveResults {
+  keystroke?: { score: number; perKey: PerKeyScore[] };
+  device?: { score: number; lines: DeviceLine[] };
+  orientation?: {
+    score: number;
+    beta: number;
+    alpha: number;
+    gamma: number;
+    deviation: number;
+  };
+  tactile?: { meanDwell: number; meanInterval: number };
+}
+
+/** Reference enregistree (sans mot de passe ni PIN). */
+export interface ExpectedReference {
+  keystroke: KeystrokeProfile | null;
+  fingerprint: Fingerprint | null;
+  beta: number | null;
+}
+
+export interface Snapshot {
+  state: AuthState;
+  level: Level;
+  live: LiveResults;
+  expected: ExpectedReference;
+  phoneConnected: boolean;
+  sessionUrl: string;
+}

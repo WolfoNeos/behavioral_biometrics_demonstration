@@ -1,9 +1,6 @@
-import type { Level, Thresholds, Verdict } from '../types';
+import type { AuthState, Level, Thresholds, Verdict } from '../types';
 
-export type AuthState =
-  | { status: 'pending'; level: Level }
-  | { status: 'granted'; level: Level; verdict: Verdict }
-  | { status: 'blocked'; verdict: Verdict };
+export type { AuthState };
 
 type Color = Verdict['color'];
 

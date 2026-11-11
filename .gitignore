@@ -58,3 +58,6 @@ CLAUDE.md
 *.key
 .ssl/
 ssl/
+
+# Donnees locales de la demo
+data/
