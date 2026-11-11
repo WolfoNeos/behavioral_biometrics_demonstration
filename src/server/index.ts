@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,7 +5,8 @@ import Fastify from 'fastify';
 import websocket from '@fastify/websocket';
 import { buildKeystrokeProfile } from '../shared/scoring/keystroke';
 import type { Fingerprint, KeyEvent, Profile, Thresholds } from '../shared/types';
-import { pickBaseUrl } from './baseUrl';
+import { listCandidates, pickBaseUrl } from './baseUrl';
+import { loadCerts } from './certs';
 import { SessionManager } from './sessions';
 import { loadProfile, loadThresholds, saveProfile, saveThresholds } from './store';
 
@@ -110,11 +110,13 @@ export async function buildServer(opts: ServerOptions = {}) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const interfaces = networkInterfaces();
   const baseUrl = pickBaseUrl({
     env: process.env.DEMO_BASE_URL,
-    interfaces: networkInterfaces(),
-    hasCerts: existsSync(resolve('certs/dev.pem')),
+    interfaces,
+    hasCerts: loadCerts() !== null,
   });
+  for (const c of listCandidates(interfaces)) console.log(`Candidat reseau : ${c.name} ${c.address}`);
   const app = await buildServer({ baseUrl });
   await app.listen({ port: PORT });
   console.log(`URL de base (QR) : ${baseUrl}`);

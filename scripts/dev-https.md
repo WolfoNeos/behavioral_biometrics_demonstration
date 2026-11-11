@@ -36,7 +36,17 @@ Utiliser le **partage de connexion d'un téléphone** (point d'accès) : le PC e
 
 ## 4. Repli : tunnel HTTPS
 
-Si les capteurs restent bloqués (certificat non approuvé, Wi-Fi isolé) : ouvrir un tunnel HTTPS vers le port 5173 (ex. `cloudflared tunnel --url http://localhost:5173` ou `ngrok http 5173`), puis lancer le serveur avec l'URL publique : `DEMO_BASE_URL=https://xxxx.trycloudflare.com npm run server`. Les téléphones n'ont alors besoin ni de certificat ni du même réseau.
+Si les capteurs restent bloqués (certificat non approuvé, Wi-Fi isolé) : ouvrir un tunnel HTTPS vers Vite (`allowedHosts` est activé dans `vite.config.ts`, donc le Host du tunnel est accepté). Commandes **non testées** :
+
+- Vite en HTTP (pas de certificats) : `cloudflared tunnel --url http://localhost:5173` ou `ngrok http 5173`.
+- Vite en HTTPS (certificats présents) : `cloudflared tunnel --url https://localhost:5173 --no-tls-verify` ou `ngrok http https://localhost:5173`. Plus simple : renommer `certs/` pour que Vite reste en HTTP.
+
+Puis lancer serveur et front avec l'URL publique du tunnel :
+
+- PowerShell : `$env:DEMO_BASE_URL='https://xxxx.trycloudflare.com'; npm start`
+- bash : `DEMO_BASE_URL=https://xxxx.trycloudflare.com npm start`
+
+`npm start` transmet l'environnement au serveur (même chose avec `npm run server`). Les téléphones n'ont alors besoin ni de certificat ni du même réseau.
 
 ## 5. Checklist avant la présentation
 

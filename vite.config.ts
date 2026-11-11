@@ -1,14 +1,9 @@
-import { existsSync, readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { loadCerts } from './src/server/certs';
 
 // Certificats mkcert optionnels (voir scripts/dev-https.md) : HTTPS si presents, sinon HTTP.
-const CERT = 'certs/dev.pem';
-const KEY = 'certs/dev-key.pem';
-const https =
-  existsSync(CERT) && existsSync(KEY)
-    ? { cert: readFileSync(CERT), key: readFileSync(KEY) }
-    : undefined;
+const https = loadCerts() ?? undefined;
 
 export default defineConfig({
   root: '.',
@@ -16,6 +11,8 @@ export default defineConfig({
   server: {
     host: true,
     https,
+    // Serveur de demo local : accepte tout Host (tunnel *.trycloudflare.com, ngrok).
+    allowedHosts: true,
     proxy: {
       '/api': 'http://localhost:3001',
       '/ws': { target: 'ws://localhost:3001', ws: true },
