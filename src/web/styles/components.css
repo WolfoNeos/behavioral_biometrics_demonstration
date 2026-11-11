@@ -45,6 +45,7 @@
 .barcode-live rect.bar-warn { fill: var(--color-orange); }
 .barcode-live rect.bar-bad { fill: var(--color-red); }
 .barcode-live rect.bar-unknown { fill: var(--color-grey); }
+.barcode-live rect.barcode-pause { fill: var(--color-red); }
 
 /* Graphique et tableaux de valeurs */
 .threshold-chart { font-family: var(--font-sans); }

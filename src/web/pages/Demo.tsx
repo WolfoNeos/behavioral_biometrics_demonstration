@@ -48,12 +48,22 @@ function useGodMode(send: Send): void {
 
 type Progress = (events: KeyEvent[]) => void;
 
-function LoginForm({ send, onProgress }: { send: Send; onProgress: Progress }) {
+function LoginForm({
+  send,
+  onProgress,
+  onSubmit,
+}: {
+  send: Send;
+  onProgress: Progress;
+  onSubmit: Progress;
+}) {
   const pwd = useRef<HTMLInputElement>(null);
   const sendRef = useRef(send);
   sendRef.current = send;
   const progressRef = useRef(onProgress);
   progressRef.current = onProgress;
+  const submitRef = useRef(onSubmit);
+  submitRef.current = onSubmit;
 
   useEffect(() => {
     const input = pwd.current;
@@ -63,6 +73,7 @@ function LoginForm({ send, onProgress }: { send: Send; onProgress: Progress }) {
       (events) => {
         sendRef.current({ type: 'keystroke', events, password: input.value });
         input.value = '';
+        submitRef.current(events);
       },
       (events) => progressRef.current(events),
     );
@@ -272,9 +283,30 @@ export function Demo() {
   useGodMode(send);
   // frappe en cours dans le champ mot de passe (vide hors saisie, et des Entree)
   const [typed, setTyped] = useState<KeyEvent[]>([]);
+  // frappe envoyee avec Entree, gardee a l'ecran jusqu'a la reponse du serveur
+  const [submitted, setSubmitted] = useState<{ events: KeyEvent[]; sig: string } | null>(null);
+  // signature du resultat de frappe du serveur : change quand une nouvelle reponse arrive
+  const sig = snapshot ? JSON.stringify([snapshot.live.keystroke ?? null, snapshot.lastVerdict]) : '';
+  const sigRef = useRef(sig);
+  sigRef.current = sig;
+  useEffect(() => {
+    setSubmitted((s) => (s && s.sig !== sig ? null : s));
+  }, [sig]);
 
-  const onJump = (level: Level): void => send({ type: 'jump', level });
-  const onReset = (): void => send({ type: 'reset' });
+  const onJump = (level: Level): void => {
+    setSubmitted(null);
+    send({ type: 'jump', level });
+  };
+  const onReset = (): void => {
+    setSubmitted(null);
+    send({ type: 'reset' });
+  };
+  const onProgress = (events: KeyEvent[]): void => {
+    setTyped(events);
+    // une nouvelle touche reprend la main sur la frappe envoyee
+    if (events.length > 0) setSubmitted(null);
+  };
+  const onSubmit = (events: KeyEvent[]): void => setSubmitted({ events, sig: sigRef.current });
 
   if (!snapshot) {
     return (
@@ -290,15 +322,17 @@ export function Demo() {
   const shown = shownLevel(snapshot);
   const th = levelThresholds(shown.level, snapshot.thresholds);
   // vue provisoire : niveau 1 en attente et frappe locale en cours ; sinon le serveur fait foi
-  const typing = state.status === 'pending' && level === 1 && shown.level === 1 && typed.length > 0;
-  const provisional = typing ? liveView(snapshot.expectedBars, typed) : null;
+  const atLevel1 = state.status === 'pending' && level === 1 && shown.level === 1;
+  const awaiting = atLevel1 && typed.length === 0 && submitted !== null && submitted.sig === sig;
+  const shownEvents = typed.length > 0 ? typed : awaiting ? submitted!.events : [];
+  const provisional = atLevel1 && shownEvents.length > 0 ? liveView(snapshot.expectedBars, shownEvents) : null;
   const officialScore = liveScore(snapshot, shown.level);
 
   let main;
   if (state.status === 'granted' || state.status === 'blocked') {
     main = <FinalVerdict verdict={state.verdict} onReset={onReset} />;
   } else if (level === 1) {
-    main = <LoginForm send={send} onProgress={setTyped} />;
+    main = <LoginForm send={send} onProgress={onProgress} onSubmit={onSubmit} />;
   } else {
     main = (
       <div className="qr-zone">
@@ -325,7 +359,15 @@ export function Demo() {
                 warn={th.warn}
               />
               <p className="gauge-caption" data-testid="gauge-caption">
-                {provisional ? 'Score provisoire' : officialScore !== null ? 'Score officiel' : ''}
+                {provisional
+                  ? awaiting
+                    ? 'En attente du serveur'
+                    : provisional.score !== null
+                      ? 'Score provisoire'
+                      : ''
+                  : officialScore !== null
+                    ? 'Score officiel'
+                    : ''}
               </p>
             </div>
             <div className="signal">

@@ -9,37 +9,63 @@ export interface BarcodeProps {
 const HEIGHT = 60;
 /** Ecart visuel minimal entre deux barres (un vol negatif = touches chevauchees). */
 const MIN_GAP = 4;
+/** Plafond d'un ecart ou d'un maintien affiche quand la reference ne donne pas de bande (ms). */
+const FALLBACK_CAP = 400;
+/** Plancher de largeur d'une barre (ms). */
+const MIN_BAR = 2;
 
-interface Bar {
+export interface Bar {
   x: number;
   w: number;
   status: KeyRow['status'];
+  /** vol (ou maintien) au-dela du plafond : affiche plafonne, avec un repere « pause ». */
+  paused: boolean;
 }
+
+/** Plafond d'affichage : attendu + 3 ecarts-types si la reference est connue, sinon fixe. */
+const capOf = (expected: number | null, band: number | null): number =>
+  expected !== null && band !== null ? Math.max(expected + 3 * band, MIN_GAP) : FALLBACK_CAP;
 
 /**
- * Barres sur un axe de temps : largeur = maintien (ms), espace avant la barre = vol (ms).
- * Les positions sans valeur sont sautees.
+ * Disposition des deux bandes sur une echelle commune. Les ecarts et maintiens affiches sont
+ * plafonnes : une longue pause ne deforme pas l'echelle, elle recoit un repere. Les barres en
+ * direct sont posees sur les memes x que la reference du meme indice (comparaison touche par
+ * touche) ; sans reference a cet indice, elles suivent leur propre cumul.
  */
-function layout(
-  rows: KeyRow[],
-  dwell: (r: KeyRow) => number | null,
-  flight: (r: KeyRow) => number | null,
-  colored: boolean,
-): Bar[] {
-  const bars: Bar[] = [];
+export function barcodeLayout(rows: KeyRow[]): { reference: Bar[]; live: Bar[]; scale: number } {
+  const reference: Bar[] = [];
+  const refX = new Map<number, number>();
   let x = 0;
-  rows.forEach((r) => {
-    const d = dwell(r);
-    if (d === null) return;
-    if (bars.length > 0) x += Math.max(flight(r) ?? 0, MIN_GAP);
-    const w = Math.max(2, d);
-    bars.push({ x, w, status: colored ? r.status : null });
+  rows.forEach((r, i) => {
+    if (r.expectedDwell === null) return;
+    if (reference.length > 0) {
+      const flight = r.expectedFlight ?? 0;
+      x += Math.min(Math.max(flight, MIN_GAP), capOf(r.expectedFlight, r.bandFlight));
+    }
+    const w = Math.max(MIN_BAR, Math.min(r.expectedDwell, capOf(r.expectedDwell, r.bandDwell)));
+    reference.push({ x, w, status: null, paused: false });
+    refX.set(i, x);
     x += w;
   });
-  return bars;
-}
 
-const extent = (bars: Bar[]) => (bars.length ? bars[bars.length - 1].x + bars[bars.length - 1].w : 0);
+  const live: Bar[] = [];
+  let cursor = 0;
+  rows.forEach((r, i) => {
+    if (r.dwell === null) return;
+    const flightCap = capOf(r.expectedFlight, r.bandFlight);
+    const flight = r.flight ?? 0;
+    const paused = live.length > 0 && flight > flightCap;
+    const dwellCap = capOf(r.expectedDwell, r.bandDwell);
+    const w = Math.max(MIN_BAR, Math.min(r.dwell, dwellCap));
+    const aligned = refX.get(i);
+    const bx = aligned !== undefined ? aligned : live.length > 0 ? cursor + Math.min(Math.max(flight, MIN_GAP), flightCap) : 0;
+    live.push({ x: bx, w, status: r.status, paused: paused || r.dwell > dwellCap });
+    cursor = bx + w;
+  });
+
+  const end = (bars: Bar[]) => bars.reduce((m, b) => Math.max(m, b.x + b.w), 0);
+  return { reference, live, scale: Math.max(end(reference), end(live), 1) };
+}
 
 function Strip({
   bars,
@@ -59,6 +85,19 @@ function Strip({
       {ghost?.map((b, i) => (
         <rect key={`g${i}`} className="barcode-ghost" x={b.x} y={0} width={b.w} height={HEIGHT} />
       ))}
+      {bars.map((b, i) =>
+        b.paused ? (
+          <rect
+            key={`p${i}`}
+            className="barcode-pause"
+            data-testid="barcode-pause"
+            x={Math.max(0, b.x - scale * 0.012)}
+            y={0}
+            width={scale * 0.01}
+            height={HEIGHT * 0.3}
+          />
+        ) : null,
+      )}
       {bars.map((b, i) => (
         <rect
           key={i}
@@ -76,10 +115,7 @@ function Strip({
 
 /** Signature de frappe en « code-barres » : reference de A au-dessus, frappe en direct dessous. */
 export function Barcode({ rows, showLive = true }: BarcodeProps) {
-  const reference = layout(rows, (r) => r.expectedDwell, (r) => r.expectedFlight, false);
-  const live = layout(rows, (r) => r.dwell, (r) => r.flight, true);
-  // une seule echelle pour les deux : le plus long fixe la largeur
-  const scale = Math.max(extent(reference), showLive ? extent(live) : 0, 1);
+  const { reference, live, scale } = barcodeLayout(rows);
   return (
     <div className="barcode">
       <div className="barcode-row">

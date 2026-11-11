@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { applyVerdict, hardFail, jumpTo, startState } from '../shared/auth/machine';
 import { compareFingerprint } from '../shared/scoring/device';
-import { scoreKeystroke } from '../shared/scoring/keystroke';
+import { normalizeKey, scoreKeystroke } from '../shared/scoring/keystroke';
 import { buildExpectedBars } from '../shared/scoring/keystrokeLive';
 import { scoreOrientation } from '../shared/scoring/orientation';
 import { summarizeTouch } from '../shared/scoring/tactile';
@@ -124,7 +124,9 @@ function syntheticKeystroke(profile: Profile, offset: number): KeyEvent[] {
   if (!ks) return [];
   const events: KeyEvent[] = [];
   let t = 1000;
-  [...profile.password].forEach((key, i) => {
+  [...profile.password].forEach((ch, i) => {
+    // meme normalisation que la capture : les majuscules ont une touche comme les autres
+    const key = normalizeKey(ch);
     const m = ks.mean[key];
     const s = ks.std[key];
     if (!m || !s) return;

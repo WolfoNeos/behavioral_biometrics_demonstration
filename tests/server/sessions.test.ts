@@ -51,6 +51,42 @@ class FakeWs extends EventEmitter {
   }
 }
 
+describe('SessionManager mode God et mot de passe a majuscules', () => {
+  const MIXED = 'Ab1Cd2Ef';
+  const mixedEvents = (seed: number): KeyEvent[] => {
+    let t = 1000;
+    return [...MIXED].map((ch, i) => {
+      const j = 4 * Math.sin(seed * 7 + i * 3);
+      const down = t + (i === 0 ? 0 : 80 + j);
+      const up = down + 110 + j;
+      t = up;
+      // la capture normalise les touches (minuscules)
+      return { key: ch.toLowerCase(), down, up };
+    });
+  };
+  const mixedProfile: Profile = {
+    ...profile,
+    password: MIXED,
+    keystroke: buildKeystrokeProfile(Array.from({ length: 10 }, (_, s) => mixedEvents(s))),
+  };
+
+  it('God A : un evenement par caractere (majuscules comprises) et acces accorde', () => {
+    const m = new SessionManager({
+      getProfile: () => mixedProfile,
+      getThresholds: () => DEFAULT_THRESHOLDS,
+      baseUrl: 'https://localhost:5173',
+    });
+    const s = m.create();
+    const pc = new FakeWs();
+    m.attachPc(s.id, pc);
+    pc.emit('message', JSON.stringify({ type: 'god', who: 'A' }));
+    const snap = m.snapshot(s.id);
+    expect(snap.live.keystroke?.perKey).toHaveLength([...MIXED].length);
+    expect(snap.live.keystroke!.score).toBeGreaterThanOrEqual(DEFAULT_THRESHOLDS.keystroke.accept);
+    expect(snap.state.status).toBe('granted');
+  });
+});
+
 const keystrokeMsg = (events = typing(110, 80)) =>
   JSON.stringify({ type: 'keystroke', events, password: PASSWORD });
 

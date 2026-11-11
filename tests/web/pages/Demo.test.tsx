@@ -283,7 +283,7 @@ describe('Demo — frappe en direct (niveau 1)', () => {
   const direct = () => screen.getByTestId('panel-direct');
   const gauge = () => within(direct()).getByRole('meter');
   const liveBars = () =>
-    within(direct()).getByLabelText('signature en direct').querySelectorAll('rect:not(.barcode-ghost)');
+    within(direct()).getByLabelText('signature en direct').querySelectorAll('rect:not(.barcode-ghost):not(.barcode-pause)');
   const pwd = () => screen.getByLabelText('Mot de passe');
 
   it('avant la frappe : reference de A affichee, jauge neutre', () => {
@@ -327,30 +327,62 @@ describe('Demo — frappe en direct (niveau 1)', () => {
     expect(statuses[3]).toBe('bad');
   });
 
-  it('Entree termine la phase directe ; le snapshot du serveur remplace la vue provisoire', async () => {
-    const user = userEvent.setup();
-    const { rerender } = renderDemo();
-    await user.type(pwd(), 'ab');
-    expect(within(direct()).getByTestId('keystroke-view')).toHaveAttribute('data-mode', 'live');
-    await user.type(pwd(), '{Enter}');
-    expect(send).toHaveBeenCalledTimes(1);
-    expect(within(direct()).getByTestId('keystroke-view')).toHaveAttribute('data-mode', 'reference');
-    snapshot = {
-      ...base,
-      level: 2,
-      state: { status: 'pending', level: 2 },
-      live: { keystroke: { score: 23, perKey } },
-      lastVerdict: { level: 1, score: 23, granted: false, reason: 'signal hors seuil' },
-    };
-    rerender(
+  const rerenderWith = (r: ReturnType<typeof renderDemo>) =>
+    r.rerender(
       <MemoryRouter>
         <Demo />
       </MemoryRouter>,
     );
+  const serverAnswer: Snapshot = {
+    ...base,
+    level: 2,
+    state: { status: 'pending', level: 2 },
+    live: { keystroke: { score: 23, perKey } },
+    lastVerdict: { level: 1, score: 23, granted: false, reason: 'signal hors seuil' },
+  };
+
+  it('Entree : les barres restent « en attente du serveur » puis le serveur les remplace', async () => {
+    const user = userEvent.setup();
+    const r = renderDemo();
+    await user.type(pwd(), 'ab');
+    expect(within(direct()).getByTestId('keystroke-view')).toHaveAttribute('data-mode', 'live');
+    await user.type(pwd(), '{Enter}');
+    expect(send).toHaveBeenCalledTimes(1);
+    // le serveur n'a pas encore repondu : les barres tapees restent
+    expect(within(direct()).getByTestId('keystroke-view')).toHaveAttribute('data-mode', 'live');
+    expect(liveBars()).toHaveLength(2);
+    expect(screen.getByTestId('gauge-caption')).toHaveTextContent('En attente du serveur');
+    // un snapshot sans nouveau resultat de frappe (ex. telephone connecte) ne les efface pas
+    snapshot = { ...base, phoneConnected: true };
+    rerenderWith(r);
+    expect(liveBars()).toHaveLength(2);
+    // le resultat officiel remplace la vue
+    snapshot = serverAnswer;
+    rerenderWith(r);
     expect(within(direct()).getByTestId('keystroke-view')).toHaveAttribute('data-mode', 'server');
     expect(within(gauge()).getByText('23')).toBeInTheDocument();
     expect(screen.getByTestId('gauge-caption')).toHaveTextContent('Score officiel');
     expect(liveBars()).toHaveLength(1);
+  });
+
+  it('apres Entree, une nouvelle touche reprend la main sur la frappe envoyee', async () => {
+    const user = userEvent.setup();
+    renderDemo();
+    await user.type(pwd(), 'ab{Enter}');
+    expect(liveBars()).toHaveLength(2);
+    await user.type(pwd(), 'a');
+    expect(liveBars()).toHaveLength(1);
+    expect(screen.getByTestId('gauge-caption')).toHaveTextContent('Score provisoire');
+  });
+
+  it('apres Entree, Recommencer ou un saut de niveau efface l attente', async () => {
+    const user = userEvent.setup();
+    renderDemo();
+    await user.type(pwd(), 'ab{Enter}');
+    expect(liveBars()).toHaveLength(2);
+    await user.click(screen.getByRole('button', { name: /réinitialiser|recommencer|reset/i }));
+    expect(liveBars()).toHaveLength(0);
+    expect(within(direct()).getByTestId('keystroke-view')).toHaveAttribute('data-mode', 'reference');
   });
 
   it('nouvelle tentative : repart de zero', async () => {
@@ -376,9 +408,34 @@ describe('Demo — frappe en direct (niveau 1)', () => {
     const user = userEvent.setup();
     snapshot = { ...base, live: { keystroke: { score: 50, perKey } } };
     renderDemo();
-    await user.type(pwd(), 'a');
+    // mot de passe fait de lettres absentes de tout le texte affiche dans ce panneau
+    const before = (direct().textContent ?? '').toLowerCase();
+    const secret = [...'qzxwkjvy'].filter((c) => !before.includes(c)).join('');
+    expect(secret.length).toBeGreaterThanOrEqual(4);
+    // controle : le detecteur voit bien un caractere tape s'il etait affiche
+    const leaks = (text: string, chars: string) => [...chars].some((c) => text.toLowerCase().includes(c));
+    expect(leaks(`${before}${secret[0]}`, secret)).toBe(true);
+    await user.type(pwd(), secret);
+    expect(liveBars()).toHaveLength(secret.length);
     const text = direct().textContent ?? '';
-    expect(text).not.toMatch(/a/);
+    expect(leaks(text, secret)).toBe(false);
+    // l'axe x et le tableau cache n'affichent que des positions numeriques
+    const positions = [...direct().querySelectorAll('td.key')].map((td) => td.textContent);
+    expect(positions).toHaveLength(secret.length);
+    positions.forEach((p) => expect(p).toMatch(/^\d+$/));
+    // et aussi apres Entree (barres gardees en attente)
+    await user.type(pwd(), '{Enter}');
+    expect(leaks(direct().textContent ?? '', secret)).toBe(false);
+  });
+
+  it('sans reference (expectedBars null) : pas de legende de score', async () => {
+    const user = userEvent.setup();
+    snapshot = { ...base, expectedBars: null };
+    renderDemo();
+    await user.type(pwd(), 'a');
+    expect(liveBars()).toHaveLength(1);
+    expect(gauge()).toHaveAttribute('data-color', 'neutral');
+    expect(screen.getByTestId('gauge-caption')).toBeEmptyDOMElement();
   });
 
   it('niveaux 2 et 3 : pas de vue frappe', () => {
