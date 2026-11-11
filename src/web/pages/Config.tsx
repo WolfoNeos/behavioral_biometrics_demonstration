@@ -120,6 +120,8 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
   const samples = useRef<KeyEvent[][]>([]);
   const collectedFor = useRef<string | null>(null);
   const finished = useRef(false);
+  const inFlight = useRef(false);
+  const generation = useRef(0);
   const target = quick ? QUICK_SAMPLES : configured;
   const latest = useRef({ password: profile?.password ?? '', target });
   latest.current = { password: profile?.password ?? '', target };
@@ -128,6 +130,7 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
     samples.current = [];
     collectedFor.current = null;
     finished.current = false;
+    generation.current += 1;
     setCount(0);
     setDone(null);
     setError(null);
@@ -139,6 +142,7 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
     samples.current = [];
     collectedFor.current = null;
     finished.current = false;
+    generation.current += 1;
     setCount(0);
     setDone(null);
   }, [configured]);
@@ -150,6 +154,7 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
       samples.current = [];
       collectedFor.current = null;
       finished.current = false;
+    generation.current += 1;
       setCount(0);
       setDone(null);
       setError(null);
@@ -157,18 +162,26 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
   }, [savedPassword]);
 
   const submit = useCallback(async (): Promise<void> => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    const gen = generation.current;
     const all = samples.current.slice();
     try {
       const res = await fetch('/api/enroll/keystroke', jsonInit('POST', { samples: all }));
-      if (!res.ok) {
-        setError(await errorMessage(res));
+      const failure = res.ok ? null : await errorMessage(res);
+      if (gen !== generation.current) return; // echantillons reinitialises entre-temps
+      if (failure !== null) {
+        setError(failure);
         return;
       }
       const keys = all.reduce((s, a) => s + a.length, 0) / all.length;
       finished.current = true;
+      setError(null);
       setDone({ n: all.length, keys: Math.round(keys) });
     } catch {
-      setError('Serveur injoignable');
+      if (gen === generation.current) setError('Serveur injoignable');
+    } finally {
+      inFlight.current = false;
     }
   }, []);
 

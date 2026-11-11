@@ -182,6 +182,7 @@ describe('Config', () => {
     renderPage();
     await screen.findByText('0 / 10');
     const pin = screen.getByLabelText('Code PIN');
+    await waitFor(() => expect(pin).toHaveValue('1234'));
     await user.clear(pin);
     await user.type(pin, '9876');
     await user.click(screen.getByRole('button', { name: "Enregistrer l'identité" }));
@@ -251,6 +252,7 @@ describe('Config', () => {
     for (let i = 0; i < 3; i++) await enter('secret');
     expect(await screen.findByText('3 / 4')).toBeInTheDocument();
     const pw = screen.getByLabelText('Mot de passe');
+    await waitFor(() => expect(pw).toHaveValue('secret'));
     await user.clear(pw);
     await user.type(pw, 'nouveau');
     await user.click(screen.getByRole('button', { name: "Enregistrer l'identité" }));
@@ -277,7 +279,64 @@ describe('Config', () => {
     fail = false;
     await enter('secret');
     expect(await screen.findByText(/Enrôlement terminé/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
     expect((enrollCalls().at(-1)!.body as { samples: unknown[] }).samples).toHaveLength(3);
+  });
+
+  it('deux Entrees rapides au but ne font qu un seul POST', async () => {
+    let release: () => void = () => undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === '/api/enroll/keystroke') {
+          calls.push({ method: 'POST', url });
+          await new Promise<void>((r) => {
+            release = r;
+          });
+          return json(profile);
+        }
+        return handler(url, init);
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('0 / 10');
+    await user.click(screen.getByRole('button', { name: 'Recalibrage rapide' }));
+    for (let i = 0; i < 5; i++) await enter('secret');
+    expect(enrollCalls()).toHaveLength(1);
+    await act(async () => release());
+    expect(await screen.findByText(/Enrôlement terminé/)).toBeInTheDocument();
+    expect(enrollCalls()).toHaveLength(1);
+  });
+
+  it('un POST qui aboutit apres un changement de mot de passe est ignore', async () => {
+    let release: () => void = () => undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === '/api/enroll/keystroke') {
+          await new Promise<void>((r) => {
+            release = r;
+          });
+          return json(profile);
+        }
+        return handler(url, init);
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('0 / 10');
+    await user.click(screen.getByRole('button', { name: 'Recalibrage rapide' }));
+    for (let i = 0; i < 3; i++) await enter('secret');
+    const pw = screen.getByLabelText('Mot de passe');
+    await waitFor(() => expect(pw).toHaveValue('secret'));
+    await user.clear(pw);
+    await user.type(pw, 'nouveau');
+    await user.click(screen.getByRole('button', { name: "Enregistrer l'identité" }));
+    expect(await screen.findByText('0 / 3')).toBeInTheDocument();
+    await act(async () => release());
+    expect(screen.queryByText(/Enrôlement terminé/)).toBeNull();
+    expect(screen.getByText('0 / 3')).toBeInTheDocument();
   });
 
   it('a un lien retour vers la demo', async () => {
