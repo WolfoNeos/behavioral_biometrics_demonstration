@@ -1,5 +1,8 @@
 # Changelog du Vault
 
+## 2026-11-11 — Démo biométrie : frappe en temps réel
+Niveau 1 : graphe de frappe construit touche par touche pendant la saisie (barres colorées selon l'écart à A, courbe de maintien, jauge au score provisoire), remplacé à Entrée par le verdict du serveur. Snapshot : `expectedBars` (référence par position, sans caractère). Score partagé `scoreKeystrokeLive` (même formule que `scoreKeystroke`). Positions numérotées au lieu des touches sur le graphe. [[features/demo-biometrie/README]] et [[features/demo-biometrie/rehearsal-checklist]] mis à jour.
+
 ## 2026-11-11 — Démo biométrie : corrections de la revue finale
 Plusieurs téléphones par session (plus de boucle de reconnexion), panneau « Direct » qui garde le niveau échoué avec un bandeau « Échec niveau N » et sa raison, jauge neutre sans mesure, indicateur « Téléphone connecté / en attente », aiguille d'angle en direct sur le PC, seuils transmis dans le snapshot, libellés français, message « rescannez le QR » après redémarrage du serveur, profil de frappe effacé au changement de mot de passe. Note de sécurité (API non authentifiée) dans `core/03-devops-cicd` et `scripts/dev-https.md`. [[features/demo-biometrie/rehearsal-checklist]] mis à jour.
 

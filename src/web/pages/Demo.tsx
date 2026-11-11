@@ -1,6 +1,6 @@
 import QRCode from 'qrcode';
 import { useEffect, useRef, useState } from 'react';
-import type { FailReason, LastVerdict, Level, Snapshot, Thresholds, Verdict } from '../../shared/types';
+import type { FailReason, KeyEvent, LastVerdict, Level, Snapshot, Thresholds, Verdict } from '../../shared/types';
 import { attachKeystrokeCapture } from '../capture/keystroke';
 import { AngleDial } from '../components/AngleDial';
 import { Barcode } from '../components/Barcode';
@@ -9,6 +9,8 @@ import { DeviceTable, FIELD_LABELS } from '../components/DeviceTable';
 import { Gauge } from '../components/Gauge';
 import { ThresholdChart } from '../components/ThresholdChart';
 import { VerdictCard } from '../components/VerdictCard';
+import { liveView, rowsFromLive, rowsFromPerKey, summarize } from '../components/keystrokeRows';
+import type { KeyRow } from '../components/keystrokeRows';
 import { useSession } from '../ws';
 import type { ClientMessage } from '../ws';
 
@@ -44,18 +46,31 @@ function useGodMode(send: Send): void {
   }, [send]);
 }
 
-function LoginForm({ send }: { send: Send }) {
+type Progress = (events: KeyEvent[]) => void;
+
+function LoginForm({ send, onProgress }: { send: Send; onProgress: Progress }) {
   const pwd = useRef<HTMLInputElement>(null);
   const sendRef = useRef(send);
   sendRef.current = send;
+  const progressRef = useRef(onProgress);
+  progressRef.current = onProgress;
 
   useEffect(() => {
     const input = pwd.current;
     if (!input) return;
-    return attachKeystrokeCapture(input, (events) => {
-      sendRef.current({ type: 'keystroke', events, password: input.value });
-      input.value = '';
-    });
+    const detach = attachKeystrokeCapture(
+      input,
+      (events) => {
+        sendRef.current({ type: 'keystroke', events, password: input.value });
+        input.value = '';
+      },
+      (events) => progressRef.current(events),
+    );
+    return () => {
+      detach();
+      // formulaire retire (saut de niveau, verdict) : plus de frappe en cours
+      progressRef.current([]);
+    };
   }, []);
 
   return (
@@ -146,26 +161,45 @@ function FinalVerdict({ verdict, onReset }: { verdict: Verdict; onReset: () => v
   );
 }
 
-function DirectSignal({ snap, level }: { snap: Snapshot; level: Level }) {
+const msText = (v: number | null) => (v === null ? '–' : `${Math.round(v)} ms`);
+
+/** Frappe : direct (pendant la saisie), mesure du serveur, ou reference seule. */
+type KeystrokeMode = 'live' | 'server' | 'reference';
+
+function KeystrokeSignal({ rows, mode }: { rows: KeyRow[]; mode: KeystrokeMode }) {
+  const sum = summarize(rows);
+  return (
+    <div className="keystroke-signal" data-testid="keystroke-view" data-mode={mode}>
+      <div className="summary">
+        <span>
+          Écart moyen : <strong>{msText(sum.dwellGap)}</strong>
+        </span>
+        <span>
+          Vol moyen : <strong>{msText(sum.flight)}</strong>
+          {sum.expectedFlight !== null && <span className="summary-ref"> (A : {msText(sum.expectedFlight)})</span>}
+        </span>
+        <span>
+          Touches : <strong>{sum.expected ? `${sum.typed} / ${sum.expected}` : sum.typed}</strong>
+        </span>
+      </div>
+      <ThresholdChart rows={rows} />
+      <Barcode rows={rows} />
+    </div>
+  );
+}
+
+/** Lignes du panneau Direct au niveau 1 selon la source (frappe locale > serveur > reference). */
+function keystrokeRows(snap: Snapshot, liveRows: KeyRow[] | null): { rows: KeyRow[]; mode: KeystrokeMode } {
+  if (liveRows) return { rows: liveRows, mode: 'live' };
+  const perKey = snap.live.keystroke?.perKey;
+  if (perKey) return { rows: rowsFromPerKey(perKey), mode: 'server' };
+  return { rows: rowsFromLive(snap.expectedBars, []), mode: 'reference' };
+}
+
+function DirectSignal({ snap, level, liveRows }: { snap: Snapshot; level: Level; liveRows: KeyRow[] | null }) {
   if (level === 1) {
-    const perKey = snap.live.keystroke?.perKey ?? [];
-    const dev = perKey.length
-      ? perKey.reduce((a, p) => a + Math.abs(p.dwell - p.expectedDwell), 0) / perKey.length
-      : null;
-    return (
-      <>
-        <div className="summary">
-          <span>
-            Écart moyen : <strong>{dev === null ? '–' : `${Math.round(dev)} ms`}</strong>
-          </span>
-          <span>
-            Touches : <strong>{perKey.length}</strong>
-          </span>
-        </div>
-        <ThresholdChart perKey={perKey} />
-        <Barcode live={perKey.map((p) => p.dwell)} expected={perKey.map((p) => p.expectedDwell)} />
-      </>
-    );
+    const { rows, mode } = keystrokeRows(snap, liveRows);
+    return <KeystrokeSignal rows={rows} mode={mode} />;
   }
   if (level === 2) {
     return <DeviceTable lines={snap.live.device?.lines ?? []} />;
@@ -184,11 +218,17 @@ function DirectSignal({ snap, level }: { snap: Snapshot; level: Level }) {
 function ProfileSignal({ snap, level }: { snap: Snapshot; level: Level }) {
   if (level === 1) {
     const ks = snap.expected.keystroke;
-    if (!ks) return <p className="hint">Aucun profil de frappe enregistré.</p>;
+    if (!ks || !snap.expectedBars) return <p className="hint">Aucun profil de frappe enregistré.</p>;
+    const sum = summarize(rowsFromLive(snap.expectedBars, []));
+    const dwell = snap.expectedBars.filter((b) => b.known).map((b) => b.dwell);
+    const meanDwell = dwell.length ? dwell.reduce((a, b) => a + b, 0) / dwell.length : null;
     return (
       <>
-        <Barcode live={[]} expected={Object.values(ks.mean).map((m) => m.dwell)} />
-        <p className="hint">Profil appris sur {ks.samples} saisies.</p>
+        <Barcode rows={rowsFromLive(snap.expectedBars, [])} showLive={false} />
+        <p className="hint">
+          Profil appris sur {ks.samples} saisies · {snap.expectedBars.length} touches · maintien moyen{' '}
+          {msText(meanDwell)} · vol moyen {msText(sum.expectedFlight)}
+        </p>
       </>
     );
   }
@@ -230,6 +270,8 @@ function levelThresholds(level: Level, t: Thresholds): { accept: number; warn: n
 export function Demo() {
   const { snapshot, send } = useSession();
   useGodMode(send);
+  // frappe en cours dans le champ mot de passe (vide hors saisie, et des Entree)
+  const [typed, setTyped] = useState<KeyEvent[]>([]);
 
   const onJump = (level: Level): void => send({ type: 'jump', level });
   const onReset = (): void => send({ type: 'reset' });
@@ -247,12 +289,16 @@ export function Demo() {
   const { state, level } = snapshot;
   const shown = shownLevel(snapshot);
   const th = levelThresholds(shown.level, snapshot.thresholds);
+  // vue provisoire : niveau 1 en attente et frappe locale en cours ; sinon le serveur fait foi
+  const typing = state.status === 'pending' && level === 1 && shown.level === 1 && typed.length > 0;
+  const provisional = typing ? liveView(snapshot.expectedBars, typed) : null;
+  const officialScore = liveScore(snapshot, shown.level);
 
   let main;
   if (state.status === 'granted' || state.status === 'blocked') {
     main = <FinalVerdict verdict={state.verdict} onReset={onReset} />;
   } else if (level === 1) {
-    main = <LoginForm send={send} />;
+    main = <LoginForm send={send} onProgress={setTyped} />;
   } else {
     main = (
       <div className="qr-zone">
@@ -272,9 +318,18 @@ export function Demo() {
           <h2>Direct — {SIGNAL_NAME[shown.level]}</h2>
           {shown.failed && <FailBanner verdict={shown.failed} />}
           <div className="direct-body">
-            <Gauge score={liveScore(snapshot, shown.level)} accept={th.accept} warn={th.warn} />
+            <div className="gauge-col">
+              <Gauge
+                score={provisional ? provisional.score : officialScore}
+                accept={th.accept}
+                warn={th.warn}
+              />
+              <p className="gauge-caption" data-testid="gauge-caption">
+                {provisional ? 'Score provisoire' : officialScore !== null ? 'Score officiel' : ''}
+              </p>
+            </div>
             <div className="signal">
-              <DirectSignal snap={snapshot} level={shown.level} />
+              <DirectSignal snap={snapshot} level={shown.level} liveRows={provisional?.rows ?? null} />
             </div>
           </div>
         </section>

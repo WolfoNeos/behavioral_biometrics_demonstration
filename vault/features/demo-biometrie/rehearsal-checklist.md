@@ -9,7 +9,10 @@ Non automatisable : à faire une fois sur le réseau réel avec les deux télép
 4. Ouvrir `https://<IP>:5173/` sur le PC en plein écran (1920x1080).
 
 ## 1. Étape 1 — B tape les identifiants de A (niveau 1)
+- Avant la frappe : le panneau « Direct » montre la référence de A (courbe attendue + zone d'incertitude, code-barres de référence), jauge « — ».
 - Action : B tape ID + mot de passe de A, volontairement différemment (saccadé).
+- Pendant la frappe (avant Entrée) : à chaque touche relâchée, une barre apparaît sous sa référence (largeur = maintien, espace = vol) et un point sur la courbe ; couleur = écart à A : vert (dans la zone, ≤ 2σ), orange (≤ 3σ), rouge (au-delà, ou touche en trop), gris (position sans référence). La jauge bouge à chaque touche (« Score provisoire »). Backspace retire la dernière barre. Aucun caractère n'est affiché (positions 1, 2, 3…).
+- À Entrée : le score officiel du serveur remplace la vue provisoire (« Score officiel »).
 - Attendu : la zone principale passe au QR code (niveau 2) ; le panneau « Direct » reste sur la frappe de B (graphe, code-barres, jauge rouge/orange) avec le bandeau « Échec niveau 1 — passage au niveau suivant » et la raison (« Signal hors seuil (score N / 100) » ou « Mot de passe incorrect »). Sous le QR : « Téléphone en attente ».
 
 ## 2. Étape 2 — B scanne avec son téléphone (niveau 2)
@@ -41,4 +44,5 @@ Après « Recommencer » à chaque fois :
 - [ ] Couleurs vert/orange/rouge distinguables au projecteur
 - [ ] Gyroscope fonctionnel sur chaque téléphone (l'aiguille du PC bouge en direct avant « Valider »)
 - [ ] Bandeau « Échec niveau N » lisible au projecteur, sans défilement
+- [ ] Niveau 1 : barres et jauge bougent pendant la frappe, couleurs lisibles, aucun caractère du mot de passe à l'écran
 - [ ] Les trois niveaux de A passent sans faux rejet (sinon recalibrer ou ajuster les seuils)

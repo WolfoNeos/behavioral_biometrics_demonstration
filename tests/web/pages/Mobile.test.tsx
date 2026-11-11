@@ -43,6 +43,7 @@ const snap = (over: Partial<Snapshot>): Snapshot => ({
   lastVerdict: null,
   liveOrientation: null,
   thresholds: DEFAULT_THRESHOLDS,
+  expectedBars: null,
   ...over,
 });
 

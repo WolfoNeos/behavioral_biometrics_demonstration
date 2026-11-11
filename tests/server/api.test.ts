@@ -98,6 +98,43 @@ describe('API REST', () => {
     expect(profile.beta).toBe(33);
   });
 
+  it('PUT /api/profile avec un nouveau mot de passe rafraichit expectedBars du PC', async () => {
+    const put = (payload: Record<string, unknown>) => app.inject({ method: 'PUT', url: '/api/profile', payload });
+    const samples = [0, 1, 2].map(() => [
+      { key: 'a', down: 0, up: 100 },
+      { key: 'b', down: 180, up: 280 },
+    ]);
+    await put({ password: 'ab', pin: '1111', keystroke: null, fingerprint: null, beta: null });
+    await app.inject({ method: 'POST', url: '/api/enroll/keystroke', payload: { samples } });
+    const { id } = (await app.inject({ method: 'POST', url: '/api/session' })).json();
+    await app.ready();
+    const states: { expectedBars: unknown[] | null }[] = [];
+    let waiter: (() => void) | null = null;
+    const ws = await app.injectWS(`/ws?session=${id}&role=pc`, {}, {
+      onInit: (sock) =>
+        sock.on('message', (d) => {
+          states.push(JSON.parse(String(d)));
+          waiter?.();
+        }),
+    });
+    /** Attend la prochaine diffusion declenchee par `action`. */
+    const after = async (action: () => Promise<unknown>) => {
+      const n = states.length;
+      const got = new Promise<void>((done) => (waiter = () => states.length > n && done()));
+      await action();
+      await got;
+    };
+    if (states.length === 0) await after(async () => {});
+    expect(states.at(-1)?.expectedBars).toHaveLength(2);
+    await after(() => put({ password: 'abba', pin: '1111', keystroke: null, fingerprint: null, beta: null }));
+    // nouveau mot de passe : profil de frappe efface, plus de reference
+    expect(states.at(-1)?.expectedBars).toBeNull();
+    await after(() => app.inject({ method: 'POST', url: '/api/enroll/keystroke', payload: { samples } }));
+    expect(states.at(-1)?.expectedBars).toHaveLength(4);
+    expect(JSON.stringify(states.at(-1)?.expectedBars)).not.toMatch(/"[ab]"/);
+    ws.terminate();
+  });
+
   it('POST /api/session renvoie {id, url} avec /m/<id>', async () => {
     const { id, url } = (await app.inject({ method: 'POST', url: '/api/session' })).json();
     expect(id).toBeTruthy();

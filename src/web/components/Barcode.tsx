@@ -1,60 +1,97 @@
+import type { KeyRow } from './keystrokeRows';
+
 export interface BarcodeProps {
-  live: number[];
-  expected: number[];
+  rows: KeyRow[];
+  /** false : seulement la signature de reference (panneau « Profil de A »). */
+  showLive?: boolean;
 }
 
-const GAP = 6;
 const HEIGHT = 60;
+/** Ecart visuel minimal entre deux barres (un vol negatif = touches chevauchees). */
+const MIN_GAP = 4;
 
-/** Une barre par touche, largeur proportionnelle a la duree (ms). */
-const barWidth = (v: number) => Math.max(2, v);
-const totalWidth = (values: number[]) =>
-  values.reduce((sum, v) => sum + barWidth(v), 0) + GAP * Math.max(values.length - 1, 0);
+interface Bar {
+  x: number;
+  w: number;
+  status: KeyRow['status'];
+}
 
-function Bars({
-  values,
+/**
+ * Barres sur un axe de temps : largeur = maintien (ms), espace avant la barre = vol (ms).
+ * Les positions sans valeur sont sautees.
+ */
+function layout(
+  rows: KeyRow[],
+  dwell: (r: KeyRow) => number | null,
+  flight: (r: KeyRow) => number | null,
+  colored: boolean,
+): Bar[] {
+  const bars: Bar[] = [];
+  let x = 0;
+  rows.forEach((r) => {
+    const d = dwell(r);
+    if (d === null) return;
+    if (bars.length > 0) x += Math.max(flight(r) ?? 0, MIN_GAP);
+    const w = Math.max(2, d);
+    bars.push({ x, w, status: colored ? r.status : null });
+    x += w;
+  });
+  return bars;
+}
+
+const extent = (bars: Bar[]) => (bars.length ? bars[bars.length - 1].x + bars[bars.length - 1].w : 0);
+
+function Strip({
+  bars,
+  ghost,
   label,
   className,
   scale,
 }: {
-  values: number[];
+  bars: Bar[];
+  ghost?: Bar[];
   label: string;
   className: string;
   scale: number;
 }) {
-  let x = 0;
-  const bars = values.map((v, i) => {
-    const w = barWidth(v);
-    const bar = <rect key={i} x={x} y={0} width={w} height={HEIGHT} />;
-    x += w + GAP;
-    return bar;
-  });
   return (
-    <svg
-      className={className}
-      role="img"
-      aria-label={label}
-      viewBox={`0 0 ${scale} ${HEIGHT}`}
-      preserveAspectRatio="none"
-    >
-      {bars}
+    <svg className={className} role="img" aria-label={label} viewBox={`0 0 ${scale} ${HEIGHT}`} preserveAspectRatio="none">
+      {ghost?.map((b, i) => (
+        <rect key={`g${i}`} className="barcode-ghost" x={b.x} y={0} width={b.w} height={HEIGHT} />
+      ))}
+      {bars.map((b, i) => (
+        <rect
+          key={i}
+          className={b.status ? `bar-${b.status}` : undefined}
+          data-status={b.status ?? undefined}
+          x={b.x}
+          y={ghost ? HEIGHT * 0.15 : 0}
+          width={b.w}
+          height={ghost ? HEIGHT * 0.7 : HEIGHT}
+        />
+      ))}
     </svg>
   );
 }
 
-export function Barcode({ live, expected }: BarcodeProps) {
-  // Une seule echelle pour les deux : le plus long des deux fixe la largeur.
-  const scale = Math.max(totalWidth(live), totalWidth(expected), 1);
+/** Signature de frappe en « code-barres » : reference de A au-dessus, frappe en direct dessous. */
+export function Barcode({ rows, showLive = true }: BarcodeProps) {
+  const reference = layout(rows, (r) => r.expectedDwell, (r) => r.expectedFlight, false);
+  const live = layout(rows, (r) => r.dwell, (r) => r.flight, true);
+  // une seule echelle pour les deux : le plus long fixe la largeur
+  const scale = Math.max(extent(reference), showLive ? extent(live) : 0, 1);
   return (
     <div className="barcode">
       <div className="barcode-row">
         <div className="barcode-label">Signature de référence (profil enregistré)</div>
-        <Bars values={expected} label="signature de référence" className="barcode-expected" scale={scale} />
+        <Strip bars={reference} label="signature de référence" className="barcode-expected" scale={scale} />
       </div>
-      <div className="barcode-row">
-        <div className="barcode-label">Signature en direct</div>
-        <Bars values={live} label="signature en direct" className="barcode-live" scale={scale} />
-      </div>
+      {showLive && (
+        <div className="barcode-row">
+          <div className="barcode-label">Signature en direct (sur la référence en filigrane)</div>
+          <Strip bars={live} ghost={reference} label="signature en direct" className="barcode-live" scale={scale} />
+        </div>
+      )}
     </div>
   );
 }

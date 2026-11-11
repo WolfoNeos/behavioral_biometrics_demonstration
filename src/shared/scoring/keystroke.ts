@@ -16,12 +16,38 @@ export interface PerKeyScore {
   bandFlight: number;
 }
 
-const STD_FLOOR = 5; // ms
+export const STD_FLOOR = 5; // ms
 /** Ecart normalise attribue a une touche inconnue du profil. */
-const UNKNOWN_KEY_DEVIATION = 6;
+export const UNKNOWN_KEY_DEVIATION = 6;
 /** Zone morte : un ecart <= 2 ecarts-types est de la variation naturelle, non penalisee. */
-const DEAD_ZONE = 2;
+export const DEAD_ZONE = 2;
 const excess = (z: number) => Math.max(0, z - DEAD_ZONE);
+
+/** Normalisation des touches commune a la capture et au profil : caractere seul en minuscule. */
+export const normalizeKey = (key: string): string => (key.length === 1 ? key.toLowerCase() : key);
+
+/** Ecart normalise |valeur - moyenne| / max(std, plancher). */
+export const zScore = (value: number, mean: number, std: number): number =>
+  Math.abs(value - mean) / Math.max(std, STD_FLOOR);
+
+/**
+ * Penalites d'une touche (dwell, puis flight sauf pour la premiere touche) ; zDwell/zFlight null
+ * = touche sans reference (penalite forfaitaire).
+ */
+export function keyPenalties(index: number, zDwell: number | null, zFlight: number | null): number[] {
+  const dwell = zDwell === null ? UNKNOWN_KEY_DEVIATION : excess(zDwell);
+  // flight de la premiere touche : toujours 0, exclu de la moyenne
+  if (index === 0) return [dwell];
+  return [dwell, zFlight === null ? UNKNOWN_KEY_DEVIATION : excess(zFlight)];
+}
+
+/** Score 0-100 a partir des penalites ; 0 sans penalite (aucune touche). */
+export function scoreFromPenalties(penalties: number[]): number {
+  if (penalties.length === 0) return 0;
+  const avg = penalties.reduce((a, b) => a + b, 0) / penalties.length;
+  const raw = 100 * Math.exp(-avg / 3);
+  return Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : 0;
+}
 
 /** dwell = up - down ; flight = down[i] - up[i-1] (0 pour la premiere touche). */
 export function extractTimings(events: KeyEvent[]): Timing[] {
@@ -61,13 +87,12 @@ export function scoreKeystroke(
   const timings = extractTimings(events);
   if (timings.length === 0) return { score: 0, perKey: [] };
 
-  const deviations: number[] = [];
+  const penalties: number[] = [];
   const perKey: PerKeyScore[] = timings.map((t, i) => {
     const m = profile.mean[t.key];
     const s = profile.std[t.key];
     if (!m || !s) {
-      deviations.push(UNKNOWN_KEY_DEVIATION);
-      if (i > 0) deviations.push(UNKNOWN_KEY_DEVIATION);
+      penalties.push(...keyPenalties(i, null, null));
       return {
         key: t.key,
         dwell: t.dwell,
@@ -78,11 +103,9 @@ export function scoreKeystroke(
         bandFlight: STD_FLOOR,
       };
     }
-    const bandDwell = Math.max(s.dwell, STD_FLOOR);
-    const bandFlight = Math.max(s.flight, STD_FLOOR);
-    deviations.push(excess(Math.abs(t.dwell - m.dwell) / bandDwell));
-    // flight de la premiere touche : toujours 0, exclu de la moyenne
-    if (i > 0) deviations.push(excess(Math.abs(t.flight - m.flight) / bandFlight));
+    penalties.push(
+      ...keyPenalties(i, zScore(t.dwell, m.dwell, s.dwell), zScore(t.flight, m.flight, s.flight)),
+    );
     return {
       key: t.key,
       dwell: t.dwell,
@@ -94,8 +117,5 @@ export function scoreKeystroke(
     };
   });
 
-  const avg = deviations.reduce((a, b) => a + b, 0) / deviations.length;
-  const raw = 100 * Math.exp(-avg / 3);
-  const score = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : 0;
-  return { score, perKey };
+  return { score: scoreFromPenalties(penalties), perKey };
 }

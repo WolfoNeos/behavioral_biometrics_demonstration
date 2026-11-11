@@ -487,3 +487,56 @@ describe('SessionManager robustesse des messages entrants', () => {
     vi.restoreAllMocks();
   });
 });
+
+describe('SessionManager expectedBars', () => {
+  it('une entree par position du mot de passe, sans aucun caractere', () => {
+    const m = setup();
+    const s = m.create();
+    const bars = m.snapshot(s.id).expectedBars;
+    expect(bars).toHaveLength(PASSWORD.length);
+    expect(bars?.[0]).toMatchObject({ dwell: profile.keystroke!.mean.a.dwell, flight: 0, known: true });
+    expect(bars?.[3]).toMatchObject({
+      dwell: profile.keystroke!.mean.d.dwell,
+      flight: profile.keystroke!.mean.d.flight,
+    });
+    for (const bar of bars!) {
+      // seulement les cinq champs numeriques/booleens : aucune chaine, donc aucun caractere
+      expect(Object.keys(bar).sort()).toEqual(['dwell', 'flight', 'known', 'stdDwell', 'stdFlight']);
+      for (const v of Object.values(bar)) expect(typeof v === 'number' || typeof v === 'boolean').toBe(true);
+    }
+    const json = JSON.stringify(bars);
+    for (const ch of PASSWORD) expect(json).not.toContain(`"${ch}"`);
+    expect(JSON.stringify(m.snapshot(s.id))).not.toContain(PASSWORD);
+  });
+
+  it('null sans profil de frappe ou sans mot de passe', () => {
+    const noKs = new SessionManager({
+      getProfile: () => ({ ...profile, keystroke: null }),
+      getThresholds: () => DEFAULT_THRESHOLDS,
+      baseUrl: 'https://x',
+    });
+    expect(noKs.snapshot(noKs.create().id).expectedBars).toBeNull();
+    const noPwd = new SessionManager({
+      getProfile: () => ({ ...profile, password: '' }),
+      getThresholds: () => DEFAULT_THRESHOLDS,
+      baseUrl: 'https://x',
+    });
+    expect(noPwd.snapshot(noPwd.create().id).expectedBars).toBeNull();
+  });
+
+  it('rediffuse la reference quand le profil change (broadcastAll)', () => {
+    let current: Profile = profile;
+    const m = new SessionManager({
+      getProfile: () => current,
+      getThresholds: () => DEFAULT_THRESHOLDS,
+      baseUrl: 'https://x',
+    });
+    const s = m.create();
+    const pc = new FakeWs();
+    m.attachPc(s.id, pc);
+    expect(pc.lastState().expectedBars).toHaveLength(5);
+    current = { ...profile, password: 'abc' };
+    m.broadcastAll();
+    expect(pc.lastState().expectedBars).toHaveLength(3);
+  });
+});

@@ -110,6 +110,19 @@ export interface LastVerdict {
   reason: FailReason | null;
 }
 
+/**
+ * Reference de frappe d'une position du mot de passe enregistre (moyenne/ecart-type du profil
+ * pour la touche a cette position). Aucun caractere : le mot de passe reste illisible a l'ecran.
+ * known false : caractere absent du profil (zeros, plancher d'ecart-type).
+ */
+export interface ExpectedBar {
+  dwell: number;
+  flight: number;
+  stdDwell: number;
+  stdFlight: number;
+  known: boolean;
+}
+
 export interface Snapshot {
   state: AuthState;
   level: Level;
@@ -122,4 +135,6 @@ export interface Snapshot {
   liveOrientation: OrientationReading | null;
   /** Seuils en vigueur cote serveur (la jauge ne peut pas les contredire). */
   thresholds: Thresholds;
+  /** Une entree par position du mot de passe enregistre ; null sans mot de passe ou sans profil de frappe. */
+  expectedBars: ExpectedBar[] | null;
 }

@@ -39,6 +39,12 @@
 .barcode svg { width: 100%; height: 64px; display: block; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); }
 .barcode-live rect { fill: var(--color-ink); }
 .barcode-expected rect { fill: var(--color-grey); }
+/* frappe en direct : reference en filigrane, barres colorees selon l'ecart a A */
+.barcode-live rect.barcode-ghost { fill: var(--color-grey-soft); }
+.barcode-live rect.bar-ok { fill: var(--color-green); }
+.barcode-live rect.bar-warn { fill: var(--color-orange); }
+.barcode-live rect.bar-bad { fill: var(--color-red); }
+.barcode-live rect.bar-unknown { fill: var(--color-grey); }
 
 /* Graphique et tableaux de valeurs */
 .threshold-chart { font-family: var(--font-sans); }
@@ -85,6 +91,12 @@ body { margin: 0; background: var(--color-bg); font-family: var(--font-sans); co
 .panel h2 { margin: 0 0 var(--space-1); font-size: 1.4rem; flex-shrink: 0; }
 .direct-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: var(--space-4); align-items: center; }
 .direct-body .gauge { max-width: 240px; }
+.gauge-col { display: flex; flex-direction: column; align-items: center; }
+.gauge-caption { margin: var(--space-2) 0 0; min-height: 1.5em; font-size: var(--text-md); font-weight: 600; color: var(--color-ink-muted); }
+.keystroke-signal .summary { gap: var(--space-3); white-space: nowrap; font-size: 1.1rem; }
+.keystroke-signal .summary strong { font-size: 1.4rem; }
+.summary-ref { color: var(--color-ink-muted); font-weight: 500; }
+.keystroke-signal { display: flex; flex-direction: column; gap: var(--space-2); min-height: 0; height: 100%; }
 .direct-body .gauge-score { font-size: 3rem; margin-top: -2.2rem; }
 .signal { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; min-height: 0; height: 100%; justify-content: center; }
 .signal .threshold-chart { flex: 1; min-height: 0; }

@@ -46,6 +46,12 @@ const base: Snapshot = {
   lastVerdict: null,
   liveOrientation: null,
   thresholds: DEFAULT_THRESHOLDS,
+  // reference de A pour un mot de passe de 3 positions (aucun caractere)
+  expectedBars: [
+    { dwell: 90, flight: 0, stdDwell: 10, stdFlight: 5, known: true },
+    { dwell: 90, flight: 40, stdDwell: 10, stdFlight: 8, known: true },
+    { dwell: 90, flight: 40, stdDwell: 10, stdFlight: 8, known: true },
+  ],
 };
 
 const perKey = [{ key: 'a', dwell: 220, flight: 300, expectedDwell: 90, expectedFlight: 40, bandDwell: 20, bandFlight: 16 }];
@@ -270,6 +276,120 @@ describe('Demo', () => {
       expect(within(profil).getByText(label)).toBeInTheDocument();
     }
     expect(within(profil).queryByText('userAgent')).toBeNull();
+  });
+});
+
+describe('Demo — frappe en direct (niveau 1)', () => {
+  const direct = () => screen.getByTestId('panel-direct');
+  const gauge = () => within(direct()).getByRole('meter');
+  const liveBars = () =>
+    within(direct()).getByLabelText('signature en direct').querySelectorAll('rect:not(.barcode-ghost)');
+  const pwd = () => screen.getByLabelText('Mot de passe');
+
+  it('avant la frappe : reference de A affichee, jauge neutre', () => {
+    renderDemo();
+    expect(within(direct()).getByTestId('keystroke-view')).toHaveAttribute('data-mode', 'reference');
+    expect(within(direct()).getByLabelText('signature de référence').querySelectorAll('rect')).toHaveLength(3);
+    expect(liveBars()).toHaveLength(0);
+    expect(gauge()).toHaveAttribute('data-color', 'neutral');
+    expect(within(screen.getByTestId('panel-profil')).getByLabelText('signature de référence').querySelectorAll('rect')).toHaveLength(3);
+  });
+
+  it('chaque touche relachee ajoute une barre et fait bouger la jauge avant Entree', async () => {
+    const user = userEvent.setup();
+    renderDemo();
+    await user.type(pwd(), 'a');
+    expect(within(direct()).getByTestId('keystroke-view')).toHaveAttribute('data-mode', 'live');
+    expect(liveBars()).toHaveLength(1);
+    expect(gauge()).not.toHaveAttribute('data-color', 'neutral');
+    expect(screen.getByTestId('gauge-caption')).toHaveTextContent('Score provisoire');
+    await user.type(pwd(), 'b');
+    expect(liveBars()).toHaveLength(2);
+    expect(within(direct()).getByText('2 / 3')).toBeInTheDocument();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('Backspace retire la derniere barre', async () => {
+    const user = userEvent.setup();
+    renderDemo();
+    await user.type(pwd(), 'ab');
+    expect(liveBars()).toHaveLength(2);
+    await user.type(pwd(), '{Backspace}');
+    expect(liveBars()).toHaveLength(1);
+  });
+
+  it('couleur des barres selon la zone : touche en trop en rouge', async () => {
+    const user = userEvent.setup();
+    renderDemo();
+    await user.type(pwd(), 'abcd');
+    const statuses = [...liveBars()].map((r) => r.getAttribute('data-status'));
+    expect(statuses).toHaveLength(4);
+    expect(statuses[3]).toBe('bad');
+  });
+
+  it('Entree termine la phase directe ; le snapshot du serveur remplace la vue provisoire', async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderDemo();
+    await user.type(pwd(), 'ab');
+    expect(within(direct()).getByTestId('keystroke-view')).toHaveAttribute('data-mode', 'live');
+    await user.type(pwd(), '{Enter}');
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(within(direct()).getByTestId('keystroke-view')).toHaveAttribute('data-mode', 'reference');
+    snapshot = {
+      ...base,
+      level: 2,
+      state: { status: 'pending', level: 2 },
+      live: { keystroke: { score: 23, perKey } },
+      lastVerdict: { level: 1, score: 23, granted: false, reason: 'signal hors seuil' },
+    };
+    rerender(
+      <MemoryRouter>
+        <Demo />
+      </MemoryRouter>,
+    );
+    expect(within(direct()).getByTestId('keystroke-view')).toHaveAttribute('data-mode', 'server');
+    expect(within(gauge()).getByText('23')).toBeInTheDocument();
+    expect(screen.getByTestId('gauge-caption')).toHaveTextContent('Score officiel');
+    expect(liveBars()).toHaveLength(1);
+  });
+
+  it('nouvelle tentative : repart de zero', async () => {
+    const user = userEvent.setup();
+    renderDemo();
+    await user.type(pwd(), 'ab{Enter}');
+    await user.type(pwd(), 'a');
+    expect(liveBars()).toHaveLength(1);
+  });
+
+  it('mode God sans frappe locale : les donnees du serveur sont affichees', () => {
+    snapshot = {
+      ...base,
+      state: { status: 'granted', level: 1, verdict: { level: 1, score: 92, color: 'green', granted: true } },
+      live: { keystroke: { score: 92, perKey } },
+    };
+    renderDemo();
+    expect(within(direct()).getByTestId('keystroke-view')).toHaveAttribute('data-mode', 'server');
+    expect(within(gauge()).getByText('92')).toBeInTheDocument();
+  });
+
+  it('aucun caractere du mot de passe dans le panneau Direct', async () => {
+    const user = userEvent.setup();
+    snapshot = { ...base, live: { keystroke: { score: 50, perKey } } };
+    renderDemo();
+    await user.type(pwd(), 'a');
+    const text = direct().textContent ?? '';
+    expect(text).not.toMatch(/a/);
+  });
+
+  it('niveaux 2 et 3 : pas de vue frappe', () => {
+    snapshot = { ...base, level: 2, state: { status: 'pending', level: 2 } };
+    const { unmount } = renderDemo();
+    expect(screen.queryByTestId('keystroke-view')).toBeNull();
+    unmount();
+    snapshot = { ...base, level: 3, state: { status: 'pending', level: 3 } };
+    renderDemo();
+    expect(screen.queryByTestId('keystroke-view')).toBeNull();
+    expect(screen.getByTestId('gauge-caption')).toHaveTextContent('');
   });
 });
 

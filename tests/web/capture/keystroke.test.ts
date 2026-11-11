@@ -169,4 +169,35 @@ describe('attachKeystrokeCapture', () => {
     key(input, 'keydown', 'Enter');
     expect(onDone).toHaveBeenCalledTimes(1);
   });
+
+  it('onProgress : copie de la liste apres chaque touche relachee, Backspace, puis [] a Entree', () => {
+    const onDone = vi.fn();
+    const onProgress = vi.fn<(e: KeyEvent[]) => void>();
+    attachKeystrokeCapture(input, onDone, onProgress);
+    now = 10;
+    key(input, 'keydown', 'a');
+    expect(onProgress).not.toHaveBeenCalled(); // rien avant le relachement
+    now = 60;
+    key(input, 'keyup', 'a');
+    type('b', 100, 170);
+    expect(onProgress.mock.calls.map((c) => c[0].length)).toEqual([1, 2]);
+    expect(onProgress.mock.calls[1][0]).toEqual([
+      { key: 'a', down: 10, up: 60 },
+      { key: 'b', down: 100, up: 170 },
+    ]);
+    type('Backspace', 200, 220);
+    expect(onProgress.mock.lastCall?.[0].map((e) => e.key)).toEqual(['a']);
+    type('c', 300, 350);
+    key(input, 'keydown', 'Enter');
+    expect(onProgress.mock.lastCall?.[0]).toEqual([]);
+    expect(onDone.mock.calls[0][0].map((e: KeyEvent) => e.key)).toEqual(['a', 'c']);
+  });
+
+  it('onProgress recoit une copie : la modifier ne change pas la capture', () => {
+    const onDone = vi.fn<(e: KeyEvent[]) => void>();
+    attachKeystrokeCapture(input, onDone, (events) => events.splice(0));
+    type('a', 1, 5);
+    key(input, 'keydown', 'Enter');
+    expect(onDone.mock.calls[0][0]).toHaveLength(1);
+  });
 });

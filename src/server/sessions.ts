@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { applyVerdict, hardFail, jumpTo, startState } from '../shared/auth/machine';
 import { compareFingerprint } from '../shared/scoring/device';
 import { scoreKeystroke } from '../shared/scoring/keystroke';
+import { buildExpectedBars } from '../shared/scoring/keystrokeLive';
 import { scoreOrientation } from '../shared/scoring/orientation';
 import { summarizeTouch } from '../shared/scoring/tactile';
 import type {
@@ -194,6 +195,8 @@ export class SessionManager {
       lastVerdict: s.lastVerdict,
       liveOrientation: s.liveOrientation,
       thresholds: this.opts.getThresholds(),
+      // reference par position, sans caractere : relue a chaque diffusion (profil modifie)
+      expectedBars: buildExpectedBars(p.password, p.keystroke),
     };
   }
 
