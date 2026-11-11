@@ -26,6 +26,17 @@ describe('API REST', () => {
     expect((await app.inject({ url: '/api/thresholds' })).json()).toEqual(next);
   });
 
+  it('PUT /api/thresholds invalide -> 400 et fichier inchange', async () => {
+    const put = (payload: Record<string, unknown>) => app.inject({ method: 'PUT', url: '/api/thresholds', payload });
+    const t = DEFAULT_THRESHOLDS;
+    expect((await put({ keystroke: t.keystroke })).statusCode).toBe(400);
+    expect((await put({ ...t, keystroke: { accept: 40, warn: 60 } })).statusCode).toBe(400);
+    expect((await put({ ...t, device: { accept: 'x', warn: 1 } })).statusCode).toBe(400);
+    expect((await put({ ...t, enrollSamples: 0 })).statusCode).toBe(400);
+    expect((await put({ ...t, enrollSamples: 2.5 })).statusCode).toBe(400);
+    expect((await app.inject({ url: '/api/thresholds' })).json()).toEqual(t);
+  });
+
   it('PUT/GET /api/profile', async () => {
     const p = { password: 'pw', pin: '1111', keystroke: null, fingerprint: null, beta: null };
     expect((await app.inject({ method: 'PUT', url: '/api/profile', payload: p })).statusCode).toBe(

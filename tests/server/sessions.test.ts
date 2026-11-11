@@ -219,3 +219,55 @@ describe('SessionManager telephone et WebSocket', () => {
     expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level: 1 });
   });
 });
+
+describe('SessionManager robustesse des messages entrants', () => {
+  const bad: [string, string][] = [
+    ['null', 'null'],
+    ['nombre', '42'],
+    ['tableau', '[]'],
+    ['type inconnu', JSON.stringify({ type: 'boom' })],
+    ['type non texte', JSON.stringify({ type: 3 })],
+    ['keystroke sans events', JSON.stringify({ type: 'keystroke' })],
+    ['keystroke events invalides', JSON.stringify({ type: 'keystroke', password: 'x', events: [{ key: 'a' }] })],
+    ['pin sans fingerprint ni taps', JSON.stringify({ type: 'pin', pin: '1234' })],
+    ['orientation sans readings', JSON.stringify({ type: 'orientation' })],
+    ['orientation readings invalides', JSON.stringify({ type: 'orientation', readings: [{ alpha: 'a' }] })],
+  ];
+
+  it.each(bad)('message %s : session intacte, aucune exception', (_n, raw) => {
+    const m = setup();
+    const s = m.create();
+    const pc = new FakeWs();
+    m.attachPc(s.id, pc);
+    for (const level of [1, 2, 3] as const) {
+      m.jump(s.id, level);
+      expect(() => pc.emit('message', raw)).not.toThrow();
+      expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level });
+    }
+  });
+
+  it('god sur une session granted ne change rien', () => {
+    const m = setup();
+    const s = m.create();
+    const pc = new FakeWs();
+    m.attachPc(s.id, pc);
+    pc.emit('message', JSON.stringify({ type: 'god', who: 'A' }));
+    const before = m.snapshot(s.id).state;
+    expect(before.status).toBe('granted');
+    pc.emit('message', JSON.stringify({ type: 'god', who: 'B' }));
+    expect(m.snapshot(s.id).state).toEqual(before);
+  });
+
+  it('une erreur de ws.send ou un evenement error ne propage rien', () => {
+    const m = setup();
+    const s = m.create();
+    const pc = new FakeWs();
+    pc.send.mockImplementation(() => {
+      throw new Error('socket ferme');
+    });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() => m.attachPc(s.id, pc)).not.toThrow();
+    expect(() => pc.emit('error', new Error('x'))).not.toThrow();
+    vi.restoreAllMocks();
+  });
+});

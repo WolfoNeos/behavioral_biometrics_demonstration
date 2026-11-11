@@ -10,6 +10,7 @@ import type {
   KeyEvent,
   Level,
   LiveResults,
+  OrientationReading,
   Profile,
   Snapshot,
   SubmitPayload,
@@ -23,6 +24,7 @@ export interface WsLike {
   close(): void;
   on(event: 'message', cb: (data: unknown) => void): unknown;
   on(event: 'close', cb: () => void): unknown;
+  on(event: 'error', cb: (err: unknown) => void): unknown;
 }
 
 export interface Session {
@@ -43,7 +45,47 @@ const KIND_LEVEL: Record<SubmitPayload['kind'], Level> = { keystroke: 1, pin: 2,
 
 const currentLevel = (s: AuthState): Level => (s.status === 'blocked' ? s.verdict.level : s.level);
 
-const isLevel = (v: unknown): v is Level => v === 1 || v === 2 || v === 3;
+const isObj = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === 'object' && !Array.isArray(v);
+const fin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const arrOf = (v: unknown, ok: (x: Record<string, unknown>) => boolean): boolean =>
+  Array.isArray(v) && v.every((x) => isObj(x) && ok(x));
+const FP_FIELDS = ['userAgent', 'platform', 'language', 'screen', 'timezone', 'canvasHash'];
+
+/** Valide la forme d'un message entrant ; null si invalide. */
+function parsePayload(msg: Record<string, unknown>): SubmitPayload | null {
+  if (msg.type === 'keystroke') {
+    const ok =
+      typeof msg.password === 'string' &&
+      arrOf(msg.events, (e) => typeof e.key === 'string' && fin(e.down) && fin(e.up));
+    return ok
+      ? { kind: 'keystroke', events: msg.events as KeyEvent[], password: msg.password as string }
+      : null;
+  }
+  if (msg.type === 'pin') {
+    const fp = msg.fingerprint;
+    const ok =
+      typeof msg.pin === 'string' &&
+      isObj(fp) &&
+      FP_FIELDS.every((f) => typeof fp[f] === 'string') &&
+      arrOf(msg.taps, (t) => fin(t.down) && fin(t.up));
+    return ok
+      ? {
+          kind: 'pin',
+          pin: msg.pin as string,
+          fingerprint: fp as unknown as Fingerprint,
+          taps: msg.taps as { down: number; up: number }[],
+        }
+      : null;
+  }
+  if (msg.type === 'orientation') {
+    const ok = arrOf(msg.readings, (r) => fin(r.alpha) && fin(r.beta) && fin(r.gamma));
+    return ok ? { kind: 'orientation', readings: msg.readings as OrientationReading[] } : null;
+  }
+  return null;
+}
+
+const isLevel =(v: unknown): v is Level => v === 1 || v === 2 || v === 3;
 
 /** Frappe synthetique du mot de passe ; `offset` en ecarts-types ajoute a dwell et flight. */
 function syntheticKeystroke(profile: Profile, offset: number): KeyEvent[] {
@@ -121,7 +163,13 @@ export class SessionManager {
   private broadcast(id: string): void {
     const s = this.get(id);
     const msg = JSON.stringify({ type: 'state', ...this.snapshot(id) });
-    for (const ws of [...s.pcs, ...(s.phone ? [s.phone] : [])]) ws.send(msg);
+    for (const ws of [...s.pcs, ...(s.phone ? [s.phone] : [])]) {
+      try {
+        ws.send(msg);
+      } catch (err) {
+        console.error('envoi ws impossible', err);
+      }
+    }
   }
 
   attachPc(id: string, ws: WsLike): void {
@@ -129,6 +177,7 @@ export class SessionManager {
     s.pcs.add(ws);
     ws.on('message', (data) => this.handleMessage(id, data));
     ws.on('close', () => s.pcs.delete(ws));
+    ws.on('error', (err) => console.error('erreur ws pc', err));
     this.broadcast(id);
   }
 
@@ -146,6 +195,7 @@ export class SessionManager {
       s.phone = null;
       this.broadcast(id);
     });
+    ws.on('error', (err) => console.error('erreur ws telephone', err));
     this.broadcast(id);
   }
 
@@ -228,35 +278,37 @@ export class SessionManager {
     });
   }
 
+  /** Ne lance jamais : tout message invalide ou en erreur est journalise puis ignore. */
   handleMessage(id: string, raw: unknown): void {
-    if (!this.sessions.has(id)) return;
-    let msg: Record<string, unknown>;
     try {
-      msg = JSON.parse(String(raw)) as Record<string, unknown>;
-    } catch {
-      return;
-    }
-    const state = this.get(id).state;
-    switch (msg.type) {
-      case 'keystroke':
-      case 'pin':
-      case 'orientation': {
-        const level = KIND_LEVEL[msg.type];
-        if (state.status !== 'pending' || state.level !== level) return;
-        this.submit(id, level, { ...msg, kind: msg.type } as SubmitPayload);
-        return;
-      }
-      case 'jump':
-        if (isLevel(msg.level)) this.jump(id, msg.level);
-        return;
-      case 'reset':
-        this.reset(id);
-        return;
-      case 'god':
-        if (msg.who === 'A' || msg.who === 'B') {
-          this.inject(id, msg.who, currentLevel(state));
+      if (!this.sessions.has(id)) return;
+      const msg: unknown = JSON.parse(String(raw));
+      if (!isObj(msg) || typeof msg.type !== 'string') return;
+      const state = this.get(id).state;
+      switch (msg.type) {
+        case 'keystroke':
+        case 'pin':
+        case 'orientation': {
+          const level = KIND_LEVEL[msg.type];
+          if (state.status !== 'pending' || state.level !== level) return;
+          const payload = parsePayload(msg);
+          if (payload) this.submit(id, level, payload);
+          return;
         }
-        return;
+        case 'jump':
+          if (isLevel(msg.level)) this.jump(id, msg.level);
+          return;
+        case 'reset':
+          this.reset(id);
+          return;
+        case 'god':
+          if (state.status === 'pending' && (msg.who === 'A' || msg.who === 'B')) {
+            this.inject(id, msg.who, state.level);
+          }
+          return;
+      }
+    } catch (err) {
+      console.error('message ws ignore', err);
     }
   }
 }

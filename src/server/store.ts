@@ -10,9 +10,17 @@ export function emptyProfile(): Profile {
   return { password: '', pin: '', keystroke: null, fingerprint: null, beta: null };
 }
 
-function readJson<T>(path: string, fallback: () => T): T {
-  if (!existsSync(path)) return fallback();
-  return JSON.parse(readFileSync(path, 'utf8')) as T;
+/** Lit un objet JSON ; fichier absent, illisible ou non-objet -> null. */
+function readObject(path: string): Record<string, unknown> | null {
+  try {
+    if (!existsSync(path)) return null;
+    const v: unknown = JSON.parse(readFileSync(path, 'utf8'));
+    return v !== null && typeof v === 'object' && !Array.isArray(v)
+      ? (v as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function writeJson(path: string, value: unknown): void {
@@ -21,15 +29,34 @@ function writeJson(path: string, value: unknown): void {
 }
 
 export function loadProfile(path = DEFAULT_PROFILE_PATH): Profile {
-  return { ...emptyProfile(), ...readJson<Partial<Profile>>(path, emptyProfile) };
+  return { ...emptyProfile(), ...(readObject(path) as Partial<Profile> | null) };
 }
 
 export function saveProfile(p: Profile, path = DEFAULT_PROFILE_PATH): void {
   writeJson(path, p);
 }
 
+/** Fusion profonde avec les valeurs par defaut : un champ manquant ou invalide retombe sur le defaut. */
 export function loadThresholds(path = DEFAULT_THRESHOLDS_PATH): Thresholds {
-  return readJson<Thresholds>(path, () => structuredClone(DEFAULT_THRESHOLDS));
+  const raw = readObject(path) ?? {};
+  const d = DEFAULT_THRESHOLDS;
+  const section = <K extends 'keystroke' | 'device' | 'orientation'>(k: K): Thresholds[K] => {
+    const v = raw[k];
+    const o = v !== null && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+    const out = { ...d[k] } as Record<string, number>;
+    for (const f of Object.keys(out)) {
+      const x = o[f];
+      if (typeof x === 'number' && Number.isFinite(x)) out[f] = x;
+    }
+    return out as Thresholds[K];
+  };
+  const n = raw.enrollSamples;
+  return {
+    keystroke: section('keystroke'),
+    device: section('device'),
+    orientation: section('orientation'),
+    enrollSamples: typeof n === 'number' && Number.isInteger(n) && n >= 1 ? n : d.enrollSamples,
+  };
 }
 
 export function saveThresholds(t: Thresholds, path = DEFAULT_THRESHOLDS_PATH): void {

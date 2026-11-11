@@ -14,6 +14,25 @@ export interface ServerOptions {
 
 const PORT = 3001;
 
+const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const band = (v: unknown): boolean => {
+  const o = v as { accept?: unknown; warn?: unknown } | null;
+  return !!o && num(o.accept) && num(o.warn) && o.accept >= o.warn;
+};
+
+function validThresholds(b: Thresholds | null): b is Thresholds {
+  return (
+    !!b &&
+    band(b.keystroke) &&
+    band(b.device) &&
+    band(b.orientation) &&
+    num(b.orientation.toleranceDeg) &&
+    b.orientation.toleranceDeg > 0 &&
+    Number.isInteger(b.enrollSamples) &&
+    b.enrollSamples >= 1
+  );
+}
+
 export async function buildServer(opts: ServerOptions = {}) {
   const dataDir = resolve(opts.dataDir ?? 'data');
   const profilePath = join(dataDir, 'profile.json');
@@ -42,8 +61,8 @@ export async function buildServer(opts: ServerOptions = {}) {
   app.get('/api/thresholds', async () => loadThresholds(thresholdsPath));
   app.put('/api/thresholds', async (req, reply) => {
     const b = req.body as Thresholds | null;
-    if (!b || !b.keystroke || !b.device || !b.orientation) {
-      return reply.code(400).send({ error: 'seuils incomplets' });
+    if (!validThresholds(b)) {
+      return reply.code(400).send({ error: 'seuils invalides ou incomplets' });
     }
     saveThresholds(b, thresholdsPath);
     return loadThresholds(thresholdsPath);
