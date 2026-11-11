@@ -11,14 +11,15 @@ export function attachKeystrokeCapture(
 ): () => void {
   const events: KeyEvent[] = [];
   const pending = new Map<string, { key: string; down: number }>();
-  let done = false;
 
   const onKeyDown = (e: KeyboardEvent): void => {
     if (e.repeat) return;
     if (e.key === 'Enter') {
-      if (done) return;
-      done = true;
-      onDone(events.slice());
+      if (events.length === 0) return;
+      const captured = events.slice();
+      events.length = 0;
+      pending.clear();
+      onDone(captured);
       return;
     }
     if (e.key === 'Backspace') {

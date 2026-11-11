@@ -137,9 +137,34 @@ describe('attachKeystrokeCapture', () => {
     expect(onDone.mock.calls[0][0]).toEqual([{ key: 'b', down: 10, up: 30 }]);
   });
 
-  it('calls onDone only once', () => {
+  it('is reusable: each entry reports only its own events', () => {
+    const onDone = vi.fn<(e: KeyEvent[]) => void>();
+    attachKeystrokeCapture(input, onDone);
+    type('a', 1, 5);
+    type('b', 10, 15);
+    key(input, 'keydown', 'Enter');
+    type('c', 30, 35);
+    key(input, 'keydown', 'Enter');
+    expect(onDone).toHaveBeenCalledTimes(2);
+    expect(onDone.mock.calls[0][0].map((e) => e.key)).toEqual(['a', 'b']);
+    expect(onDone.mock.calls[1][0].map((e) => e.key)).toEqual(['c']);
+  });
+
+  it('a held Enter (repeat) does not fire twice', () => {
     const onDone = vi.fn();
     attachKeystrokeCapture(input, onDone);
+    type('a', 1, 5);
+    key(input, 'keydown', 'Enter');
+    type('b', 10, 15);
+    key(input, 'keydown', 'Enter', true);
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it('Enter on an empty buffer does not call onDone', () => {
+    const onDone = vi.fn();
+    attachKeystrokeCapture(input, onDone);
+    key(input, 'keydown', 'Enter');
+    type('a', 1, 5);
     key(input, 'keydown', 'Enter');
     key(input, 'keydown', 'Enter');
     expect(onDone).toHaveBeenCalledTimes(1);
