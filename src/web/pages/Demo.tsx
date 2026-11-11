@@ -30,7 +30,7 @@ function isTextTarget(t: EventTarget | null): boolean {
 function useGodMode(send: Send): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.ctrlKey || e.metaKey || e.altKey || isTextTarget(e.target)) return;
+      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTextTarget(e.target)) return;
       const k = e.key.toLowerCase();
       if (k === 'a' || k === 'b') send({ type: 'god', who: k === 'a' ? 'A' : 'B' });
     };
@@ -126,8 +126,19 @@ function FinalVerdict({ verdict, onReset }: { verdict: Verdict; onReset: () => v
 function DirectSignal({ snap, thresholds }: { snap: Snapshot; thresholds: Thresholds }) {
   if (snap.level === 1) {
     const perKey = snap.live.keystroke?.perKey ?? [];
+    const dev = perKey.length
+      ? perKey.reduce((a, p) => a + Math.abs(p.dwell - p.expectedDwell), 0) / perKey.length
+      : null;
     return (
       <>
+        <div className="summary">
+          <span>
+            Écart moyen : <strong>{dev === null ? '–' : `${Math.round(dev)} ms`}</strong>
+          </span>
+          <span>
+            Touches : <strong>{perKey.length}</strong>
+          </span>
+        </div>
         <ThresholdChart perKey={perKey} />
         <Barcode live={perKey.map((p) => p.dwell)} expected={perKey.map((p) => p.expectedDwell)} />
       </>
@@ -229,12 +240,14 @@ export function Demo() {
       <aside className="side">
         <section className="panel" data-testid="panel-direct" aria-label="Direct">
           <h2>Direct — {SIGNAL_NAME[level]}</h2>
-          <div className="gauge-row">
+          <div className="direct-body">
             <Gauge score={liveScore(snapshot)} accept={th.accept} warn={th.warn} />
+            <div className="signal">
+              <DirectSignal snap={snapshot} thresholds={thresholds} />
+            </div>
           </div>
-          <DirectSignal snap={snapshot} thresholds={thresholds} />
         </section>
-        <section className="panel" data-testid="panel-profil" aria-label="Profil de A">
+        <section className="panel panel-profil" data-testid="panel-profil" aria-label="Profil de A">
           <h2>Profil de A</h2>
           <ProfileSignal snap={snapshot} thresholds={thresholds} />
         </section>
