@@ -19,6 +19,9 @@ export interface PerKeyScore {
 const STD_FLOOR = 5; // ms
 /** Ecart normalise attribue a une touche inconnue du profil. */
 const UNKNOWN_KEY_DEVIATION = 6;
+/** Zone morte : un ecart <= 2 ecarts-types est de la variation naturelle, non penalisee. */
+const DEAD_ZONE = 2;
+const excess = (z: number) => Math.max(0, z - DEAD_ZONE);
 
 /** dwell = up - down ; flight = down[i] - up[i-1] (0 pour la premiere touche). */
 export function extractTimings(events: KeyEvent[]): Timing[] {
@@ -59,11 +62,12 @@ export function scoreKeystroke(
   if (timings.length === 0) return { score: 0, perKey: [] };
 
   const deviations: number[] = [];
-  const perKey: PerKeyScore[] = timings.map((t) => {
+  const perKey: PerKeyScore[] = timings.map((t, i) => {
     const m = profile.mean[t.key];
     const s = profile.std[t.key];
     if (!m || !s) {
-      deviations.push(UNKNOWN_KEY_DEVIATION, UNKNOWN_KEY_DEVIATION);
+      deviations.push(UNKNOWN_KEY_DEVIATION);
+      if (i > 0) deviations.push(UNKNOWN_KEY_DEVIATION);
       return {
         key: t.key,
         dwell: t.dwell,
@@ -76,10 +80,9 @@ export function scoreKeystroke(
     }
     const bandDwell = Math.max(s.dwell, STD_FLOOR);
     const bandFlight = Math.max(s.flight, STD_FLOOR);
-    deviations.push(
-      Math.abs(t.dwell - m.dwell) / bandDwell,
-      Math.abs(t.flight - m.flight) / bandFlight,
-    );
+    deviations.push(excess(Math.abs(t.dwell - m.dwell) / bandDwell));
+    // flight de la premiere touche : toujours 0, exclu de la moyenne
+    if (i > 0) deviations.push(excess(Math.abs(t.flight - m.flight) / bandFlight));
     return {
       key: t.key,
       dwell: t.dwell,
@@ -92,7 +95,7 @@ export function scoreKeystroke(
   });
 
   const avg = deviations.reduce((a, b) => a + b, 0) / deviations.length;
-  const raw = 100 * Math.exp(-avg / 2);
+  const raw = 100 * Math.exp(-avg / 3);
   const score = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : 0;
   return { score, perKey };
 }

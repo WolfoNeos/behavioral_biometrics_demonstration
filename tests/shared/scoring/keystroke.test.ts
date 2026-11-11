@@ -84,3 +84,42 @@ describe('scoreKeystroke', () => {
     expect(r.perKey[0].expectedDwell).toBe(profile.mean.a.dwell);
   });
 });
+
+// --- Calibration realiste : jitter gaussien seede, std ~20 ms ---
+function rng(seed: number) {
+  let s = seed >>> 0 || 1;
+  const u = () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return (s + 1) / 4294967297;
+  };
+  return () => Math.sqrt(-2 * Math.log(u())) * Math.cos(2 * Math.PI * u());
+}
+function noisy(seed: number, dwell: number, flight: number, std: number): KeyEvent[] {
+  const g = rng(seed);
+  const events: KeyEvent[] = [];
+  let t = 1000;
+  KEYS.forEach((key, i) => {
+    const down = t + (i === 0 ? 0 : Math.max(5, flight + std * g()));
+    const up = down + Math.max(20, dwell + std * g());
+    events.push({ key, down, up });
+    t = up;
+  });
+  return events;
+}
+
+describe('calibration realiste', () => {
+  const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
+  const enrol = Array.from({ length: 10 }, (_, i) => noisy(1000 + i, 110, 80, 20));
+  const profile = buildKeystrokeProfile(enrol);
+
+  it('utilisateur legitime (echantillons hors profil) >= 80 sur 20 graines', () => {
+    for (const s of seeds) {
+      const r = scoreKeystroke(profile, noisy(s, 110, 80, 20)); expect(r.score).toBeGreaterThanOrEqual(80);
+    }
+  });
+  it('attaquant saccade (~240 ms, flights x2, jitter fort) < 50 sur 20 graines', () => {
+    for (const s of seeds) {
+      const r = scoreKeystroke(profile, noisy(s, 240, 160, 40)); expect(r.score).toBeLessThan(50);
+    }
+  });
+});
