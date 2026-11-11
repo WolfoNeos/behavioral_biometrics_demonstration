@@ -122,3 +122,28 @@ button.primary { font-size: var(--text-lg); padding: var(--space-3) var(--space-
 .profile-beta { font-size: var(--text-xl); margin: 0; font-weight: 700; }
 .panel .values-table th, .panel .values-table td:first-child { word-break: normal; white-space: nowrap; }
 .panel .values-table th:nth-child(3), .panel .values-table td:nth-child(3) { white-space: nowrap; }
+
+/* Page mobile : portrait, un pouce */
+.mobile { box-sizing: border-box; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-4); padding: var(--space-4) var(--space-3); text-align: center; position: relative; }
+.mobile .conn { position: absolute; top: var(--space-2); right: var(--space-3); font-size: var(--text-sm); color: var(--color-red); font-weight: 600; }
+.mobile .conn.ok { color: var(--color-green); }
+.m-title { font-size: var(--text-lg); margin: 0; }
+.m-sub { font-size: var(--text-md); color: var(--color-ink-muted); margin: 0; }
+.m-error { font-size: var(--text-md); color: var(--color-red); background: var(--color-red-soft); border-radius: var(--radius); padding: var(--space-3); margin: 0; }
+.m-btn { width: 100%; max-width: 360px; min-height: 64px; font-size: var(--text-lg); font-weight: 700; background: var(--color-ink); color: var(--color-white); border-color: var(--color-ink); border-radius: var(--radius); }
+.m-btn:disabled { background: var(--color-grey); border-color: var(--color-grey); }
+.pin, .posture { display: flex; flex-direction: column; align-items: center; gap: var(--space-4); width: 100%; }
+.pin-dots { display: flex; gap: var(--space-3); min-height: 28px; }
+.dot { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--color-ink); box-sizing: border-box; }
+.dot.filled { background: var(--color-ink); }
+.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); width: 100%; max-width: 360px; }
+.key { min-height: 72px; font-size: var(--text-xl); font-weight: 700; border-radius: var(--radius); touch-action: manipulation; user-select: none; }
+.key:active { background: var(--color-grey-soft); }
+.key-aux { color: var(--color-ink-muted); }
+.key-ok { background: var(--color-green); color: var(--color-white); border-color: var(--color-green); font-size: var(--text-md); }
+.key-ok:disabled { background: var(--color-grey); border-color: var(--color-grey); }
+.beta-value { font-size: var(--text-xxl); font-weight: 700; font-variant-numeric: tabular-nums; }
+.m-verdict { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
+.m-verdict-icon { font-size: 9rem; line-height: 1; font-weight: 700; }
+.m-verdict.granted { color: var(--color-green); }
+.m-verdict.denied { color: var(--color-red); }

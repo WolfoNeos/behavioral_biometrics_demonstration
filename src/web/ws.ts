@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Level, Snapshot } from '../shared/types';
-import type { KeyEvent } from '../shared/types';
+import type { Fingerprint, KeyEvent, Level, OrientationReading, Snapshot } from '../shared/types';
+
+export type PhoneMessage =
+  | { type: 'pin'; pin: string; fingerprint: Fingerprint; taps: { down: number; up: number }[] }
+  | { type: 'orientation'; readings: OrientationReading[] };
 
 export type ClientMessage =
   | { type: 'keystroke'; events: KeyEvent[]; password: string }
@@ -28,6 +31,19 @@ function writeStored(id: string | null): void {
   }
 }
 
+const backoffDelay = (attempt: number): number => Math.min(300 * 2 ** attempt, MAX_BACKOFF_MS);
+
+function socketUrl(id: string, role: 'pc' | 'phone'): string {
+  const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+  return `${scheme}://${location.host}/ws?session=${id}&role=${role}`;
+}
+
+/** Decode un message `state` du serveur ; null pour tout autre message. */
+function parseState(data: unknown): Snapshot | null {
+  const { type, ...rest } = JSON.parse(String(data)) as { type: string } & Snapshot;
+  return type === 'state' ? (rest as Snapshot) : null;
+}
+
 async function createSession(): Promise<string> {
   const res = await fetch('/api/session', { method: 'POST' });
   if (!res.ok) throw new Error(`creation de session impossible (${res.status})`);
@@ -48,7 +64,7 @@ export function useSession(): { snapshot: Snapshot | null; send: (msg: ClientMes
 
     const retry = (): void => {
       if (disposed) return;
-      const delay = Math.min(300 * 2 ** attempt, MAX_BACKOFF_MS);
+      const delay = backoffDelay(attempt);
       attempt += 1;
       timer = setTimeout(connect, delay);
     };
@@ -63,17 +79,16 @@ export function useSession(): { snapshot: Snapshot | null; send: (msg: ClientMes
         return;
       }
       if (disposed) return;
-      const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-      const ws = new WebSocket(`${scheme}://${location.host}/ws?session=${id}&role=pc`);
+      const ws = new WebSocket(socketUrl(id, 'pc'));
       wsRef.current = ws;
       let received = false;
       ws.onmessage = (ev) => {
         try {
-          const { type, ...rest } = JSON.parse(String(ev.data)) as { type: string } & Snapshot;
-          if (type !== 'state') return;
+          const next = parseState(ev.data);
+          if (!next) return;
           received = true;
           attempt = 0;
-          setSnapshot(rest as Snapshot);
+          setSnapshot(next);
         } catch (err) {
           console.error('message ws illisible', err);
         }
@@ -105,4 +120,63 @@ export function useSession(): { snapshot: Snapshot | null; send: (msg: ClientMes
   }, []);
 
   return { snapshot, send };
+}
+
+/** Session de demo cote telephone : WebSocket role=phone, reconnexion automatique. */
+export function usePhoneSession(id: string): {
+  snapshot: Snapshot | null;
+  connected: boolean;
+  send: (msg: PhoneMessage) => void;
+} {
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [connected, setConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempt = 0;
+
+    const connect = (): void => {
+      const ws = new WebSocket(socketUrl(id, 'phone'));
+      wsRef.current = ws;
+      ws.onopen = () => setConnected(true);
+      ws.onmessage = (ev) => {
+        try {
+          const next = parseState(ev.data);
+          if (!next) return;
+          attempt = 0;
+          setSnapshot(next);
+        } catch (err) {
+          console.error('message ws illisible', err);
+        }
+      };
+      ws.onclose = () => {
+        if (wsRef.current === ws) wsRef.current = null;
+        setConnected(false);
+        if (disposed) return;
+        timer = setTimeout(connect, backoffDelay(attempt));
+        attempt += 1;
+      };
+    };
+
+    connect();
+    return () => {
+      disposed = true;
+      clearTimeout(timer);
+      const ws = wsRef.current;
+      wsRef.current = null;
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
+    };
+  }, [id]);
+
+  const send = useCallback((msg: PhoneMessage) => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+  }, []);
+
+  return { snapshot, connected, send };
 }
