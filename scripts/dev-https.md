@@ -34,6 +34,8 @@ Le fichier `rootCA.pem` se trouve dans le dossier donné par `mkcert -CAROOT`.
 
 Utiliser le **partage de connexion d'un téléphone** (point d'accès) : le PC et les deux téléphones y sont connectés. Les Wi-Fi de campus sont risqués : isolation des clients (les appareils ne se voient pas), portail captif, pare-feu. Vérifier aussi que le pare-feu Windows autorise Node sur le réseau privé (ports 5173 et 3001).
 
+Sécurité : l'API REST et le WebSocket ne sont **pas authentifiés**. Tout appareil connecté au point d'accès peut lire et modifier le profil de A (mot de passe et PIN en clair via `GET/PUT /api/profile`), les seuils et les sessions. C'est acceptable uniquement pour une démo en classe : point d'accès privé (mot de passe non communiqué), identifiants de démo jetables. Un tunnel public expose la même chose à tout Internet tant qu'il est ouvert.
+
 ## 4. Repli : tunnel HTTPS
 
 Si les capteurs restent bloqués (certificat non approuvé, Wi-Fi isolé) : ouvrir un tunnel HTTPS vers Vite (`allowedHosts` est activé dans `vite.config.ts`, donc le Host du tunnel est accepté). Commandes **non testées** :

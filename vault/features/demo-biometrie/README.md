@@ -9,7 +9,10 @@ Démo live (PC + 2 smartphones) : B connaît les identifiants de A mais est bloq
 - ✅ Captures navigateur, composants de visualisation, écran de démo, page mobile
 - ✅ Configuration et enrôlement du profil de A
 - ✅ HTTPS local optionnel, URL du QR sur l'IP du PC, test de scénario
+- ✅ Revue finale : plusieurs téléphones par session, échec du niveau précédent affiché (bandeau + raison, `lastVerdict`), indicateur de téléphone, aiguille d'angle en direct (`orientationLive`), seuils dans le snapshot, profil de frappe effacé au changement de mot de passe
 - 📋 Répétition sur téléphones réels (voir [[rehearsal-checklist]])
+
+Sécurité : API et WebSocket non authentifiés (profil, mot de passe et PIN lisibles sur le réseau) ; démo en classe sur réseau privé uniquement, voir [[../../core/03-devops-cicd]].
 
 ## Fichiers clés
 | Fichier | Rôle |

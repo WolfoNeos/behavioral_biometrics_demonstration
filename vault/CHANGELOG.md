@@ -1,5 +1,8 @@
 # Changelog du Vault
 
+## 2026-11-11 — Démo biométrie : corrections de la revue finale
+Plusieurs téléphones par session (plus de boucle de reconnexion), panneau « Direct » qui garde le niveau échoué avec un bandeau « Échec niveau N » et sa raison, jauge neutre sans mesure, indicateur « Téléphone connecté / en attente », aiguille d'angle en direct sur le PC, seuils transmis dans le snapshot, libellés français, message « rescannez le QR » après redémarrage du serveur, profil de frappe effacé au changement de mot de passe. Note de sécurité (API non authentifiée) dans `core/03-devops-cicd` et `scripts/dev-https.md`. [[features/demo-biometrie/rehearsal-checklist]] mis à jour.
+
 ## 2026-11-11 — Démo biométrie : HTTPS, réseau, scénario
 Démo implémentée de bout en bout (scores, serveur WS, écran PC, page mobile, configuration). Ajout : HTTPS optionnel via certificats mkcert (`scripts/dev-https.md`), URL du QR sur l'IP LAN (`DEMO_BASE_URL`), `npm start`, test de scénario `tests/e2e`, script de répétition [[features/demo-biometrie/rehearsal-checklist]]. Reste : répétition sur téléphones réels. Notes `core/` complétées.
 
