@@ -2,8 +2,12 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-chartjs-2', () => ({
-  Line: (props: { data: unknown }) => (
-    <div data-testid="chart" data-chart={JSON.stringify(props.data)} />
+  Line: (props: { data: unknown; options: unknown }) => (
+    <div
+      data-testid="chart"
+      data-chart={JSON.stringify(props.data)}
+      data-options={JSON.stringify(props.options)}
+    />
   ),
 }));
 
@@ -22,12 +26,24 @@ describe('ThresholdChart', () => {
     const by = (l: string) => data.datasets.find((d: { label: string }) => d.label === l).data;
     expect(by('Direct (ms)')).toEqual([100, 130]);
     expect(by('Attendu (ms)')).toEqual([90, 120]);
-    expect(by('Borne haute (ms)')).toEqual([110, 130]);
+    expect(by("Zone d'incertitude")).toEqual([110, 130]);
     expect(by('Borne basse (ms)')).toEqual([70, 110]);
   });
   it('affiche les valeurs numériques en ms', () => {
     render(<ThresholdChart perKey={perKey} />);
     expect(screen.getByText('130 ms')).toBeInTheDocument();
     expect(screen.getByText('120 ms')).toBeInTheDocument();
+  });
+  it("désactive les animations et ne garde qu'une entrée de légende", () => {
+    render(<ThresholdChart perKey={perKey} />);
+    const opts = JSON.parse(screen.getByTestId('chart').getAttribute('data-options')!);
+    expect(opts.animation).toEqual({ duration: 0 });
+    expect(opts.plugins.legend.labels.font.size).toBe(18);
+  });
+  it('filtre la légende (fonction non sérialisable : testée via le module)', async () => {
+    const { legendFilter } = await import('../../../src/web/components/ThresholdChart');
+    expect(legendFilter({ text: "Zone d'incertitude" })).toBe(true);
+        expect(legendFilter({ text: 'Borne basse (ms)' })).toBe(false);
+    expect(legendFilter({ text: 'Direct (ms)' })).toBe(true);
   });
 });

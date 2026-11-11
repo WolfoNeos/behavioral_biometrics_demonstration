@@ -12,4 +12,9 @@ describe('Barcode', () => {
     render(<Barcode live={[]} expected={[110]} />);
     expect(screen.getByLabelText('signature en direct').querySelectorAll('rect')).toHaveLength(0);
   });
+  it('utilise une échelle horizontale commune', () => {
+    render(<Barcode live={[100]} expected={[200, 200, 200]} />);
+    const vb = (l: string) => screen.getByLabelText(l).getAttribute('viewBox');
+    expect(vb('signature en direct')).toBe(vb('signature de référence'));
+  });
 });

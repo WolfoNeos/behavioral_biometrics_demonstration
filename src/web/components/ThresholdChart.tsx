@@ -23,6 +23,14 @@ function token(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || 'currentColor';
 }
 
+const BAND_LABEL = "Zone d'incertitude";
+const LOWER_LABEL = 'Borne basse (ms)';
+
+/** Une seule entree de legende pour la bande : la borne basse est masquee. */
+export function legendFilter(item: { text: string }): boolean {
+  return item.text !== LOWER_LABEL;
+}
+
 const ms = (v: number) => `${Math.round(v)} ms`;
 
 /** Temps de maintien (dwell) par touche : direct, attendu, bande d'incertitude. */
@@ -52,7 +60,7 @@ export function ThresholdChart({ perKey }: ThresholdChartProps) {
         tension: 0.2,
       },
       {
-        label: 'Borne haute (ms)',
+        label: BAND_LABEL,
         data: perKey.map((p) => p.expectedDwell + p.bandDwell),
         borderColor: 'transparent',
         backgroundColor: greySoft,
@@ -61,7 +69,7 @@ export function ThresholdChart({ perKey }: ThresholdChartProps) {
         tension: 0.2,
       },
       {
-        label: 'Borne basse (ms)',
+        label: LOWER_LABEL,
         data: perKey.map((p) => p.expectedDwell - p.bandDwell),
         borderColor: 'transparent',
         pointRadius: 0,
@@ -72,11 +80,19 @@ export function ThresholdChart({ perKey }: ThresholdChartProps) {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
+    animation: { duration: 0 },
     scales: {
-      y: { title: { display: true, text: 'Temps de maintien (ms)' }, beginAtZero: true },
-      x: { title: { display: true, text: 'Touche' } },
+      y: {
+        title: { display: true, text: 'Temps de maintien (ms)', font: { size: 16 } },
+        ticks: { font: { size: 16 } },
+        beginAtZero: true,
+      },
+      x: {
+        title: { display: true, text: 'Touche', font: { size: 16 } },
+        ticks: { font: { size: 16 } },
+      },
     },
-    plugins: { legend: { labels: { font: { size: 14 } } } },
+    plugins: { legend: { labels: { font: { size: 18 }, filter: legendFilter } } },
   };
   return (
     <div className="threshold-chart" aria-label="graphique des temps de frappe">
