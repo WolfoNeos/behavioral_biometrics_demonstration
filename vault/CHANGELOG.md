@@ -1,5 +1,8 @@
 # Changelog du Vault
 
+## 2026-11-11 — Démo biométrie : certificat HTTPS auto-signé
+`npm run cert` génère un certificat OpenSSL auto-signé (30 jours, SAN LAN + localhost) sans mkcert ni changement du magasin de confiance ; à accepter une fois par appareil, non vérifié sur téléphones réels. [[core/03-devops-cicd]]
+
 ## 2026-11-11 — Démo biométrie : frappe en temps réel
 Niveau 1 : graphe de frappe construit touche par touche pendant la saisie (barres colorées selon l'écart à A, courbe de maintien, jauge au score provisoire), remplacé à Entrée par le verdict du serveur. Snapshot : `expectedBars` (référence par position, sans caractère). Score partagé `scoreKeystrokeLive` (même formule que `scoreKeystroke`). Positions numérotées au lieu des touches sur le graphe. [[features/demo-biometrie/README]] et [[features/demo-biometrie/rehearsal-checklist]] mis à jour.
 

@@ -2,6 +2,20 @@
 
 Le gyroscope (`DeviceOrientationEvent`) n'est disponible qu'en **contexte sécurisé (HTTPS)** sur mobile. Vite sert en HTTPS dès que `certs/dev.pem` et `certs/dev-key.pem` existent ; sinon il reste en HTTP (suffisant pour le PC seul). Le dossier `certs/` est ignoré par git. À faire **à la main, avant la présentation**.
 
+## Méthode rapide : certificat auto-signé (sans mkcert)
+
+Ne nécessite aucune installation (OpenSSL est fourni avec Git for Windows) et ne touche pas au magasin de certificats du système.
+
+1. `npm run cert` : génère `certs/dev.pem` et `certs/dev-key.pem` (valables 30 jours) avec l'IP LAN du PC, `127.0.0.1` et `localhost`. Hôtes supplémentaires : `npm run cert -- 192.168.43.1 monhote.local`.
+2. Relancer `npm start` : le QR et l'URL passent en `https` automatiquement.
+3. Sur **chaque appareil** (chaque téléphone, et le navigateur du PC), ouvrir une fois l'URL https affichée et accepter l'avertissement :
+   - Chrome Android : « Paramètres avancés » -> « Continuer vers ... ».
+   - iOS Safari : « Afficher les détails » -> « Visiter ce site web ».
+   - Navigateur du PC : « Avancé » -> « Continuer ».
+4. Régénérer avec `npm run cert -- --force <ip>` dès que l'IP change (point d'accès !) ou après 30 jours. Sans `--force`, le script refuse d'écraser des certificats existants.
+
+Limites, à dire honnêtement : **non vérifié sur de vrais téléphones**. À contrôler à la répétition : le WebSocket `wss` fonctionne et le capteur de mouvement reste disponible/autorisable après l'exception de certificat. Si ce n'est pas le cas, utiliser la méthode mkcert ci-dessous : elle installe une autorité racine de confiance sur les appareils (réglage de sécurité que seul l'utilisateur peut faire) et reste l'alternative la plus propre.
+
 ## 1. Installer mkcert et générer le certificat (PC)
 
 1. Installer mkcert (ex. `choco install mkcert` ou `scoop install mkcert`).

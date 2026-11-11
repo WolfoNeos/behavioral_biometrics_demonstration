@@ -11,7 +11,8 @@
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "server": "tsx src/server/index.ts",
-    "start": "node scripts/start.mjs"
+    "start": "node scripts/start.mjs",
+    "cert": "tsx scripts/make-cert.mjs"
   },
   "dependencies": {
     "@fastify/websocket": "^11.3.7",

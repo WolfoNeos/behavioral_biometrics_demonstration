@@ -3,6 +3,7 @@
 Non automatisable : à faire une fois sur le réseau réel avec les deux téléphones (A et B) et le vidéoprojecteur. Prérequis : `scripts/dev-https.md` suivi (HTTPS, réseau, certificat).
 
 ## 0. Préparation
+0. Certificat : `npm run cert` (ou `npm run cert -- --force <IP du point d'accès>` si l'IP a changé), puis relancer `npm start`. Sur chaque téléphone et sur le PC, ouvrir `https://<IP>:5173` une fois et accepter l'avertissement. Vérifier : le gyroscope est disponible après l'acceptation de l'avertissement, et la connexion WebSocket (`wss`) s'établit (« Téléphone connecté »).
 1. `npm start` ; vérifier la ligne `URL de base (QR)` (IP du PC, `https`). Réseau privé obligatoire : l'API n'est pas authentifiée (voir `scripts/dev-https.md`).
 2. Ouvrir `https://<IP>:5173/config` sur le PC : enrôler le profil de A (mot de passe, 10 saisies, PIN), puis le téléphone de A (`/m-enroll`, posture ~42°).
 3. Régler les seuils (défauts : frappe 80/50, appareil 80/50, orientation 80/50 ± 5°).
