@@ -25,6 +25,23 @@ describe('compareFingerprint', () => {
     expect(r.lines.find((l) => l.field === 'canvasHash')?.match).toBe(false);
   });
 
+  it('another browser on the same phone (only the userAgent differs) is rejected', () => {
+    const r = compareFingerprint(fp, { ...fp, userAgent: 'Autre navigateur' });
+    expect(r.score).toBeLessThanOrEqual(40);
+    expect(r.lines.find((l) => l.field === 'userAgent')?.match).toBe(false);
+  });
+
+  it('a different canvas is capped below the warn threshold even when five other fields match', () => {
+    const r = compareFingerprint(fp, { ...fp, canvasHash: 'other' });
+    expect(r.score).toBeLessThanOrEqual(40);
+  });
+
+  it('a change of screen, language or timezone alone stays accepted (rotation, settings)', () => {
+    expect(compareFingerprint(fp, { ...fp, screen: '1080x1920' }).score).toBeGreaterThanOrEqual(80);
+    expect(compareFingerprint(fp, { ...fp, language: 'en-US' }).score).toBeGreaterThanOrEqual(80);
+    expect(compareFingerprint(fp, { ...fp, timezone: 'UTC' }).score).toBeGreaterThanOrEqual(80);
+  });
+
   it('canvasHash weighs more than another field', () => {
     const a = compareFingerprint(fp, { ...fp, canvasHash: 'x' }).score;
     const b = compareFingerprint(fp, { ...fp, language: 'en-US' }).score;
