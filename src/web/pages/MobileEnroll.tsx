@@ -4,7 +4,7 @@ import { collectOrientation, requestOrientation } from '../capture/orientation';
 import type { Fingerprint } from '../../shared/types';
 
 const UNAVAILABLE =
-  "Capteur d'orientation indisponible — ouvrez la page en HTTPS et autorisez l'accès au capteur";
+  "Orientation sensor unavailable — open the page over HTTPS and allow sensor access";
 
 type Saved = { beta: number; fingerprint: Fingerprint };
 
@@ -36,7 +36,7 @@ export function MobileEnroll() {
     try {
       const readings = await collectOrientation(2000);
       if (readings.length === 0) {
-        setError('Aucune mesure reçue');
+        setError('No measurement received');
         return;
       }
       const mean = readings.reduce((s, r) => s + r.beta, 0) / readings.length;
@@ -48,12 +48,12 @@ export function MobileEnroll() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        setError(body.error ?? "Échec de l'enregistrement");
+        setError(body.error ?? "Saving failed");
         return;
       }
       setSaved({ beta: mean, fingerprint });
     } catch {
-      setError("Échec de l'enregistrement");
+      setError("Saving failed");
     } finally {
       setBusy(false);
     }
@@ -66,10 +66,10 @@ export function MobileEnroll() {
           <div className="m-verdict-icon" aria-hidden="true">
             ✓
           </div>
-          <h1 className="m-title">Téléphone de A enregistré ✓</h1>
-          <p className="m-sub">Inclinaison naturelle : {Math.round(saved.beta)}°</p>
+          <h1 className="m-title">A’s phone enrolled ✓</h1>
+          <p className="m-sub">Natural tilt: {Math.round(saved.beta)}°</p>
           <p className="m-sub">
-            Empreinte : {saved.fingerprint.platform}, {saved.fingerprint.userAgent}
+            Fingerprint: {saved.fingerprint.platform}, {saved.fingerprint.userAgent}
           </p>
         </div>
       </main>
@@ -78,12 +78,12 @@ export function MobileEnroll() {
 
   return (
     <main className="mobile">
-      <h1 className="m-title">Enrôlement du téléphone de A</h1>
+      <h1 className="m-title">Phone enrollment for A</h1>
       {perm === 'idle' && (
         <>
-          <p className="m-sub">Tenez le téléphone comme d&apos;habitude, puis autorisez le capteur.</p>
+          <p className="m-sub">Hold the phone as usual, then allow the sensor.</p>
           <button type="button" className="m-btn" onClick={authorize}>
-            Autoriser le capteur
+            Allow the sensor
           </button>
         </>
       )}
@@ -93,7 +93,7 @@ export function MobileEnroll() {
             {UNAVAILABLE}
           </p>
           <button type="button" className="m-btn" onClick={authorize}>
-            Réessayer
+            Try again
           </button>
         </>
       )}
@@ -108,7 +108,7 @@ export function MobileEnroll() {
             </p>
           )}
           <button type="button" className="m-btn" onClick={() => void save()} disabled={busy}>
-            {busy ? 'Mesure en cours…' : 'Enregistrer cette inclinaison'}
+            {busy ? 'Measuring…' : 'Save this tilt'}
           </button>
         </>
       )}

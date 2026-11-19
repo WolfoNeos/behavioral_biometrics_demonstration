@@ -64,7 +64,7 @@ describe('buildRecap', () => {
       }),
     )!;
     expect(r.steps.map((s) => s.secret)).toEqual([true, true, false]);
-    expect(r.steps.map((s) => s.secretLabel)).toEqual(['Mot de passe', 'PIN', 'PIN']);
+    expect(r.steps.map((s) => s.secretLabel)).toEqual(['Password', 'PIN', 'PIN']);
     // bonne posture mesurée mais PIN faux : étape refusée, confiance nulle
     expect(r.steps[2]).toMatchObject({ score: 97, outcome: 'failed' });
     expect(r.trust).toBe(0);

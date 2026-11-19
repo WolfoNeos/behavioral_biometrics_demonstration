@@ -8,29 +8,29 @@ export type StepOutcome = 'passed' | 'doubt' | 'failed' | 'skipped';
 export interface StepRecap {
   level: Level;
   name: string;
-  /** Score du comportement mesuré à l'étape ; null si aucune mesure. */
+  /** Score du comportement mesuré à l'étape ; null si no measurement. */
   score: number | null;
   outcome: StepOutcome;
   /** Secret demandé à l'étape (mot de passe ou PIN). */
-  secretLabel: 'Mot de passe' | 'PIN';
+  secretLabel: 'Password' | 'PIN';
   /** Le secret saisi correspond-il à celui attendu ? null si l'étape n'a pas été soumise. */
   secret: boolean | null;
 }
 
 export interface SessionRecap {
   steps: StepRecap[];
-  /** Confiance globale 0-100 : score de la vérification décisive moins DOUBT_PENALTY par doute. */
+  /** Overall trust 0-100 : score de la vérification décisive moins DOUBT_PENALTY par doute. */
   trust: number;
   granted: boolean;
-  /** Niveau qui a tranché (accès accordé ou blocage). */
+  /** Level qui a tranché (accès accordé ou blocage). */
   deciding: Level;
-  /** Seuils du signal décisif, pour colorer la confiance globale. */
+  /** Thresholds du signal décisif, pour colorer la overall trust. */
   accept: number;
   warn: number;
 }
 
-export const STEP_NAMES: Record<Level, string> = { 1: 'Frappe', 2: 'Appareil', 3: 'Posture' };
-const SECRET_LABEL: Record<Level, 'Mot de passe' | 'PIN'> = { 1: 'Mot de passe', 2: 'PIN', 3: 'PIN' };
+export const STEP_NAMES: Record<Level, string> = { 1: 'Typing', 2: 'Device', 3: 'Posture' };
+const SECRET_LABEL: Record<Level, 'Password' | 'PIN'> = { 1: 'Password', 2: 'PIN', 3: 'PIN' };
 
 const clamp = (v: number): number => Math.max(0, Math.min(100, v));
 

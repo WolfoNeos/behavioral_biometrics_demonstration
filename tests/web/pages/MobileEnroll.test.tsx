@@ -33,17 +33,17 @@ describe('MobileEnroll', () => {
     requestOrientation.mockResolvedValue('granted');
     collectOrientation.mockResolvedValue([reading(40), reading(44)]);
     render(<MobileEnroll />);
-    await user.click(screen.getByRole('button', { name: 'Autoriser le capteur' }));
+    await user.click(screen.getByRole('button', { name: 'Allow the sensor' }));
     act(() => {
       const e = new Event('deviceorientation');
       Object.assign(e, { beta: 41.4 });
       window.dispatchEvent(e);
     });
     expect(await screen.findByLabelText('angle beta')).toHaveTextContent('41°');
-    await user.click(screen.getByRole('button', { name: 'Enregistrer cette inclinaison' }));
+    await user.click(screen.getByRole('button', { name: 'Save this tilt' }));
     expect(collectOrientation).toHaveBeenCalledWith(2000);
     await waitFor(() => expect(post).toHaveBeenCalledWith('/api/enroll/phone', { fingerprint: fp, beta: 42 }));
-    expect(await screen.findByText('Téléphone de A enregistré ✓')).toBeInTheDocument();
+    expect(await screen.findByText('A’s phone enrolled ✓')).toBeInTheDocument();
     expect(screen.getByText(/42°/)).toBeInTheDocument();
     expect(screen.getByText(/UA/)).toBeInTheDocument();
   });
@@ -52,8 +52,8 @@ describe('MobileEnroll', () => {
     const user = userEvent.setup();
     requestOrientation.mockResolvedValue('denied');
     render(<MobileEnroll />);
-    await user.click(screen.getByRole('button', { name: 'Autoriser le capteur' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Capteur d'orientation indisponible/);
+    await user.click(screen.getByRole('button', { name: 'Allow the sensor' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Orientation sensor unavailable/);
   });
 
   it('n envoie rien sans mesure', async () => {
@@ -61,9 +61,9 @@ describe('MobileEnroll', () => {
     requestOrientation.mockResolvedValue('granted');
     collectOrientation.mockResolvedValue([]);
     render(<MobileEnroll />);
-    await user.click(screen.getByRole('button', { name: 'Autoriser le capteur' }));
-    await user.click(await screen.findByRole('button', { name: 'Enregistrer cette inclinaison' }));
-    expect(await screen.findByText('Aucune mesure reçue')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Allow the sensor' }));
+    await user.click(await screen.findByRole('button', { name: 'Save this tilt' }));
+    expect(await screen.findByText('No measurement received')).toBeInTheDocument();
     expect(post).not.toHaveBeenCalled();
   });
 
@@ -71,10 +71,10 @@ describe('MobileEnroll', () => {
     const user = userEvent.setup();
     requestOrientation.mockResolvedValue('granted');
     collectOrientation.mockResolvedValue([reading(40)]);
-    post.mockResolvedValue({ ok: false, json: async () => ({ error: 'fingerprint et beta requis' }) });
+    post.mockResolvedValue({ ok: false, json: async () => ({ error: 'fingerprint and beta required' }) });
     render(<MobileEnroll />);
-    await user.click(screen.getByRole('button', { name: 'Autoriser le capteur' }));
-    await user.click(await screen.findByRole('button', { name: 'Enregistrer cette inclinaison' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/fingerprint et beta requis/);
+    await user.click(screen.getByRole('button', { name: 'Allow the sensor' }));
+    await user.click(await screen.findByRole('button', { name: 'Save this tilt' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/fingerprint and beta required/);
   });
 });

@@ -33,8 +33,8 @@ function token(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || 'currentColor';
 }
 
-const BAND_LABEL = "Zone d'incertitude";
-const LOWER_LABEL = 'Borne basse (ms)';
+const BAND_LABEL = "Uncertainty band";
+const LOWER_LABEL = 'Lower bound (ms)';
 
 /** Une seule entree de legende pour la bande : la borne basse est masquee. */
 export function legendFilter(item: { text: string }): boolean {
@@ -58,7 +58,7 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
     labels: rows.map((_, i) => String(i + 1)),
     datasets: [
       {
-        label: 'Direct (ms)',
+        label: 'Live (ms)',
         data: rows.map((r) => r.dwell),
         borderColor: ink,
         backgroundColor: ink,
@@ -69,7 +69,7 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
         tension: 0.2,
       },
       {
-        label: 'Attendu (ms)',
+        label: 'Expected (ms)',
         data: rows.map((r) => r.expectedDwell),
         borderColor: grey,
         backgroundColor: grey,
@@ -104,14 +104,14 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
     animation: { duration: 0 },
     scales: {
       y: {
-        title: { display: true, text: 'Temps de maintien (ms)', font, color: muted },
+        title: { display: true, text: 'Hold time (ms)', font, color: muted },
         ticks: { font, color: muted, maxTicksLimit: 5 },
         grid: { color: border },
         border: { display: false },
         beginAtZero: true,
       },
       x: {
-        title: { display: true, text: 'Position dans le mot de passe', font, color: muted },
+        title: { display: true, text: 'Position in the password', font, color: muted },
         ticks: { font, color: muted },
         grid: { display: false },
         border: { color: border },
@@ -126,7 +126,7 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
     },
   };
   return (
-    <div className="threshold-chart" aria-label="graphique des temps de frappe">
+    <div className="threshold-chart" aria-label="keystroke timing chart">
       <div className="chart-canvas">
         <Line data={data} options={options} />
       </div>
@@ -134,9 +134,9 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
         <thead>
           <tr>
             <th>Position</th>
-            <th>Direct</th>
-            <th>Attendu</th>
-            <th>Zone d&apos;incertitude</th>
+            <th>Live</th>
+            <th>Expected</th>
+            <th>Uncertainty band</th>
           </tr>
         </thead>
         <tbody>

@@ -13,8 +13,8 @@ describe('DeviceTable', () => {
       />,
     );
     expect(screen.getAllByRole('row')).toHaveLength(3);
-    expect(screen.getByLabelText('conforme')).toHaveTextContent('✓');
-    expect(screen.getByLabelText('différent')).toHaveTextContent('✗');
+    expect(screen.getByLabelText('match')).toHaveTextContent('✓');
+    expect(screen.getByLabelText('different')).toHaveTextContent('✗');
     expect(screen.getByText('en-US')).toBeInTheDocument();
     expect(screen.getByText('fr-FR')).toBeInTheDocument();
   });
@@ -24,7 +24,7 @@ describe('DeviceTable', () => {
     render(
       <DeviceTable lines={fields.map((field) => ({ field, expected: 'x', actual: 'x', match: true }))} />,
     );
-    for (const label of ['Navigateur', 'Système', 'Langue', 'Écran', 'Fuseau horaire', 'Empreinte canvas']) {
+    for (const label of ['Browser', 'System', 'Language', 'Screen', 'Time zone', 'Canvas fingerprint']) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     for (const raw of fields) expect(screen.queryByText(raw)).toBeNull();
@@ -48,8 +48,8 @@ describe('DeviceTable : comparaison A / mesuré', () => {
 
   it('signale le plafonnement quand l identité diffère', () => {
     render(<DeviceTable lines={lines} />);
-    expect(screen.getByTestId('device-total')).toHaveTextContent(/Score brut : 25/);
-    expect(screen.getByTestId('device-total')).toHaveTextContent(/plafonné à 40/);
+    expect(screen.getByTestId('device-total')).toHaveTextContent(/Raw score: 25/);
+    expect(screen.getByTestId('device-total')).toHaveTextContent(/capped at 40/);
   });
 
   it('sans mesure : montre le profil de A en attente', () => {

@@ -97,7 +97,7 @@ export function AngleDial({ expectedBeta, tolerance, beta }: AngleDialProps) {
 
   return (
     <div className={`angle-dial dial-${state}`}>
-      <svg viewBox="8 6 296 254" role="img" aria-label="cadran d'angle">
+      <svg viewBox="8 6 296 254" role="img" aria-label="angle dial">
         <defs>
           <linearGradient
             id="wedge-fade"
@@ -173,26 +173,26 @@ export function AngleDial({ expectedBeta, tolerance, beta }: AngleDialProps) {
 
       <div className="dial-info">
         <span className="dial-live">
-          <i aria-hidden="true" /> {beta === null ? 'En attente du téléphone' : 'Mesure en direct'}
+          <i aria-hidden="true" /> {beta === null ? 'Waiting for the phone' : 'Live measurement'}
         </span>
         <div className="dial-measure">
-          <span className="dial-caption">Inclinaison mesurée</span>
-          <span className="dial-value" aria-label="angle mesuré">
+          <span className="dial-caption">Measured tilt</span>
+          <span className="dial-value" aria-label="measured angle">
             {beta === null ? '—' : `${Math.round(beta)}°`}
           </span>
         </div>
         <div className="dial-measure">
-          <span className="dial-caption">Posture de A</span>
-          <span className="dial-expected" aria-label="angle attendu">
+          <span className="dial-caption">A’s posture</span>
+          <span className="dial-expected" aria-label="expected angle">
             {`${Math.round(expectedBeta)}° ± ${tolerance}°`}
           </span>
         </div>
         <p className="dial-verdict" data-testid="dial-verdict">
           {deviation === null
-            ? 'En attente de la mesure…'
+            ? 'Waiting for the measurement…'
             : inside
-              ? `✓ Dans la zone de A (écart ${Math.round(deviation)}°)`
-              : `✗ Hors de la zone de A (écart ${Math.round(deviation)}°)`}
+              ? `✓ Within A’s zone (gap ${Math.round(deviation)}°)`
+              : `✗ Outside A’s zone (gap ${Math.round(deviation)}°)`}
         </p>
       </div>
     </div>

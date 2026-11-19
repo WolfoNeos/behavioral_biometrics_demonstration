@@ -98,7 +98,7 @@ function Keypad({
   connected: boolean;
   /** Étape suivante : même pavé, demande reformulée (vérification supplémentaire). */
   again: boolean;
-  /** Reflet pour le PC : nombre de chiffres saisis et touche pressée (jamais les chiffres). */
+  /** Reflet pour le PC : nombre de digits entered et touche pressée (jamais les chiffres). */
   onPad: (pad: { digits: number; pressed: string | null }) => void;
 }) {
   const [digits, setDigits] = useState('');
@@ -166,16 +166,16 @@ function Keypad({
   return (
     <div className="pin">
       <div className="pin-head">
-        <h1>{again ? 'Saisissez à nouveau votre code PIN' : 'Saisissez votre code PIN'}</h1>
-        <p>{again ? 'Vérification supplémentaire' : 'Pour confirmer votre identité'}</p>
+        <h1>{again ? 'Enter your PIN again' : 'Enter your PIN'}</h1>
+        <p>{again ? 'Additional verification' : 'To confirm your identity'}</p>
       </div>
-      <div className={unsent ? 'pin-dots shake' : 'pin-dots'} role="status" aria-label={`${digits.length} chiffres saisis`}>
+      <div className={unsent ? 'pin-dots shake' : 'pin-dots'} role="status" aria-label={`${digits.length} digits entered`}>
         {Array.from({ length: Math.max(4, digits.length) }, (_, i) => (
           <span key={i} className={i < digits.length ? 'dot filled' : 'dot'} />
         ))}
       </div>
       <p className="pin-error" role="alert" aria-hidden={!unsent}>
-        {unsent ? 'Réessayez' : ''}
+        {unsent ? 'Try again' : ''}
       </p>
       <div className="keypad">
         {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
@@ -187,7 +187,7 @@ function Keypad({
         <button type="button" className="key" {...digitProps('0')}>
           0
         </button>
-        <button type="button" className="key key-aux" aria-label="Effacer" onClick={erase}>
+        <button type="button" className="key key-aux" aria-label="Delete" onClick={erase}>
           ⌫
         </button>
       </div>
@@ -199,10 +199,10 @@ function Keypad({
       >
         {busy ? (
           <>
-            <span className="spinner" aria-hidden="true" /> Vérification…
+            <span className="spinner" aria-hidden="true" /> Verifying…
           </>
         ) : (
-          'Valider'
+          'Confirm'
         )}
       </button>
     </div>
@@ -211,18 +211,18 @@ function Keypad({
 
 type Phase = 'input' | 'checking' | 'step';
 
-/** Écran intermédiaire neutre : ni résultat, ni raison, seulement l'avancement. */
+/** Screen intermédiaire neutre : ni résultat, ni raison, seulement l'avancement. */
 function Interstitial({ phase }: { phase: 'checking' | 'step' }) {
   return (
     <div className="m-inter" role="status" key={phase}>
       <div className={phase === 'checking' ? 'inter-ring' : 'inter-ring step'} aria-hidden="true">
         {phase === 'step' && <Lock />}
       </div>
-      <h1>{phase === 'checking' ? 'Vérification en cours…' : 'Vérification supplémentaire'}</h1>
+      <h1>{phase === 'checking' ? 'Verifying…' : 'Additional verification'}</h1>
       <p>
         {phase === 'checking'
-          ? 'Veuillez patienter quelques instants.'
-          : 'Par mesure de sécurité, confirmez à nouveau votre identité.'}
+          ? 'Please wait a moment.'
+          : 'For your security, please confirm your identity again.'}
       </p>
     </div>
   );
@@ -293,7 +293,7 @@ export function Mobile() {
   if (lost) {
     return (
       <MobileShell>
-        <p className="m-note">Session introuvable. Rescannez le QR code.</p>
+        <p className="m-note">Session not found. Please scan the QR code again.</p>
       </MobileShell>
     );
   }
@@ -304,12 +304,12 @@ export function Mobile() {
       <MobileShell>
         {snapshot === null ? (
           <p className="m-note">
-            <span className="spinner dark" aria-hidden="true" /> Connexion…
+            <span className="spinner dark" aria-hidden="true" /> Connecting…
           </p>
         ) : (
           <div className="m-done">
             <Lock />
-            <p className="m-note">Regardez l’écran</p>
+            <p className="m-note">Look at the screen</p>
           </div>
         )}
       </MobileShell>

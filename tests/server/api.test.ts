@@ -202,12 +202,12 @@ describe('API écran de réussite', () => {
     const put = await app.inject({
       method: 'PUT',
       url: '/api/welcome',
-      payload: { name: 'Prof', notice: 'Bravo', transactions: [{ icon: '🎉', label: 'Fête', amount: '− 5' }] },
+      payload: { name: 'Prof', notice: 'Bravo', transactions: [{ icon: '🎉', label: 'Party', amount: '− 5' }] },
     });
     expect(put.statusCode).toBe(200);
     const next = (await app.inject({ url: '/api/welcome' })).json();
     expect(next.name).toBe('Prof');
-    expect(next.transactions).toEqual([{ icon: '🎉', label: 'Fête', amount: '− 5' }]);
+    expect(next.transactions).toEqual([{ icon: '🎉', label: 'Party', amount: '− 5' }]);
   });
 
   it('PUT invalide -> 400', async () => {

@@ -5,8 +5,8 @@ import { SessionRecap } from '../../../src/web/components/SessionRecap';
 describe('SessionRecap', () => {
   const recap = {
     steps: [
-      { level: 1 as const, name: 'Frappe', score: 23, outcome: 'doubt' as const, secretLabel: 'Mot de passe' as const, secret: true },
-      { level: 2 as const, name: 'Appareil', score: 40, outcome: 'doubt' as const, secretLabel: 'PIN' as const, secret: false },
+      { level: 1 as const, name: 'Typing', score: 23, outcome: 'doubt' as const, secretLabel: 'Password' as const, secret: true },
+      { level: 2 as const, name: 'Device', score: 40, outcome: 'doubt' as const, secretLabel: 'PIN' as const, secret: false },
       { level: 3 as const, name: 'Posture', score: 92, outcome: 'passed' as const, secretLabel: 'PIN' as const, secret: true },
     ],
     trust: 76,
@@ -16,19 +16,19 @@ describe('SessionRecap', () => {
     warn: 50,
   };
 
-  it('affiche la confiance globale, le verdict et chaque étape', () => {
+  it('affiche la overall trust, le verdict et chaque étape', () => {
     render(<SessionRecap recap={recap} />);
-    expect(screen.getByRole('meter', { name: 'confiance globale' })).toHaveAttribute('aria-valuenow', '76');
-    expect(screen.getByText('✓ Accès accordé')).toBeInTheDocument();
-    expect(screen.getByLabelText('Frappe : Doute : étape suivante')).toHaveTextContent('23');
-    expect(screen.getByLabelText('Posture : Validé')).toHaveTextContent('92');
+    expect(screen.getByRole('meter', { name: 'overall trust' })).toHaveAttribute('aria-valuenow', '76');
+    expect(screen.getByText('✓ Access granted')).toBeInTheDocument();
+    expect(screen.getByLabelText('Typing: Doubt: next step')).toHaveTextContent('23');
+    expect(screen.getByLabelText('Posture: Passed')).toHaveTextContent('92');
   });
 
   it('indique si le secret saisi correspond à celui attendu', () => {
     render(<SessionRecap recap={recap} />);
-    expect(screen.getByLabelText('Mot de passe : correct')).toHaveTextContent('Mot de passe ✓');
-    expect(screen.getByLabelText('PIN : incorrect')).toHaveTextContent('PIN ✕');
-    expect(screen.getByLabelText('PIN : correct')).toBeInTheDocument();
+    expect(screen.getByLabelText('Password: correct')).toHaveTextContent('Password ✓');
+    expect(screen.getByLabelText('PIN: incorrect')).toHaveTextContent('PIN ✕');
+    expect(screen.getByLabelText('PIN: correct')).toBeInTheDocument();
   });
 
   it('étape non nécessaire : pas de score', () => {
@@ -38,14 +38,14 @@ describe('SessionRecap', () => {
           ...recap,
           granted: false,
           steps: [
-            { level: 1, name: 'Frappe', score: 10, outcome: 'failed', secretLabel: 'Mot de passe', secret: false },
-            { level: 2, name: 'Appareil', score: null, outcome: 'skipped', secretLabel: 'PIN', secret: null },
+            { level: 1, name: 'Typing', score: 10, outcome: 'failed', secretLabel: 'Password', secret: false },
+            { level: 2, name: 'Device', score: null, outcome: 'skipped', secretLabel: 'PIN', secret: null },
             { level: 3, name: 'Posture', score: null, outcome: 'skipped', secretLabel: 'PIN', secret: null },
           ],
         }}
       />,
     );
-    expect(screen.getByText('✕ Accès refusé')).toBeInTheDocument();
-    expect(screen.getByLabelText('Appareil : Non nécessaire')).toHaveTextContent('—');
+    expect(screen.getByText('✕ Access denied')).toBeInTheDocument();
+    expect(screen.getByLabelText('Device: Not needed')).toHaveTextContent('—');
   });
 });

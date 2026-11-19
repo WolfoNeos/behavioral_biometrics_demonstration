@@ -12,7 +12,7 @@ import type { ClientMessage } from '../ws';
  * apparaît : un doute sur l'identité se traduit seulement par une vérification supplémentaire.
  */
 
-export const BANK_NAME = 'Vérane';
+export const BRAND = 'e-Banking';
 
 export function Logo() {
   return (
@@ -39,19 +39,18 @@ export function PortalShell({ children }: { children: ReactNode }) {
       <header className="portal-header">
         <div className="portal-brand">
           <Logo />
-          <span className="portal-name">{BANK_NAME}</span>
-          <span className="portal-tag">e-banking</span>
+          <span className="portal-name">{BRAND}</span>
         </div>
         <span className="portal-secure">
-          <Lock /> Connexion sécurisée
+          <Lock /> Secure connection
         </span>
       </header>
       <div className="portal-body">{children}</div>
       <footer className="portal-footer">
-        <span>Aide</span>
-        <span>Sécurité</span>
+        <span>Help</span>
+        <span>Security</span>
         <span>Contact</span>
-        <span className="portal-demo">Maquette de démonstration — banque fictive</span>
+        <span className="portal-demo">Demo mockup — fictitious bank</span>
       </footer>
     </div>
   );
@@ -111,31 +110,31 @@ export function LoginForm({
         submit();
       }}
     >
-      <h2>Connexion à votre espace</h2>
-      <p className="login-sub">Accédez à vos comptes en toute sécurité.</p>
+      <h2>Sign in to your account</h2>
+      <p className="login-sub">Access your accounts securely.</p>
       <label>
-        Identifiant
-        <input type="text" name="id" autoComplete="off" placeholder="N° de contrat" />
+        User ID
+        <input type="text" name="id" autoComplete="off" placeholder="Contract no." />
       </label>
       <label>
-        Mot de passe
+        Password
         <input ref={pwd} type="password" name="password" autoComplete="off" placeholder="••••••••" />
       </label>
       <button type="submit" className="login-btn" disabled={busy}>
         {busy ? (
           <>
-            <span className="spinner" aria-hidden="true" /> Vérification en cours…
+            <span className="spinner" aria-hidden="true" /> Verifying…
           </>
         ) : (
-          'Se connecter'
+          'Sign in'
         )}
       </button>
-      <span className="login-link">Mot de passe oublié ?</span>
+      <span className="login-link">Forgot your password?</span>
     </form>
   );
 }
 
-/** Vérification supplémentaire : QR code à scanner, sans détail sur ce qui l'a déclenchée. */
+/** Additional verification : QR code à scanner, sans détail sur ce qui l'a déclenchée. */
 export function StepUp({
   url,
   level,
@@ -162,25 +161,25 @@ export function StepUp({
       <div className="stepup-badge" aria-hidden="true">
         <Lock />
       </div>
-      <h2>{level === 2 ? 'Vérification supplémentaire' : 'Une dernière vérification'}</h2>
+      <h2>{level === 2 ? 'Additional verification' : 'One last verification'}</h2>
       <p className="login-sub">
         {level === 2
-          ? 'Par mesure de sécurité, confirmez votre identité avec votre téléphone. Scannez ce code puis saisissez votre code PIN.'
-          : 'Pour finaliser votre connexion, scannez à nouveau ce code avec votre appareil habituel et suivez les instructions.'}
+          ? 'For your security, confirm your identity with your phone. Scan this code, then enter your PIN.'
+          : 'To complete your sign-in, scan this code again with your usual device and follow the instructions.'}
       </p>
       <div className="qr-frame">
         {src ? (
-          <img src={src} alt={`QR code de la session ${url}`} width={260} height={260} />
+          <img src={src} alt={`QR code for session ${url}`} width={260} height={260} />
         ) : (
           <div className="qr-skeleton" />
         )}
       </div>
       <p className={phoneConnected ? 'stepup-status ok' : 'stepup-status'} role="status">
         {phoneConnected ? (
-          'Appareil connecté — suivez les instructions sur votre téléphone'
+          'Device connected — follow the instructions on your phone'
         ) : (
           <>
-            En attente de votre confirmation
+            Waiting for your confirmation
             <span className="dots" aria-hidden="true">
               <i />
               <i />
@@ -206,9 +205,9 @@ export function Welcome({ content = DEFAULT_WELCOME }: { content?: WelcomeConten
           <path d="M15 27 L23 35 L38 18" />
         </svg>
         <div>
-          <h2>Connexion réussie</h2>
+          <h2>Sign-in successful</h2>
           <p className="login-sub">
-            {content.name ? `Bonjour ${content.name}, bienvenue` : 'Bienvenue'} dans votre espace {BANK_NAME}.
+            {content.name ? `Hello ${content.name}, welcome` : 'Welcome'} to your online banking.
           </p>
         </div>
       </div>
@@ -227,7 +226,7 @@ export function Welcome({ content = DEFAULT_WELCOME }: { content?: WelcomeConten
 
       {content.transactions.length > 0 && (
         <div className="txn-card" style={item(1)}>
-          <h3>Dernières opérations</h3>
+          <h3>Recent transactions</h3>
           <ul>
             {content.transactions.map((t, i) => (
               <li key={`${t.label}-${i}`} style={item(i + 2)}>
@@ -262,9 +261,9 @@ export function Suspended() {
         <circle cx="26" cy="26" r="24" />
         <path d="M26 14 V29 M26 36 V37" />
       </svg>
-      <h2>Accès suspendu</h2>
+      <h2>Access suspended</h2>
       <p className="login-sub">
-        Par mesure de sécurité, votre accès a été suspendu. Contactez votre conseiller ou notre service client.
+        For your security, your access has been suspended. Please contact your advisor or our customer service.
       </p>
       <p className="suspended-phone">0800 000 000</p>
     </div>
@@ -278,10 +277,10 @@ export function MobileShell({ children }: { children: ReactNode }) {
       <header className="m-head">
         <div className="portal-brand">
           <Logo />
-          <span className="portal-name">{BANK_NAME}</span>
+          <span className="portal-name">{BRAND}</span>
         </div>
         <span className="portal-secure">
-          <Lock /> Sécurisé
+          <Lock /> Secure
         </span>
       </header>
       <div className="m-body">{children}</div>

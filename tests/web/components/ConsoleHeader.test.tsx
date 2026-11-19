@@ -27,9 +27,9 @@ describe('stepStates', () => {
 describe('ConsoleHeader', () => {
   it('affiche le titre et les trois étapes', () => {
     render(<ConsoleHeader state={{ status: 'pending', level: 2 }} />);
-    expect(screen.getByText('Console de sécurité')).toBeInTheDocument();
-    expect(screen.getByLabelText('Appareil : en cours')).toBeInTheDocument();
-    expect(screen.getByLabelText('Frappe : doute')).toBeInTheDocument();
-    expect(screen.getByLabelText('Posture : à venir')).toBeInTheDocument();
+    expect(screen.getByText('Security console')).toBeInTheDocument();
+    expect(screen.getByLabelText('Device: in progress')).toBeInTheDocument();
+    expect(screen.getByLabelText('Typing: doubt')).toBeInTheDocument();
+    expect(screen.getByLabelText('Posture: upcoming')).toBeInTheDocument();
   });
 });

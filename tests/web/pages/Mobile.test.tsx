@@ -91,7 +91,7 @@ describe('Mobile', () => {
     const user = userEvent.setup();
     render(ui());
     await typePin(user);
-    await user.click(screen.getByRole('button', { name: 'Valider' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() => expect(sent()).toHaveLength(1));
     const msg = sent()[0];
     expect(msg.type).toBe('pin');
@@ -104,8 +104,8 @@ describe('Mobile', () => {
     for (const lvl of [1, 2, 3] as const) {
       snapshot = snap({ level: lvl, state: { status: 'pending', level: lvl } });
       const { unmount } = render(ui());
-      expect(screen.getByRole('heading', { name: /code PIN/ })).toBeTruthy();
-      expect(screen.getByRole('button', { name: 'Valider' })).toBeTruthy();
+      expect(screen.getByRole('heading', { name: /PIN/ })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Confirm' })).toBeTruthy();
       unmount();
     }
   });
@@ -120,7 +120,7 @@ describe('Mobile', () => {
     fire(41);
     fire(42);
     await user.click(screen.getByRole('button', { name: '2' }));
-    await user.click(screen.getByRole('button', { name: 'Valider' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() =>
       expect(send).toHaveBeenCalledWith({
         type: 'orientation',
@@ -163,21 +163,21 @@ describe('Mobile', () => {
     const user = userEvent.setup();
     render(ui());
     await typePin(user, '12');
-    await user.click(screen.getByRole('button', { name: 'Valider' }));
-    expect(await screen.findByText('Réessayez')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(await screen.findByText('Try again')).toBeTruthy();
     expect(sent()).toHaveLength(0);
   });
 
   it('accès accordé ou bloqué : aucun verdict ni score sur le téléphone', () => {
     snapshot = snap({ state: { status: 'granted', level: 3, verdict } });
     const { container, unmount } = render(ui());
-    expect(container.textContent).toContain('Regardez l’écran');
-    expect(container.textContent).not.toMatch(/accord|refus|score|réussi|suspendu/i);
+    expect(container.textContent).toContain('Look at the screen');
+    expect(container.textContent).not.toMatch(/granted|denied|score|successful|suspended/i);
     unmount();
     snapshot = snap({ state: { status: 'blocked', verdict: { ...verdict, granted: false, color: 'red' } } });
     const second = render(ui());
-    expect(second.container.textContent).toContain('Regardez l’écran');
-    expect(second.container.textContent).not.toMatch(/accord|refus|score|réussi|suspendu/i);
+    expect(second.container.textContent).toContain('Look at the screen');
+    expect(second.container.textContent).not.toMatch(/granted|denied|score|successful|suspended/i);
     expect(screen.queryByText(/accord|refus|score|✓|✗/i)).toBeNull();
   });
 
@@ -188,13 +188,13 @@ describe('Mobile', () => {
       lastVerdict: { level: 2, score: 0, granted: false, reason: 'PIN incorrect' },
     });
     const { container } = render(ui());
-    expect(container.textContent).not.toMatch(/refus|incorrect|échec|écran/i);
+    expect(container.textContent).not.toMatch(/denied|incorrect|fail|screen/i);
   });
 
-  it('Valider désactivé hors connexion', () => {
+  it('Confirm désactivé hors connexion', () => {
     connected = false;
     render(ui());
-    expect(screen.getByRole('button', { name: 'Valider' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Confirm' })).toBeDisabled();
   });
 
   it('envoi échoué : chiffres conservés et message, puis renvoi possible', async () => {
@@ -202,20 +202,20 @@ describe('Mobile', () => {
     const user = userEvent.setup();
     render(ui());
     await typePin(user);
-    await user.click(screen.getByRole('button', { name: 'Valider' }));
-    expect(await screen.findByText('Réessayez')).toBeTruthy();
-    expect(screen.getByLabelText('4 chiffres saisis')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(await screen.findByText('Try again')).toBeTruthy();
+    expect(screen.getByLabelText('4 digits entered')).toBeTruthy();
     send.mockImplementation(() => true);
-    await user.click(screen.getByRole('button', { name: 'Valider' }));
-    expect(await screen.findByText('Vérification en cours…')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(await screen.findByText('Verifying…')).toBeTruthy();
     expect(sent()[1]).toMatchObject({ type: 'pin', pin: '1234' });
-    expect(screen.queryByText('Réessayez')).toBeNull();
+    expect(screen.queryByText('Try again')).toBeNull();
   });
 
   it('session inconnue (1008) : demande de rescanner', () => {
     lost = true;
     render(ui());
-    expect(screen.getByText(/Rescannez le QR code/)).toBeTruthy();
+    expect(screen.getByText(/scan the QR code again/)).toBeTruthy();
   });
 });
 
@@ -240,28 +240,28 @@ describe('Mobile : retour d’information entre les étapes', () => {
     const user = userEvent.setup();
     const r = render(ui());
     await typePin(user);
-    await user.click(screen.getByRole('button', { name: 'Valider' }));
-    expect(await screen.findByText('Vérification en cours…')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Valider' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(await screen.findByText('Verifying…')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull();
 
     // le serveur passe au niveau suivant : message neutre, sans résultat ni raison
     snapshot = level3();
     act(() => r.rerender(ui()));
-    expect(await screen.findByRole('heading', { name: 'Vérification supplémentaire' })).toBeTruthy();
-    expect(r.container.textContent).not.toMatch(/refus|incorrect|échec|score|posture|capteur|angle|inclinaison/i);
+    expect(await screen.findByRole('heading', { name: 'Additional verification' })).toBeTruthy();
+    expect(r.container.textContent).not.toMatch(/denied|incorrect|fail|score|posture|sensor|angle|tilt/i);
 
     // puis nouvelle saisie
-    expect(await screen.findByRole('button', { name: 'Valider' }, { timeout: 4000 })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Saisissez à nouveau votre code PIN' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Confirm' }, { timeout: 4000 })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Enter your PIN again' })).toBeTruthy();
   });
 
   it('sans réponse du serveur : retour à la saisie', async () => {
     const user = userEvent.setup();
     render(ui());
     await typePin(user, '12');
-    await user.click(screen.getByRole('button', { name: 'Valider' }));
-    expect(await screen.findByText('Vérification en cours…')).toBeTruthy();
-    expect(await screen.findByRole('button', { name: 'Valider' }, { timeout: 7000 })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(await screen.findByText('Verifying…')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Confirm' }, { timeout: 7000 })).toBeTruthy();
   }, 10000);
 });
 
@@ -283,7 +283,7 @@ describe('Mobile : reflet de l’écran pour le PC', () => {
     const user = userEvent.setup();
     const r = render(ui());
     await typePin(user, '12');
-    await user.click(screen.getByRole('button', { name: 'Valider' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() => expect(views().some((v) => v.screen === 'checking')).toBe(true));
     snapshot = snap({ state: { status: 'granted', level: 2, verdict } });
     act(() => r.rerender(ui()));

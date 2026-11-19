@@ -18,7 +18,7 @@ import { sanitizeWelcome } from '../shared/welcome';
 export interface ServerOptions {
   dataDir?: string;
   baseUrl?: string;
-  /** Origine de l'adresse de base : variable d'environnement, détection ou saisie manuelle. */
+  /** Origine de l'adresse de base : variable d'environnement, détection ou manual entry. */
   baseUrlSource?: NetworkSource;
   /** Interfaces réseau (injectable pour les tests). */
   getInterfaces?: () => Interfaces;
@@ -70,7 +70,7 @@ export async function buildServer(opts: ServerOptions = {}) {
   app.put('/api/profile', async (req, reply) => {
     const b = req.body as Partial<Profile> | null;
     if (!b || typeof b.password !== 'string' || typeof b.pin !== 'string') {
-      return reply.code(400).send({ error: 'password et pin (texte) requis' });
+      return reply.code(400).send({ error: 'password and pin (text) required' });
     }
     // nouveau mot de passe : l'ancien profil de frappe ne correspond plus aux touches tapees
     const previous = loadProfile(profilePath);
@@ -84,19 +84,19 @@ export async function buildServer(opts: ServerOptions = {}) {
   app.put('/api/thresholds', async (req, reply) => {
     const b = req.body as Thresholds | null;
     if (!validThresholds(b)) {
-      return reply.code(400).send({ error: 'seuils invalides ou incomplets' });
+      return reply.code(400).send({ error: 'invalid or incomplete thresholds' });
     }
     saveThresholds(b, thresholdsPath);
     sessions.broadcastAll();
     return loadThresholds(thresholdsPath);
   });
 
-  // Écran affiché une fois la sécurité passée (textes, solde, blagues…)
+  // Screen affiché une fois la sécurité passée (textes, solde, blagues…)
   app.get('/api/welcome', async () => loadWelcome(welcomePath));
   app.put('/api/welcome', async (req, reply) => {
     const b = req.body as Record<string, unknown> | null;
     if (!b || typeof b !== 'object' || Array.isArray(b)) {
-      return reply.code(400).send({ error: 'contenu invalide' });
+      return reply.code(400).send({ error: 'invalid content' });
     }
     saveWelcome(sanitizeWelcome(b), welcomePath);
     return loadWelcome(welcomePath);
@@ -106,7 +106,7 @@ export async function buildServer(opts: ServerOptions = {}) {
   app.post('/api/enroll/keystroke', async (req, reply) => {
     const { samples } = (req.body ?? {}) as { samples?: KeyEvent[][] };
     if (!Array.isArray(samples) || samples.length === 0) {
-      return reply.code(400).send({ error: 'samples requis' });
+      return reply.code(400).send({ error: 'samples required' });
     }
     const profile = { ...loadProfile(profilePath), keystroke: buildKeystrokeProfile(samples) };
     saveProfile(profile, profilePath);
@@ -117,7 +117,7 @@ export async function buildServer(opts: ServerOptions = {}) {
   app.post('/api/enroll/phone', async (req, reply) => {
     const { fingerprint, beta } = (req.body ?? {}) as { fingerprint?: Fingerprint; beta?: number };
     if (!fingerprint || typeof beta !== 'number') {
-      return reply.code(400).send({ error: 'fingerprint et beta requis' });
+      return reply.code(400).send({ error: 'fingerprint and beta required' });
     }
     const profile = { ...loadProfile(profilePath), fingerprint, beta };
     saveProfile(profile, profilePath);
@@ -125,7 +125,7 @@ export async function buildServer(opts: ServerOptions = {}) {
     return profile;
   });
 
-  // Réseau : adresse encodée dans les QR, modifiable à chaud (changement de wifi)
+  // Network : adresse encodée dans les QR, modifiable à chaud (changement de wifi)
   const network = () =>
     describeNetwork({
       baseUrl: sessions.getBaseUrl(),
@@ -137,7 +137,7 @@ export async function buildServer(opts: ServerOptions = {}) {
   app.get('/api/network', async () => network());
   app.put('/api/network', async (req, reply) => {
     const url = normalizeBaseUrl((req.body as { baseUrl?: unknown } | null)?.baseUrl);
-    if (!url) return reply.code(400).send({ error: 'adresse invalide (ex. https://192.168.1.20:5173)' });
+    if (!url) return reply.code(400).send({ error: 'invalid address (e.g. https://192.168.1.20:5173)' });
     baseUrlSource = 'manual';
     sessions.setBaseUrl(url);
     return network();
@@ -157,7 +157,7 @@ export async function buildServer(opts: ServerOptions = {}) {
   app.get('/ws', { websocket: true }, (socket, req) => {
     const { session, role } = req.query as { session?: string; role?: string };
     if (!session || !sessions.has(session) || (role !== 'pc' && role !== 'phone')) {
-      socket.close(1008, 'session ou role invalide');
+      socket.close(1008, 'invalid session or role');
       return;
     }
     if (role === 'pc') sessions.attachPc(session, socket);
@@ -174,8 +174,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     interfaces,
     hasCerts: loadCerts() !== null,
   });
-  for (const c of listCandidates(interfaces)) console.log(`Candidat reseau : ${c.name} ${c.address}`);
+  for (const c of listCandidates(interfaces)) console.log(`Network candidate: ${c.name} ${c.address}`);
   const app = await buildServer({ baseUrl, baseUrlSource: process.env.DEMO_BASE_URL ? 'env' : 'auto' });
   await app.listen({ port: PORT });
-  console.log(`URL de base (QR) : ${baseUrl}`);
+  console.log(`Base URL (QR): ${baseUrl}`);
 }

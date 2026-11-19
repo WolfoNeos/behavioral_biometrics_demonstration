@@ -2,7 +2,7 @@ import type { KeyRow } from './keystrokeRows';
 
 export interface BarcodeProps {
   rows: KeyRow[];
-  /** false : seulement la signature de reference (panneau « Profil de A »). */
+  /** false : seulement la signature de reference (panneau « A’s profile »). */
   showLive?: boolean;
 }
 
@@ -119,13 +119,13 @@ export function Barcode({ rows, showLive = true }: BarcodeProps) {
   return (
     <div className="barcode">
       <div className="barcode-row">
-        <div className="barcode-label">Signature de référence (profil enregistré)</div>
-        <Strip bars={reference} label="signature de référence" className="barcode-expected" scale={scale} />
+        <div className="barcode-label">Reference signature (enrolled profile)</div>
+        <Strip bars={reference} label="reference signature" className="barcode-expected" scale={scale} />
       </div>
       {showLive && (
         <div className="barcode-row">
-          <div className="barcode-label">Signature en direct (sur la référence en filigrane)</div>
-          <Strip bars={live} ghost={reference} label="signature en direct" className="barcode-live" scale={scale} />
+          <div className="barcode-label">Live signature (over the reference watermark)</div>
+          <Strip bars={live} ghost={reference} label="live signature" className="barcode-live" scale={scale} />
         </div>
       )}
     </div>

@@ -14,14 +14,14 @@ const POLL_MS = 2000;
 type FormValues = Record<string, string>;
 
 const FIELDS: { key: string; label: string }[] = [
-  { key: 'ks.accept', label: 'Frappe : seuil d’acceptation' },
-  { key: 'ks.warn', label: 'Frappe : seuil d’alerte' },
-  { key: 'dev.accept', label: 'Appareil : seuil d’acceptation' },
-  { key: 'dev.warn', label: 'Appareil : seuil d’alerte' },
-  { key: 'ori.accept', label: 'Posture : seuil d’acceptation' },
-  { key: 'ori.warn', label: 'Posture : seuil d’alerte' },
-  { key: 'ori.tol', label: 'Posture : tolérance (degrés)' },
-  { key: 'n', label: "Nombre d'échantillons d'enrôlement" },
+  { key: 'ks.accept', label: 'Typing: acceptance threshold' },
+  { key: 'ks.warn', label: 'Typing: warning threshold' },
+  { key: 'dev.accept', label: 'Device: acceptance threshold' },
+  { key: 'dev.warn', label: 'Device: warning threshold' },
+  { key: 'ori.accept', label: 'Posture: acceptance threshold' },
+  { key: 'ori.warn', label: 'Posture: warning threshold' },
+  { key: 'ori.tol', label: 'Posture: tolerance (degrees)' },
+  { key: 'n', label: "Number of enrollment samples" },
 ];
 
 const toForm = (t: Thresholds): FormValues => ({
@@ -48,7 +48,7 @@ const fromForm = (f: FormValues): Thresholds => ({
 
 async function errorMessage(res: Response): Promise<string> {
   const body = (await res.json().catch(() => ({}))) as { error?: string };
-  return body.error ?? `Erreur ${res.status}`;
+  return body.error ?? `Error ${res.status}`;
 }
 
 const jsonInit = (method: string, body: unknown): RequestInit => ({
@@ -80,29 +80,29 @@ function Identity({ profile, onSaved }: { profile: Profile | null; onSaved: (sav
       if (res.ok) {
         // le serveur efface le profil de frappe si le mot de passe a change
         onSaved((await res.json()) as Profile);
-        setMsg({ ok: true, text: 'Identité enregistrée' });
+        setMsg({ ok: true, text: 'Identity saved' });
       } else {
         setMsg({ ok: false, text: await errorMessage(res) });
       }
     } catch {
-      setMsg({ ok: false, text: 'Serveur injoignable' });
+      setMsg({ ok: false, text: 'Server unreachable' });
     }
   };
 
   return (
     <section className="card cfg-section">
-      <h2>Identité de A</h2>
+      <h2>A’s identity</h2>
       <form className="cfg-form" onSubmit={(e) => void save(e)}>
         <label>
-          Mot de passe
+          Password
           <input type="text" value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
         <label>
-          Code PIN
+          PIN code
           <input type="text" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} />
         </label>
         <button type="submit" className="btn btn-primary">
-          Enregistrer l&apos;identité
+          Save identity
         </button>
         {msg && (
           <p className={msg.ok ? 'cfg-ok' : 'cfg-error'} role={msg.ok ? 'status' : 'alert'}>
@@ -182,7 +182,7 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
       setError(null);
       setDone({ n: all.length, keys: Math.round(keys) });
     } catch {
-      if (gen === generation.current) setError('Serveur injoignable');
+      if (gen === generation.current) setError('Server unreachable');
     } finally {
       inFlight.current = false;
     }
@@ -201,7 +201,7 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
         return;
       }
       if (typed !== password) {
-        setError('Le texte saisi ne correspond pas au mot de passe : échantillon refusé');
+        setError('The text entered does not match the password: sample rejected');
         return;
       }
       setError(null);
@@ -214,25 +214,24 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
 
   return (
     <section className="card cfg-section">
-      <h2>Enrôlement de la frappe</h2>
+      <h2>Typing enrollment</h2>
       <p className="hint">
-        Saisissez le mot de passe puis appuyez sur Entrée, à chaque échantillon.
-        {quick && ' Recalibrage rapide : moins précis, remplace le profil de frappe.'}
+        Type the password, then press Enter, for each sample.
+        {quick && ' Quick recalibration: less accurate, replaces the typing profile.'}
       </p>
       {profile?.keystroke && count === 0 && (
         <p className="cfg-ok" role="status">
-          {`Frappe déjà enrôlée (${profile.keystroke.samples} échantillons). Ré-enrôler ou « Recalibrage rapide » la remplace.`}
+          {`Typing already enrolled (${profile.keystroke.samples} samples). Re-enrolling or “Quick recalibration” replaces it.`}
         </p>
       )}
       <p className="hint">
-        Le texte saisi doit correspondre au mot de passe enregistré (modifiez-le d&apos;abord dans « Identité » puis
-        enregistrez).
+        The text entered must match the saved password (change it first under “Identity”, then save).
       </p>
       <div className="cfg-counter" aria-live="polite">
         <span className="cfg-count">{`${count} / ${target}`}</span>
       </div>
       <label className="cfg-form">
-        Saisie du mot de passe
+        Password entry
         <input ref={inputRef} type="password" autoComplete="off" className="cfg-capture" />
       </label>
       {error && (
@@ -242,15 +241,15 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
       )}
       {done && (
         <p className="cfg-ok" role="status">
-          Enrôlement terminé ✓ : {done.n} échantillons, environ {done.keys} touches par saisie
+          Enrollment complete ✓: {done.n} samples, about {done.keys} keys per entry
         </p>
       )}
       <div className="cfg-actions">
         <button type="button" className="btn btn-secondary" onClick={() => reset(false)}>
-          Recommencer l&apos;enrôlement
+          Restart enrollment
         </button>
         <button type="button" className="btn btn-secondary" onClick={() => reset(true)}>
-          Recalibrage rapide
+          Quick recalibration
         </button>
       </div>
     </section>
@@ -291,18 +290,18 @@ function PhoneEnrol({ profile, netVersion }: { profile: Profile | null; netVersi
 
   return (
     <section className="card cfg-section">
-      <h2>Enrôlement du téléphone de A</h2>
-      <p className="hint">Scannez ce code avec le téléphone de A, tenu comme d&apos;habitude.</p>
+      <h2>Phone enrollment for A</h2>
+      <p className="hint">Scan this code with A’s phone, held as usual.</p>
       <div className="cfg-qr">
-        {qr && <img src={qr} alt="QR code vers la page d'enrôlement du téléphone" width={240} height={240} />}
+        {qr && <img src={qr} alt="QR code to the phone enrollment page" width={240} height={240} />}
         {link && <code className="cfg-link">{link}</code>}
       </div>
       {enrolled ? (
         <p className="cfg-ok" role="status">
-          {`Téléphone enregistré ✓ (inclinaison ${Math.round(profile.beta as number)}°)`}
+          {`Phone enrolled ✓ (tilt ${Math.round(profile.beta as number)}°)`}
         </p>
       ) : (
-        <p className="hint">Téléphone non enregistré</p>
+        <p className="hint">Phone not enrolled</p>
       )}
     </section>
   );
@@ -329,15 +328,15 @@ function ThresholdsForm({
       const saved = (await res.json()) as Thresholds;
       setForm(toForm(saved));
       onSaved(saved);
-      setMsg({ ok: true, text: 'Seuils enregistrés' });
+      setMsg({ ok: true, text: 'Thresholds saved' });
     } catch {
-      setMsg({ ok: false, text: 'Serveur injoignable' });
+      setMsg({ ok: false, text: 'Server unreachable' });
     }
   };
 
   return (
     <section className="card cfg-section">
-      <h2>Seuils</h2>
+      <h2>Thresholds</h2>
       <form
         className="cfg-form cfg-grid"
         onSubmit={(e) => {
@@ -357,7 +356,7 @@ function ThresholdsForm({
         ))}
         <div className="cfg-actions">
           <button type="submit" className="btn btn-primary">
-            Enregistrer les seuils
+            Save thresholds
           </button>
           <button
             type="button"
@@ -367,7 +366,7 @@ function ThresholdsForm({
               void save(DEFAULT_THRESHOLDS);
             }}
           >
-            Valeurs par défaut
+            Default values
           </button>
         </div>
         {msg && (
@@ -397,9 +396,9 @@ interface NetInfo {
   certCommand: string;
 }
 
-const SOURCE_LABEL = { env: 'variable DEMO_BASE_URL', auto: 'détection automatique', manual: 'saisie manuelle' } as const;
+const SOURCE_LABEL = { env: 'DEMO_BASE_URL variable', auto: 'automatic detection', manual: 'manual entry' } as const;
 
-/** Réseau : adresse encodée dans les QR, à changer en un clic quand on change de wifi. */
+/** Network : adresse encodée dans les QR, à changer en un clic quand on change de wifi. */
 function NetworkCard({ onChanged }: { onChanged: () => void }) {
   const [info, setInfo] = useState<NetInfo | null>(null);
   const [manual, setManual] = useState('');
@@ -413,7 +412,7 @@ function NetworkCard({ onChanged }: { onChanged: () => void }) {
       if (!res.ok) throw new Error('indisponible');
       setInfo((await res.json()) as NetInfo);
     } catch {
-      setMsg({ ok: false, text: 'Réseau indisponible' });
+      setMsg({ ok: false, text: 'Network unavailable' });
     }
   }, []);
 
@@ -434,14 +433,14 @@ function NetworkCard({ onChanged }: { onChanged: () => void }) {
       setMsg({ ok: true, text: okText });
       onChanged();
     } catch {
-      setMsg({ ok: false, text: 'Serveur injoignable' });
+      setMsg({ ok: false, text: 'Server unreachable' });
     } finally {
       setBusy(false);
     }
   };
 
   const use = (baseUrl: string): Promise<void> =>
-    apply(fetch('/api/network', jsonInit('PUT', { baseUrl })), 'Adresse mise à jour : les QR codes pointent vers le nouveau réseau');
+    apply(fetch('/api/network', jsonInit('PUT', { baseUrl })), 'Address updated: QR codes now point to the new network');
 
   const copy = async (text: string): Promise<void> => {
     try {
@@ -454,10 +453,10 @@ function NetworkCard({ onChanged }: { onChanged: () => void }) {
   };
 
   return (
-    <section className="card cfg-section cfg-network" aria-label="Réseau">
+    <section className="card cfg-section cfg-network" aria-label="Network">
       <div className="cfg-head">
-        <h2>Réseau</h2>
-        <p className="hint">Adresse des QR codes : à changer quand la démo passe sur un autre wifi.</p>
+        <h2>Network</h2>
+        <p className="hint">QR code address: change it when the demo moves to another Wi-Fi network.</p>
       </div>
       {info && (
         <>
@@ -469,7 +468,7 @@ function NetworkCard({ onChanged }: { onChanged: () => void }) {
               <span className={info.https ? 'chip chip-ok' : 'chip'}>{info.https ? 'HTTPS' : 'HTTP'}</span>
               {info.covered !== null && (
                 <span className={info.covered ? 'chip chip-ok' : 'chip chip-warn'}>
-                  {info.covered ? 'Certificat valide pour cette adresse' : 'Certificat non valable pour cette adresse'}
+                  {info.covered ? 'Certificate valid for this address' : 'Certificate not valid for this address'}
                 </span>
               )}
               <span className="chip">{SOURCE_LABEL[info.source]}</span>
@@ -478,32 +477,32 @@ function NetworkCard({ onChanged }: { onChanged: () => void }) {
           {info.covered === false && (
             <div className="net-alert" role="alert">
               <p>
-                Le certificat HTTPS ne couvre pas cette adresse : les téléphones afficheront une alerte et le
-                capteur de mouvement sera bloqué. Régénérez-le puis relancez la démo :
+                The HTTPS certificate does not cover this address: phones will show a warning and the
+                motion sensor will be blocked. Regenerate it, then restart the demo:
               </p>
               <div className="net-cmd">
                 <code>{info.certCommand}</code>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copy(info.certCommand)}>
-                  {copied ? 'Copié ✓' : 'Copier'}
+                  {copied ? 'Copied ✓' : 'Copy'}
                 </button>
               </div>
             </div>
           )}
           <div className="net-list">
-            <h3>Réseaux détectés</h3>
-            {info.candidates.length === 0 && <p className="hint">Aucun réseau détecté : branchez-vous puis actualisez.</p>}
+            <h3>Detected networks</h3>
+            {info.candidates.length === 0 && <p className="hint">No network detected: connect, then refresh.</p>}
             {info.candidates.map((c) => (
               <div key={c.url} className={c.active ? 'net-row active' : 'net-row'}>
                 <div className="net-row-main">
                   <strong>{c.address}</strong>
                   <span>{c.name}</span>
                 </div>
-                {c.covered === false && <span className="chip chip-warn">Certificat à régénérer</span>}
+                {c.covered === false && <span className="chip chip-warn">Certificate to regenerate</span>}
                 {c.active ? (
-                  <span className="chip chip-ok">Utilisé</span>
+                  <span className="chip chip-ok">In use</span>
                 ) : (
                   <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void use(c.url)}>
-                    Utiliser
+                    Use
                   </button>
                 )}
               </div>
@@ -519,16 +518,16 @@ function NetworkCard({ onChanged }: { onChanged: () => void }) {
         }}
       >
         <label>
-          Adresse manuelle
+          Manual address
           <input
             type="text"
             value={manual}
-            placeholder="192.168.1.20 ou https://…"
+            placeholder="192.168.1.20 or https://…"
             onChange={(e) => setManual(e.target.value)}
           />
         </label>
         <button type="submit" className="btn btn-primary" disabled={busy || !manual.trim()}>
-          Appliquer
+          Apply
         </button>
       </form>
       <div className="cfg-actions">
@@ -536,12 +535,12 @@ function NetworkCard({ onChanged }: { onChanged: () => void }) {
           type="button"
           className="btn btn-secondary"
           disabled={busy}
-          onClick={() => void apply(fetch('/api/network/detect', { method: 'POST' }), 'Réseau détecté automatiquement')}
+          onClick={() => void apply(fetch('/api/network/detect', { method: 'POST' }), 'Network detected automatically')}
         >
-          Détecter automatiquement
+          Detect automatically
         </button>
         <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void load()}>
-          Actualiser la liste
+          Refresh list
         </button>
       </div>
       {msg && (
@@ -553,7 +552,7 @@ function NetworkCard({ onChanged }: { onChanged: () => void }) {
   );
 }
 
-/** Écran affiché une fois la sécurité passée : textes, solde et petites blagues à régler. */
+/** Screen affiché une fois la sécurité passée : textes, solde et petites blagues à régler. */
 function WelcomeEditor() {
   const [form, setForm] = useState<WelcomeContent>(DEFAULT_WELCOME);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -584,17 +583,17 @@ function WelcomeEditor() {
         return;
       }
       setForm(sanitizeWelcome(await res.json()));
-      setMsg({ ok: true, text: 'Écran de réussite enregistré' });
+      setMsg({ ok: true, text: 'Success screen saved' });
     } catch {
-      setMsg({ ok: false, text: 'Serveur injoignable' });
+      setMsg({ ok: false, text: 'Server unreachable' });
     }
   };
 
   return (
-    <section className="card cfg-section" aria-label="Écran de réussite">
+    <section className="card cfg-section" aria-label="Success screen">
       <div className="cfg-head">
-        <h2>Écran de réussite</h2>
-        <p className="hint">Ce que voit le public une fois la sécurité passée : place aux petites blagues.</p>
+        <h2>Success screen</h2>
+        <p className="hint">What the audience sees once security is passed: room for little jokes.</p>
       </div>
       <form
         className="cfg-form"
@@ -604,52 +603,52 @@ function WelcomeEditor() {
         }}
       >
         <label>
-          Prénom ou surnom (salutation)
-          <input type="text" value={form.name} placeholder="ex. Professeur" onChange={(e) => set({ name: e.target.value })} />
+          First name or nickname (greeting)
+          <input type="text" value={form.name} placeholder="ex. Professor" onChange={(e) => set({ name: e.target.value })} />
         </label>
         <div className="cfg-grid">
           <label>
-            Intitulé du compte
+            Account label
             <input type="text" value={form.accountLabel} onChange={(e) => set({ accountLabel: e.target.value })} />
           </label>
           <label>
-            Solde
+            Balance
             <input type="text" value={form.balance} onChange={(e) => set({ balance: e.target.value })} />
           </label>
         </div>
         <label>
-          Message du conseiller
+          Advisor message
           <textarea rows={2} value={form.notice} onChange={(e) => set({ notice: e.target.value })} />
         </label>
         <fieldset className="cfg-txns">
-          <legend>Dernières opérations</legend>
+          <legend>Recent transactions</legend>
           {form.transactions.map((t, i) => (
             <div className="cfg-txn" key={i}>
               <input
                 type="text"
                 className="txn-in-icon"
-                aria-label={`Icône ${i + 1}`}
+                aria-label={`Icon ${i + 1}`}
                 value={t.icon}
                 onChange={(e) => setTxn(i, { icon: e.target.value })}
               />
               <input
                 type="text"
                 className="txn-in-label"
-                aria-label={`Libellé ${i + 1}`}
+                aria-label={`Label ${i + 1}`}
                 value={t.label}
                 onChange={(e) => setTxn(i, { label: e.target.value })}
               />
               <input
                 type="text"
                 className="txn-in-amount"
-                aria-label={`Montant ${i + 1}`}
+                aria-label={`Amount ${i + 1}`}
                 value={t.amount}
                 onChange={(e) => setTxn(i, { amount: e.target.value })}
               />
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
-                aria-label={`Supprimer l’opération ${i + 1}`}
+                aria-label={`Delete transaction ${i + 1}`}
                 onClick={() => setForm((f) => ({ ...f, transactions: f.transactions.filter((_, k) => k !== i) }))}
               >
                 ✕
@@ -664,13 +663,13 @@ function WelcomeEditor() {
                 setForm((f) => ({ ...f, transactions: [...f.transactions, { icon: '💸', label: '', amount: '' }] }))
               }
             >
-              + Ajouter une opération
+              + Add a transaction
             </button>
           )}
         </fieldset>
         <div className="cfg-actions">
           <button type="submit" className="btn btn-primary">
-            Enregistrer
+            Save
           </button>
           <button
             type="button"
@@ -680,7 +679,7 @@ function WelcomeEditor() {
               void save(DEFAULT_WELCOME);
             }}
           >
-            Textes par défaut
+            Default texts
           </button>
         </div>
         {msg && (
@@ -727,10 +726,10 @@ export function Config() {
       <header className="cfg-header">
         <div>
           <h1>Configuration</h1>
-          <p>Préparer la démo : réseau, identité de A, enrôlements et seuils</p>
+          <p>Prepare the demo: network, A’s identity, enrollments and thresholds</p>
         </div>
         <Link to="/" className="btn btn-light">
-          ← Retour à la démo
+          ← Back to the demo
         </Link>
       </header>
       <NetworkCard onChanged={() => setNetVersion((v) => v + 1)} />
@@ -744,7 +743,7 @@ export function Config() {
             <KeystrokeEnrol profile={profile} target={thresholds.enrollSamples} />
           ) : (
             <section className="card cfg-section">
-              <p className="hint">Chargement…</p>
+              <p className="hint">Loading…</p>
             </section>
           )}
           {thresholds && <ThresholdsForm thresholds={thresholds} onSaved={setThresholds} />}

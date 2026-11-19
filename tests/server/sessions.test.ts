@@ -195,7 +195,7 @@ describe('SessionManager lastVerdict', () => {
     expect(snap.lastVerdict).toMatchObject({
       level: 1,
       granted: false,
-      reason: 'signal hors seuil',
+      reason: 'signal out of range',
     });
     expect(snap.lastVerdict!.score).toBeLessThan(DEFAULT_THRESHOLDS.keystroke.warn);
   });
@@ -212,7 +212,7 @@ describe('SessionManager lastVerdict', () => {
     });
   });
 
-  it('PIN faux : raison PIN incorrect', () => {
+  it('PIN faux : reason PIN incorrect', () => {
     const m = setup();
     const s = m.create();
     m.jump(s.id, 2);
@@ -279,7 +279,7 @@ describe('SessionManager orientation en direct', () => {
   const live = (beta: unknown, alpha: unknown = 1, gamma: unknown = 2) =>
     JSON.stringify({ type: 'orientationLive', alpha, beta, gamma });
 
-  it('acceptee au niveau 3, diffusee, puis effacee apres Valider', () => {
+  it('acceptee au niveau 3, diffusee, puis effacee apres Confirm', () => {
     const m = setup();
     const s = m.create();
     const phone = new FakeWs();

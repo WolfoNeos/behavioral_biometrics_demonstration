@@ -15,7 +15,7 @@ const row = (over: Partial<KeyRow>): KeyRow => ({
 });
 
 const liveRects = () =>
-  screen.getByLabelText('signature en direct').querySelectorAll('rect:not(.barcode-ghost):not(.barcode-pause)');
+  screen.getByLabelText('live signature').querySelectorAll('rect:not(.barcode-ghost):not(.barcode-pause)');
 
 describe('Barcode', () => {
   it('une barre par position tapee, colorée par statut, sur la reference en filigrane', () => {
@@ -31,9 +31,9 @@ describe('Barcode', () => {
     expect(liveRects()).toHaveLength(2);
     expect([...liveRects()].map((r) => r.getAttribute('data-status'))).toEqual(['ok', 'bad']);
     expect(liveRects()[1]).toHaveClass('bar-bad');
-    const live = screen.getByLabelText('signature en direct');
+    const live = screen.getByLabelText('live signature');
     expect(live.querySelectorAll('rect.barcode-ghost')).toHaveLength(3);
-    expect(screen.getByLabelText('signature de référence').querySelectorAll('rect')).toHaveLength(3);
+    expect(screen.getByLabelText('reference signature').querySelectorAll('rect')).toHaveLength(3);
   });
 
   it('largeur = maintien ; la barre en direct est posee sur le x de la reference du meme indice', () => {
@@ -53,13 +53,13 @@ describe('Barcode', () => {
   it('utilise une échelle horizontale commune', () => {
     render(<Barcode rows={[row({ dwell: 400, flight: 0, status: 'bad' }), row({})]} />);
     const vb = (l: string) => screen.getByLabelText(l).getAttribute('viewBox');
-    expect(vb('signature en direct')).toBe(vb('signature de référence'));
+    expect(vb('live signature')).toBe(vb('reference signature'));
   });
 
   it('showLive false : seulement la reference', () => {
     render(<Barcode rows={[row({})]} showLive={false} />);
-    expect(screen.queryByLabelText('signature en direct')).toBeNull();
-    expect(screen.getByLabelText('signature de référence').querySelectorAll('rect')).toHaveLength(1);
+    expect(screen.queryByLabelText('live signature')).toBeNull();
+    expect(screen.getByLabelText('reference signature').querySelectorAll('rect')).toHaveLength(1);
   });
 
   describe('plafonnement des ecarts', () => {

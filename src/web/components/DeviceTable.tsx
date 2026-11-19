@@ -10,22 +10,22 @@ export interface DeviceTableLine {
 
 export interface DeviceTableProps {
   lines: DeviceTableLine[];
-  /** Profil de A : affiché en attente de mesure, quand `lines` est vide. */
+  /** A’s profile : affiché en attente de mesure, quand `lines` est vide. */
   expected?: Fingerprint | null;
 }
 
-/** Libelles francais des champs d'empreinte (tableau et panneau « Profil de A »). */
+/** Libelles francais des champs d'empreinte (tableau et panneau « A’s profile »). */
 export const FIELD_LABELS: Record<string, string> = {
-  userAgent: 'Navigateur',
-  platform: 'Système',
-  language: 'Langue',
-  screen: 'Écran',
-  timezone: 'Fuseau horaire',
-  canvasHash: 'Empreinte canvas',
+  userAgent: 'Browser',
+  platform: 'System',
+  language: 'Language',
+  screen: 'Screen',
+  timezone: 'Time zone',
+  canvasHash: 'Canvas fingerprint',
 };
 
 const weightOf = (field: string): number => FIELD_WEIGHTS[field as keyof Fingerprint] ?? 1;
-const pts = (v: number): string => `${Math.round(v * 10) / 10}`.replace('.', ',');
+const pts = (v: number): string => `${Math.round(v * 10) / 10}`;
 
 /** User-agent lisible : « Chrome 157 · iOS 27.2 » ; valeur brute si non reconnue. */
 export function friendlyUserAgent(ua: string): string {
@@ -89,10 +89,10 @@ export function DeviceTable({ lines, expected = null }: DeviceTableProps) {
       <table className="values-table">
         <thead>
           <tr>
-            <th>Critère</th>
-            <th>Profil de A</th>
-            <th>Appareil mesuré</th>
-            <th>Résultat</th>
+            <th>Criterion</th>
+            <th>A’s profile</th>
+            <th>Measured device</th>
+            <th>Result</th>
             <th className="num">Points</th>
           </tr>
         </thead>
@@ -114,17 +114,17 @@ export function DeviceTable({ lines, expected = null }: DeviceTableProps) {
                   {measured &&
                     (l.match ? (
                       <>
-                        <span className="ok" aria-label="conforme">
+                        <span className="ok" aria-label="match">
                           ✓
                         </span>
-                        Identique
+                        Identical
                       </>
                     ) : (
                       <>
-                        <span className="ko" aria-label="différent">
+                        <span className="ko" aria-label="different">
                           ✗
                         </span>
-                        Différent
+                        Different
                       </>
                     ))}
                 </td>
@@ -136,11 +136,11 @@ export function DeviceTable({ lines, expected = null }: DeviceTableProps) {
       </table>
       {measured && (
         <p className="cmp-total" data-testid="device-total">
-          {capped ? 'Score brut' : 'Score'} : <strong>{pts(raw)}</strong> / 100
+          {capped ? 'Raw score' : 'Score'}: <strong>{pts(raw)}</strong> / 100
           {capped && (
             <span className="cmp-cap">
               {' '}
-              · plafonné à {IDENTITY_MISMATCH_CAP} (navigateur ou canvas différent)
+              · capped at {IDENTITY_MISMATCH_CAP} (browser or canvas differs)
             </span>
           )}
         </p>

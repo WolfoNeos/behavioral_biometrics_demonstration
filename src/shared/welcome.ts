@@ -20,15 +20,15 @@ export const MAX_TRANSACTIONS = 5;
 
 export const DEFAULT_WELCOME: WelcomeContent = {
   name: '',
-  accountLabel: 'Compte courant · •••• 4821',
-  balance: '12 480,35',
+  accountLabel: 'Checking account · •••• 4821',
+  balance: '12,480.35',
   currency: 'CHF',
-  notice: 'Votre conseiller : « Le code PIN, c’est comme une brosse à dents : on ne le prête pas. »',
+  notice: 'Your advisor: “A PIN is like a toothbrush: you never share it.”',
   transactions: [
-    { icon: '💼', label: 'Salaire — Octobre', amount: '+ 4 850,00' },
-    { icon: '☕', label: 'Café du matin', amount: '− 4,50' },
-    { icon: '🎓', label: 'Cadeau pour réussir l’examen', amount: '− 120,00' },
-    { icon: '📺', label: 'Abonnement jamais utilisé', amount: '− 13,90' },
+    { icon: '💼', label: 'Salary — October', amount: '+ 4,850.00' },
+    { icon: '☕', label: 'Morning coffee', amount: '− 4.50' },
+    { icon: '🎓', label: 'Gift to pass the exam', amount: '− 120.00' },
+    { icon: '📺', label: 'Subscription never used', amount: '− 13.90' },
   ],
 };
 

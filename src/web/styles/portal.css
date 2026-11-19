@@ -87,7 +87,7 @@
 .dial-verdict { transition: background 250ms ease, color 250ms ease; }
 @keyframes live-pulse { 0% { box-shadow: 0 0 0 0 rgb(21 128 61 / 50%); } 80%, 100% { box-shadow: 0 0 0 8px rgb(21 128 61 / 0%); } }
 
-/* ===== Niveau 1 : frappe, même structure que les niveaux 2 et 3 ===== */
+/* ===== Level 1 : frappe, même structure que les niveaux 2 et 3 ===== */
 .keystroke-signal { display: flex; flex-direction: column; gap: var(--space-2); min-height: 0; height: 100%; }
 .ks-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); flex-shrink: 0; }
 .ks-stat { display: flex; flex-direction: column; padding: 0.6rem 0.9rem; background: var(--color-bg); border-radius: 12px; }
@@ -98,7 +98,7 @@
 .ks-note { flex-shrink: 0; font-size: 0.9rem; }
 .panel .barcode-label { font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-ink-muted); }
 
-/* ===== Console de sécurité (volet droit) ===== */
+/* ===== Security console (volet droit) ===== */
 .side-wide { grid-template-rows: auto minmax(0, 2.6fr) minmax(0, 1fr) auto; }
 .side { --accent: #0b3d6b; }
 .side[data-state='granted'] { --accent: var(--color-green); }
@@ -188,7 +188,7 @@
 .panel-score h2 { margin-bottom: 0; }
 .device-compare .values-table td { padding: 8px 12px; }
 
-/* ===== Écran de réussite : mini espace client ===== */
+/* ===== Success screen : mini espace client ===== */
 .welcome:not(.suspended) { max-width: 580px; align-items: stretch; gap: 0.9rem; text-align: left; }
 .welcome-top { display: flex; align-items: center; gap: 1rem; }
 .welcome-top .success-check { width: 64px; height: 64px; flex-shrink: 0; }

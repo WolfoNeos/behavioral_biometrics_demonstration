@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_WELCOME, MAX_TRANSACTIONS, sanitizeWelcome } from '../../src/shared/welcome';
 
 describe('sanitizeWelcome', () => {
-  it('contenu invalide -> valeurs par défaut', () => {
+  it('invalid content -> valeurs par défaut', () => {
     expect(sanitizeWelcome(null)).toEqual(DEFAULT_WELCOME);
     expect(sanitizeWelcome('x')).toEqual(DEFAULT_WELCOME);
   });

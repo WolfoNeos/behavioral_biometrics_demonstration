@@ -210,7 +210,7 @@ export class SessionManager {
 
   private get(id: string): Session {
     const s = this.sessions.get(id);
-    if (!s) throw new Error(`Session inconnue : ${id}`);
+    if (!s) throw new Error(`Unknown session: ${id}`);
     return s;
   }
 
@@ -260,7 +260,7 @@ export class SessionManager {
     s.pcs.add(ws);
     ws.on('message', (data) => this.handleMessage(id, data));
     ws.on('close', () => s.pcs.delete(ws));
-    ws.on('error', (err) => console.error('erreur ws pc', err));
+    ws.on('error', (err) => console.error('pc ws error', err));
     this.broadcast(id);
   }
 
@@ -277,7 +277,7 @@ export class SessionManager {
       }
       if (this.sessions.has(id)) this.broadcast(id);
     });
-    ws.on('error', (err) => console.error('erreur ws telephone', err));
+    ws.on('error', (err) => console.error('phone ws error', err));
     this.broadcast(id);
   }
 
@@ -331,7 +331,7 @@ export class SessionManager {
         level,
         score: verdict.score,
         granted: verdict.granted,
-        reason: verdict.granted ? null : (failed ?? 'signal hors seuil'),
+        reason: verdict.granted ? null : (failed ?? 'signal out of range'),
       };
     }
     // une soumission quitte toujours l'etape en cours : l'orientation en direct n'a plus cours

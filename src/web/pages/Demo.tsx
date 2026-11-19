@@ -22,15 +22,15 @@ import type { ClientMessage } from '../ws';
 type Send = (msg: ClientMessage) => void;
 
 const SIGNAL_NAME: Record<Level, string> = {
-  1: 'Dynamique de frappe',
-  2: "Empreinte de l'appareil",
-  3: 'Posture du téléphone',
+  1: 'Keystroke dynamics',
+  2: "Device fingerprint",
+  3: 'Phone posture',
 };
 
 const REASON_LABEL: Record<FailReason, string> = {
-  'password incorrect': 'Mot de passe incorrect',
-  'PIN incorrect': 'PIN incorrect',
-  'signal hors seuil': 'Signal hors seuil',
+  'password incorrect': 'Wrong password',
+  'PIN incorrect': 'Wrong PIN',
+  'signal out of range': 'Signal out of range',
 };
 
 function isTextTarget(t: EventTarget | null): boolean {
@@ -54,7 +54,7 @@ function useGodMode(send: Send): void {
 function PhoneStatus({ connected }: { connected: boolean }) {
   return (
     <p className={connected ? 'phone-status ok' : 'phone-status'} role="status">
-      {connected ? 'Téléphone connecté' : 'Téléphone en attente'}
+      {connected ? 'Phone connected' : 'Phone waiting'}
     </p>
   );
 }
@@ -62,7 +62,7 @@ function PhoneStatus({ connected }: { connected: boolean }) {
 function FailBanner({ verdict }: { verdict: LastVerdict }) {
   const reason = verdict.reason ? REASON_LABEL[verdict.reason] : null;
   const detail =
-    verdict.reason === 'signal hors seuil'
+    verdict.reason === 'signal out of range'
       ? `${reason} (score ${Math.round(verdict.score)} / 100)`
       : reason;
   return (
@@ -70,14 +70,14 @@ function FailBanner({ verdict }: { verdict: LastVerdict }) {
       <span className="fail-icon" aria-hidden="true">
         !
       </span>
-      <strong>Échec niveau {verdict.level} — passage au niveau suivant</strong>
+      <strong>Level {verdict.level} failed — moving to the next level</strong>
       {detail && <span> · {detail}</span>}
     </div>
   );
 }
 
 /**
- * Niveau dont on montre le signal : apres un echec, le niveau echoue reste affiche (avec un
+ * Level dont on montre le signal : apres un echec, le niveau echoue reste affiche (avec un
  * bandeau) tant que le nouveau niveau n'a pas de mesure ; l'orientation en direct en est une.
  */
 function shownLevel(snap: Snapshot): { level: Level; failed: LastVerdict | null } {
@@ -91,7 +91,7 @@ function shownLevel(snap: Snapshot): { level: Level; failed: LastVerdict | null 
 
 const msText = (v: number | null) => (v === null ? '–' : `${Math.round(v)} ms`);
 
-/** Frappe : direct (pendant la saisie), mesure du serveur, ou reference seule. */
+/** Typing: direct (pendant la saisie), mesure du serveur, ou reference seule. */
 type KeystrokeMode = 'live' | 'server' | 'reference';
 
 function KeystrokeSignal({ rows, mode, note }: { rows: KeyRow[]; mode: KeystrokeMode; note: string | null }) {
@@ -100,16 +100,16 @@ function KeystrokeSignal({ rows, mode, note }: { rows: KeyRow[]; mode: Keystroke
     <div className="keystroke-signal" data-testid="keystroke-view" data-mode={mode}>
       <div className="ks-stats">
         <div className="ks-stat">
-          <span className="dial-caption">Écart moyen</span>
+          <span className="dial-caption">Average gap</span>
           <strong>{msText(sum.dwellGap)}</strong>
         </div>
         <div className="ks-stat">
-          <span className="dial-caption">Vol moyen</span>
+          <span className="dial-caption">Average flight</span>
           <strong>{msText(sum.flight)}</strong>
-          {sum.expectedFlight !== null && <span className="summary-ref">A : {msText(sum.expectedFlight)}</span>}
+          {sum.expectedFlight !== null && <span className="summary-ref">A: {msText(sum.expectedFlight)}</span>}
         </div>
         <div className="ks-stat">
-          <span className="dial-caption">Touches</span>
+          <span className="dial-caption">Keys</span>
           <strong>{sum.expected ? `${sum.typed} / ${sum.expected}` : sum.typed}</strong>
         </div>
       </div>
@@ -136,7 +136,7 @@ function DirectSignal({ snap, level, liveRows }: { snap: Snapshot; level: Level;
   if (level === 2) {
     return <DeviceTable lines={snap.live.device?.lines ?? []} expected={snap.expected.fingerprint} />;
   }
-  // avant « Valider » : l'aiguille suit le telephone en direct ; apres : la mesure notee
+  // avant « Confirm » : l'aiguille suit le telephone en direct ; apres : la mesure notee
   const beta = snap.liveOrientation?.beta ?? snap.live.orientation?.beta ?? null;
   return (
     <AngleDial
@@ -147,23 +147,23 @@ function DirectSignal({ snap, level, liveRows }: { snap: Snapshot; level: Level;
   );
 }
 
-/** Résumé du profil de frappe de A (affiché sous la signature de référence). */
+/** Résumé du profil de frappe de A (affiché sous la reference signature). */
 function profileNote(snap: Snapshot): string {
   const ks = snap.expected.keystroke;
-  if (!ks || !snap.expectedBars) return 'Aucun profil de frappe enregistré.';
+  if (!ks || !snap.expectedBars) return 'No typing profile enrolled.';
   const sum = summarize(rowsFromLive(snap.expectedBars, []));
   const dwell = snap.expectedBars.filter((b) => b.known).map((b) => b.dwell);
   const meanDwell = dwell.length ? dwell.reduce((x, y) => x + y, 0) / dwell.length : null;
-  return `Profil de A appris sur ${ks.samples} saisies · ${snap.expectedBars.length} touches · maintien moyen ${msText(meanDwell)} · vol moyen ${msText(sum.expectedFlight)}`;
+  return `A’s profile learned from ${ks.samples} entries · ${snap.expectedBars.length} keys · average hold ${msText(meanDwell)} · average flight ${msText(sum.expectedFlight)}`;
 }
 
-/** Score mesure pour ce niveau ; null si aucune mesure (jauge neutre). */
+/** Score mesure pour ce niveau ; null si no measurement (jauge neutre). */
 function liveScore(snap: Snapshot, level: Level): number | null {
   const l = snap.live;
   if (level === 1) return l.keystroke?.score ?? null;
   if (level === 2) return l.device?.score ?? null;
   if (l.orientation) return l.orientation.score;
-  // avant « Valider » : le score suit l'angle du téléphone en direct
+  // avant « Confirm » : le score suit l'angle du téléphone en direct
   if (snap.liveOrientation && snap.expected.beta !== null) {
     const t = snap.thresholds.orientation;
     return angleScore(snap.liveOrientation.beta - snap.expected.beta, t.toleranceDeg, t.accept);
@@ -230,7 +230,7 @@ export function Demo() {
       <div className="demo">
         <main className="main-zone" data-testid="main-zone">
           <PortalShell>
-            <p className="login-sub">Connexion au serveur…</p>
+            <p className="login-sub">Connecting to the server…</p>
           </PortalShell>
         </main>
       </div>
@@ -265,14 +265,14 @@ export function Demo() {
 
   const caption = provisional
     ? awaiting
-      ? 'En attente du serveur'
+      ? 'Waiting for the server'
       : provisional.score !== null
-        ? 'Score provisoire'
+        ? 'Provisional score'
         : ''
     : officialScore !== null
       ? shown.level === 3 && !snapshot.live.orientation
-        ? 'Score en direct'
-        : 'Score officiel'
+        ? 'Live score'
+        : 'Official score'
       : '';
   const recap = buildRecap(snapshot);
   const gauge = (
@@ -291,7 +291,7 @@ export function Demo() {
       <aside className="side side-wide" data-state={state.status}>
         <ConsoleHeader state={state} />
         <section className="panel" data-testid="panel-direct" aria-label="Direct">
-          <h2>Direct — {SIGNAL_NAME[shown.level]}</h2>
+          <h2>Live — {SIGNAL_NAME[shown.level]}</h2>
           {shown.failed && <FailBanner verdict={shown.failed} />}
           <div className="direct-body direct-wide" key={shown.level}>
             <div className="signal">
@@ -300,8 +300,8 @@ export function Demo() {
           </div>
         </section>
         {recap ? (
-          <section className="panel panel-score panel-recap" data-testid="panel-score" aria-label="Bilan de la session">
-            <h2>Bilan de la session</h2>
+          <section className="panel panel-score panel-recap" data-testid="panel-score" aria-label="Session summary">
+            <h2>Session summary</h2>
             <SessionRecap recap={recap} />
           </section>
         ) : (

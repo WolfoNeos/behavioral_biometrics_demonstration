@@ -13,8 +13,8 @@ function PinReplica({ view }: { view: PhoneView }) {
   return (
     <div className="pin">
       <div className="pin-head">
-        <h1>{view.again ? 'Saisissez à nouveau votre code PIN' : 'Saisissez votre code PIN'}</h1>
-        <p>{view.again ? 'Vérification supplémentaire' : 'Pour confirmer votre identité'}</p>
+        <h1>{view.again ? 'Enter your PIN again' : 'Enter your PIN'}</h1>
+        <p>{view.again ? 'Additional verification' : 'To confirm your identity'}</p>
       </div>
       <div className="pin-dots" aria-hidden="true">
         {Array.from({ length: Math.max(4, view.digits) }, (_, i) => (
@@ -28,7 +28,7 @@ function PinReplica({ view }: { view: PhoneView }) {
         {key('0')}
         <span className={view.pressed === 'erase' ? 'key key-aux pressed' : 'key key-aux'}>⌫</span>
       </div>
-      <span className={view.digits > 0 ? 'pin-submit' : 'pin-submit disabled'}>Valider</span>
+      <span className={view.digits > 0 ? 'pin-submit' : 'pin-submit disabled'}>Confirm</span>
     </div>
   );
 }
@@ -37,11 +37,11 @@ function Interstitial({ step }: { step: boolean }) {
   return (
     <div className="m-inter">
       <div className={step ? 'inter-ring step' : 'inter-ring'}>{step && <Lock />}</div>
-      <h1>{step ? 'Vérification supplémentaire' : 'Vérification en cours…'}</h1>
+      <h1>{step ? 'Additional verification' : 'Verifying…'}</h1>
       <p>
         {step
-          ? 'Par mesure de sécurité, confirmez à nouveau votre identité.'
-          : 'Veuillez patienter quelques instants.'}
+          ? 'For your security, please confirm your identity again.'
+          : 'Please wait a moment.'}
       </p>
     </div>
   );
@@ -55,7 +55,7 @@ function Interstitial({ step }: { step: boolean }) {
 export function PhoneMirror({ view, connected }: { view: PhoneView | null; connected: boolean }) {
   const live = connected && view !== null;
   return (
-    <figure className="phone-mirror" aria-label="Écran du téléphone">
+    <figure className="phone-mirror" aria-label="Phone screen">
       <div className="phone-frame">
         <div className="phone-viewport">
           <div className={live ? 'phone-screen' : 'phone-screen off'}>
@@ -67,25 +67,25 @@ export function PhoneMirror({ view, connected }: { view: PhoneView | null; conne
                 {view.screen === 'done' && (
                   <div className="m-done">
                     <Lock />
-                    <p className="m-note">Regardez l’écran</p>
+                    <p className="m-note">Look at the screen</p>
                   </div>
                 )}
                 {view.screen === 'connecting' && (
                   <p className="m-note">
-                    <span className="spinner dark" aria-hidden="true" /> Connexion…
+                    <span className="spinner dark" aria-hidden="true" /> Connecting…
                   </p>
                 )}
               </MobileShell>
             ) : (
               <p className="phone-wait">
                 <span className="spinner" aria-hidden="true" />
-                En attente du téléphone
+                Waiting for the phone
               </p>
             )}
           </div>
         </div>
       </div>
-      <figcaption>Écran du téléphone</figcaption>
+      <figcaption>Phone screen</figcaption>
     </figure>
   );
 }

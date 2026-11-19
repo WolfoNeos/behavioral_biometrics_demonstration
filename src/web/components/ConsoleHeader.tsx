@@ -3,17 +3,17 @@ import type { AuthState } from '../../shared/types';
 export type StepState = 'todo' | 'active' | 'passed' | 'escalated' | 'failed';
 
 const STEPS = [
-  { level: 1, name: 'Frappe' },
-  { level: 2, name: 'Appareil' },
+  { level: 1, name: 'Typing' },
+  { level: 2, name: 'Device' },
   { level: 3, name: 'Posture' },
 ] as const;
 
 const STATE_LABEL: Record<StepState, string> = {
-  todo: 'à venir',
-  active: 'en cours',
-  passed: 'validé',
-  escalated: 'doute',
-  failed: 'refusé',
+  todo: 'upcoming',
+  active: 'in progress',
+  passed: 'passed',
+  escalated: 'doubt',
+  failed: 'rejected',
 };
 
 /** État de chaque étape : un doute fait passer à l'étape suivante, la dernière bloque. */
@@ -34,7 +34,7 @@ function Shield() {
   );
 }
 
-/** En-tête de la console de sécurité (volet droit) : titre et progression des vérifications. */
+/** En-tête de la console de sécurité (volet droit) : titre et verification progress. */
 export function ConsoleHeader({ state }: { state: AuthState }) {
   const states = stepStates(state);
   return (
@@ -42,13 +42,13 @@ export function ConsoleHeader({ state }: { state: AuthState }) {
       <div className="console-title">
         <Shield />
         <div>
-          <strong>Console de sécurité</strong>
-          <span>Analyse comportementale en direct</span>
+          <strong>Security console</strong>
+          <span>Live behavioral analysis</span>
         </div>
       </div>
-      <ol className="stepper" aria-label="progression des vérifications">
+      <ol className="stepper" aria-label="verification progress">
         {STEPS.map((s, i) => (
-          <li key={s.level} className={`step ${states[i]}`} aria-label={`${s.name} : ${STATE_LABEL[states[i]]}`}>
+          <li key={s.level} className={`step ${states[i]}`} aria-label={`${s.name}: ${STATE_LABEL[states[i]]}`}>
             <span className="step-dot">
               {states[i] === 'passed' ? '✓' : states[i] === 'failed' ? '✕' : states[i] === 'escalated' ? '!' : s.level}
             </span>

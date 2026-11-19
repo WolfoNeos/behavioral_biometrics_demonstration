@@ -4,7 +4,7 @@ import type { Level } from '../../shared/types';
 export interface ControlBarProps {
   onJump: (level: Level) => void;
   onReset: () => void;
-  /** Niveau affiché (mis en évidence dans le sélecteur). */
+  /** Level affiché (mis en évidence dans le sélecteur). */
   level?: Level;
 }
 
@@ -13,8 +13,8 @@ const LEVELS: Level[] = [1, 2, 3];
 /** Menu du présentateur : sélecteur de niveau, remise à zéro, accès à la configuration. */
 export function ControlBar({ onJump, onReset, level }: ControlBarProps) {
   return (
-    <nav className="control-bar" aria-label="contrôles de la démo">
-      <div className="seg" role="group" aria-label="Aller au niveau">
+    <nav className="control-bar" aria-label="demo controls">
+      <div className="seg" role="group" aria-label="Go to level">
         {LEVELS.map((l) => (
           <button
             key={l}
@@ -23,7 +23,7 @@ export function ControlBar({ onJump, onReset, level }: ControlBarProps) {
             aria-pressed={l === level}
             onClick={() => onJump(l)}
           >
-            Niveau {l}
+            Level {l}
           </button>
         ))}
       </div>
@@ -31,7 +31,7 @@ export function ControlBar({ onJump, onReset, level }: ControlBarProps) {
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="M4 10a6 6 0 1 0 2-4.5M4 3v3.5H7.5" />
         </svg>
-        Recommencer
+        Restart
       </button>
       <Link to="/config" className="ctl-btn">
         <svg viewBox="0 0 20 20" aria-hidden="true">

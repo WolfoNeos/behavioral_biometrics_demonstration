@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 export interface GaugeProps {
-  /** null : aucune mesure pour ce niveau -> jauge neutre « — ». */
+  /** null : no measurement pour ce niveau -> jauge neutre « — ». */
   score: number | null;
   accept: number;
   warn: number;
@@ -76,7 +76,7 @@ export function Gauge({ score, accept, warn, label = 'score' }: GaugeProps) {
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={shown ?? undefined}
-      aria-valuetext={shown === null ? 'aucune mesure' : undefined}
+      aria-valuetext={shown === null ? 'no measurement' : undefined}
       data-color={color}
     >
       <svg viewBox="0 0 200 125" aria-hidden="false">
@@ -90,8 +90,8 @@ export function Gauge({ score, accept, warn, label = 'score' }: GaugeProps) {
           pathLength={100}
           strokeDasharray={`${clamped} 100`}
         />
-        <Marker value={warn} label={`seuil alerte ${warn}`} />
-        <Marker value={accept} label={`seuil acceptation ${accept}`} />
+        <Marker value={warn} label={`warning threshold ${warn}`} />
+        <Marker value={accept} label={`acceptance threshold ${accept}`} />
       </svg>
       <div className="gauge-score">{shown === null ? '—' : (counted ?? shown)}</div>
     </div>

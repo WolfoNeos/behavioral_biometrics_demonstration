@@ -100,7 +100,7 @@ export interface ExpectedReference {
 }
 
 /** Raison d'un echec ; null quand l'acces est accorde. */
-export type FailReason = 'password incorrect' | 'PIN incorrect' | 'signal hors seuil';
+export type FailReason = 'password incorrect' | 'PIN incorrect' | 'signal out of range';
 
 /** Dernier verdict rendu dans la session (efface par reset et jump). */
 export interface LastVerdict {
@@ -123,12 +123,12 @@ export interface ExpectedBar {
   known: boolean;
 }
 
-/** Écran affiché sur le téléphone, reflété à côté du QR code pour expliquer la démo. */
+/** Screen affiché sur le téléphone, reflété à côté du QR code pour expliquer la démo. */
 export type PhoneScreen = 'connecting' | 'pin' | 'checking' | 'step' | 'done';
 
 export interface PhoneView {
   screen: PhoneScreen;
-  /** Nombre de chiffres saisis (jamais les chiffres eux-mêmes). */
+  /** Nombre de digits entered (jamais les chiffres eux-mêmes). */
   digits: number;
   /** Touche en cours d'appui : un chiffre, ou « erase ». */
   pressed: string | null;
@@ -144,9 +144,9 @@ export interface Snapshot {
   phoneConnected: boolean;
   sessionUrl: string;
   lastVerdict: LastVerdict | null;
-  /** Orientation courante diffusee par le telephone au niveau 3 (avant « Valider »). */
+  /** Orientation courante diffusee par le telephone au niveau 3 (avant « Confirm »). */
   liveOrientation: OrientationReading | null;
-  /** Seuils en vigueur cote serveur (la jauge ne peut pas les contredire). */
+  /** Thresholds en vigueur cote serveur (la jauge ne peut pas les contredire). */
   thresholds: Thresholds;
   /** Une entree par position du mot de passe enregistre ; null sans mot de passe ou sans profil de frappe. */
   expectedBars: ExpectedBar[] | null;

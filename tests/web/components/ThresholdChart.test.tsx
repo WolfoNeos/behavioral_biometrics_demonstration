@@ -26,10 +26,10 @@ describe('ThresholdChart', () => {
     // positions numerotees : aucun caractere du mot de passe a l'ecran
     expect(data.labels).toEqual(['1', '2']);
     const by = (l: string) => data.datasets.find((d: { label: string }) => d.label === l).data;
-    expect(by('Direct (ms)')).toEqual([100, 130]);
-    expect(by('Attendu (ms)')).toEqual([90, 120]);
-    expect(by("Zone d'incertitude")).toEqual([110, 130]);
-    expect(by('Borne basse (ms)')).toEqual([70, 110]);
+    expect(by('Live (ms)')).toEqual([100, 130]);
+    expect(by('Expected (ms)')).toEqual([90, 120]);
+    expect(by("Uncertainty band")).toEqual([110, 130]);
+    expect(by('Lower bound (ms)')).toEqual([70, 110]);
   });
   it('affiche les valeurs numériques en ms', () => {
     render(<ThresholdChart rows={perKey} />);
@@ -44,9 +44,9 @@ describe('ThresholdChart', () => {
   });
   it('filtre la légende (fonction non sérialisable : testée via le module)', async () => {
     const { legendFilter } = await import('../../../src/web/components/ThresholdChart');
-    expect(legendFilter({ text: "Zone d'incertitude" })).toBe(true);
-        expect(legendFilter({ text: 'Borne basse (ms)' })).toBe(false);
-    expect(legendFilter({ text: 'Direct (ms)' })).toBe(true);
+    expect(legendFilter({ text: "Uncertainty band" })).toBe(true);
+        expect(legendFilter({ text: 'Lower bound (ms)' })).toBe(false);
+    expect(legendFilter({ text: 'Live (ms)' })).toBe(true);
   });
   it('construction point par point : positions non tapees a null, reference complete', () => {
     const rows = [
@@ -56,9 +56,9 @@ describe('ThresholdChart', () => {
     render(<ThresholdChart rows={rows} />);
     const data = JSON.parse(screen.getByTestId('chart').getAttribute('data-chart')!);
     const by = (l: string) => data.datasets.find((d: { label: string }) => d.label === l);
-    expect(by('Direct (ms)').data).toEqual([100, null]);
-    expect(by('Attendu (ms)').data).toEqual([90, 120]);
-    expect(by('Direct (ms)').pointBackgroundColor).toHaveLength(2);
+    expect(by('Live (ms)').data).toEqual([100, null]);
+    expect(by('Expected (ms)').data).toEqual([90, 120]);
+    expect(by('Live (ms)').pointBackgroundColor).toHaveLength(2);
     expect(screen.getByText('–')).toBeInTheDocument();
   });
 });

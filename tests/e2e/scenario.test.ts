@@ -99,12 +99,12 @@ describe('scenario de demo (seuils par defaut)', () => {
     m.submit(id, 1, keystroke(typing(77, 240, 160, 40)));
     let snap = m.snapshot(id);
     expect(snap.level).toBe(2);
-    expect(snap.lastVerdict).toMatchObject({ level: 1, granted: false, reason: 'signal hors seuil' });
+    expect(snap.lastVerdict).toMatchObject({ level: 1, granted: false, reason: 'signal out of range' });
     expect(snap.live.keystroke?.score).toBe(snap.lastVerdict?.score);
     m.submit(id, 2, pin(fpB));
     snap = m.snapshot(id);
     expect(snap.level).toBe(3);
-    expect(snap.lastVerdict).toMatchObject({ level: 2, granted: false, reason: 'signal hors seuil' });
+    expect(snap.lastVerdict).toMatchObject({ level: 2, granted: false, reason: 'signal out of range' });
     expect(snap.live.device?.lines.some((l) => !l.match)).toBe(true);
     m.submit(id, 3, orient(2));
     snap = m.snapshot(id);
