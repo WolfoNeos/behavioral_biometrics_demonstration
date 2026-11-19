@@ -40,7 +40,7 @@ describe('ThresholdChart', () => {
     render(<ThresholdChart rows={perKey} />);
     const opts = JSON.parse(screen.getByTestId('chart').getAttribute('data-options')!);
     expect(opts.animation).toEqual({ duration: 0 });
-    expect(opts.plugins.legend.labels.font.size).toBe(18);
+    expect(opts.plugins.legend.labels.font.size).toBe(13);
   });
   it('filtre la légende (fonction non sérialisable : testée via le module)', async () => {
     const { legendFilter } = await import('../../../src/web/components/ThresholdChart');

@@ -64,8 +64,8 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
         backgroundColor: ink,
         pointBackgroundColor: pointColors,
         pointBorderColor: pointColors,
-        borderWidth: 3,
-        pointRadius: 7,
+        borderWidth: 2.5,
+        pointRadius: 6,
         tension: 0.2,
       },
       {
@@ -95,22 +95,35 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
       },
     ],
   };
+  const font = { family: "Inter, 'Segoe UI', system-ui, sans-serif", size: 13 };
+  const muted = token('--color-ink-muted');
+  const border = token('--color-border');
   const options = {
     responsive: true,
     maintainAspectRatio: false,
     animation: { duration: 0 },
     scales: {
       y: {
-        title: { display: true, text: 'Temps de maintien (ms)', font: { size: 16 } },
-        ticks: { font: { size: 16 } },
+        title: { display: true, text: 'Temps de maintien (ms)', font, color: muted },
+        ticks: { font, color: muted, maxTicksLimit: 5 },
+        grid: { color: border },
+        border: { display: false },
         beginAtZero: true,
       },
       x: {
-        title: { display: true, text: 'Position dans le mot de passe', font: { size: 16 } },
-        ticks: { font: { size: 16 } },
+        title: { display: true, text: 'Position dans le mot de passe', font, color: muted },
+        ticks: { font, color: muted },
+        grid: { display: false },
+        border: { color: border },
       },
     },
-    plugins: { legend: { labels: { font: { size: 18 }, filter: legendFilter } } },
+    plugins: {
+      legend: {
+        position: 'top' as const,
+        align: 'end' as const,
+        labels: { font, color: muted, filter: legendFilter, usePointStyle: true, boxWidth: 8, boxHeight: 8 },
+      },
+    },
   };
   return (
     <div className="threshold-chart" aria-label="graphique des temps de frappe">

@@ -54,8 +54,7 @@
 .values-table { width: 100%; border-collapse: collapse; font-size: var(--text-md); font-variant-numeric: tabular-nums; }
 .values-table th, .values-table td { padding: var(--space-2) var(--space-3); text-align: left; border-bottom: 1px solid var(--color-border); }
 .values-table th { color: var(--color-ink-muted); font-weight: 600; font-size: var(--text-sm); }
-.values-table .key { font-weight: 700; font-family: monospace; }
-.values-table .ok { color: var(--color-green); font-weight: 700; }
+.values-table .values-table .ok { color: var(--color-green); font-weight: 700; }
 .values-table .ko { color: var(--color-red); font-weight: 700; }
 
 
@@ -101,25 +100,12 @@ body { margin: 0; background: var(--color-bg); font-family: var(--font-sans); co
 .panel-profil .barcode-row + .barcode-row { display: none; }
 .panel .values-table { font-size: 1rem; }
 .panel .values-table th, .panel .values-table td { padding: 4px var(--space-2); word-break: break-all; }
-.panel .panel .login-form { display: flex; flex-direction: column; gap: var(--space-3); width: 100%; max-width: 560px; font-size: var(--text-lg); }
-.login-form h2 { font-size: var(--text-xl); font-weight: 600; letter-spacing: -0.02em; margin: 0; }
-.login-form label { display: flex; flex-direction: column; gap: var(--space-1); font-weight: 500; color: var(--color-ink-muted); font-size: 1.05rem; }
-.login-form input { font: inherit; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-bg); transition: border-color var(--transition), box-shadow var(--transition); }
-.login-form input:focus { outline: none; border-color: var(--color-ink); box-shadow: 0 0 0 3px rgb(17 24 39 / 10%); background: var(--color-surface); }
-.hint { color: var(--color-ink-muted); font-size: 1rem; margin: 0; }
-.qr-block { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; }
-.qr-block img { max-width: 100%; height: auto; }
-.instruction { font-size: var(--text-xl); font-weight: 600; margin: 0; max-width: 28ch; }
-.final-verdict { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
-.final-verdict .verdict-card { padding: var(--space-5); }
-.level-reached { font-size: var(--text-lg); margin: 0; }
-button { font: inherit; cursor: pointer; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-ink); border-radius: 10px; padding: var(--space-2) var(--space-3); transition: background var(--transition), opacity var(--transition); }
+.panel .panel button { font: inherit; cursor: pointer; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-ink); border-radius: 10px; padding: var(--space-2) var(--space-3); transition: background var(--transition), opacity var(--transition); }
 button:hover:not(:disabled) { background: var(--color-bg); }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; }
 button.primary { font-size: var(--text-md); font-weight: 600; padding: var(--space-3) var(--space-5); background: var(--color-ink); color: var(--color-white); border-color: var(--color-ink); }
 .control-zone { justify-self: end; display: flex; align-items: center; gap: var(--space-3); }
 .control-zone .phone-status { font-size: 0.875rem; }
-.qr-zone { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
 .phone-status { margin: 0; font-size: var(--text-md); font-weight: 600; color: var(--color-ink-muted); }
 .phone-status::before { content: ''; display: inline-block; width: 0.7em; height: 0.7em; border-radius: 50%; margin-right: 0.4em; background: var(--color-grey); vertical-align: middle; }
 .phone-status.ok { color: var(--color-green); }
@@ -143,17 +129,6 @@ button.primary { font-size: var(--text-md); font-weight: 600; padding: var(--spa
 .m-title { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
 .m-sub { font-size: var(--text-md); color: var(--color-ink-muted); margin: 0; }
 .m-error { font-size: 1rem; color: var(--color-red); background: var(--color-red-soft); border-radius: 10px; padding: var(--space-2) var(--space-3); margin: 0; }
-.pin { display: flex; flex-direction: column; align-items: center; gap: var(--space-4); width: 100%; }
-.pin-dots { display: flex; gap: var(--space-3); min-height: 20px; align-items: center; }
-.dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--color-grey); box-sizing: border-box; transition: background var(--transition), border-color var(--transition); }
-.dot.filled { background: var(--color-ink); border-color: var(--color-ink); }
-.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); width: 100%; max-width: 360px; }
-.key { min-height: 68px; font-size: 1.75rem; font-weight: 500; border-radius: 50px; border: none; background: var(--color-surface); box-shadow: var(--shadow); touch-action: manipulation; user-select: none; }
-.key:active { background: var(--color-grey-soft); }
-.key-aux { color: var(--color-ink-muted); }
-.key-ok { background: var(--color-ink); color: var(--color-white); font-size: 1rem; font-weight: 600; }
-.key-ok:hover:not(:disabled) { background: #1f2937; }
-.key-ok:disabled { background: var(--color-grey-soft); color: var(--color-grey); }
 
 /* Page de configuration (PC, presentateur) */
 .config { box-sizing: border-box; max-width: 1280px; margin: 0 auto; padding: var(--space-4); font-family: var(--font-sans); }
@@ -255,3 +230,4 @@ button.primary { font-size: var(--text-md); font-weight: 600; padding: var(--spa
 .device-compare .values-table { font-size: 1.28rem; border-spacing: 0 5px; }
 .device-compare .values-table td { padding: 10px 12px; }
 .device-compare .cmp-mono { font-size: 1.1rem; }
+.hint { color: var(--color-ink-muted); font-size: 1rem; margin: 0; }

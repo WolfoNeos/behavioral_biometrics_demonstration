@@ -80,6 +80,16 @@ describe('Demo', () => {
     expect(screen.getByLabelText('Mot de passe')).toBeInTheDocument();
   });
 
+  it('niveau 1 : le bouton Se connecter envoie la frappe comme Entrée', async () => {
+    const user = userEvent.setup();
+    renderDemo();
+    await user.type(screen.getByLabelText('Mot de passe'), 'ab');
+    await user.click(screen.getByRole('button', { name: 'Se connecter' }));
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0][0]).toMatchObject({ type: 'keystroke', password: 'ab' });
+    expect(await screen.findByText(/Vérification en cours/)).toBeInTheDocument();
+  });
+
   it('niveau 1 : envoie la frappe à Entrée', async () => {
     const user = userEvent.setup();
     renderDemo();
@@ -97,13 +107,28 @@ describe('Demo', () => {
     const img = await screen.findByAltText(/QR code/);
     expect(img).toHaveAttribute('src', 'data:image/png;base64,QR');
     expect(screen.queryByLabelText('Mot de passe')).toBeNull();
-    expect(screen.getByText(/saisissez le code PIN/)).toBeInTheDocument();
+    expect(screen.getByText('Vérification supplémentaire')).toBeInTheDocument();
+    expect(screen.getByText(/saisissez votre code PIN/)).toBeInTheDocument();
   });
 
-  it('niveau 3 : consigne de posture', async () => {
+  it('niveau 3 : demande neutre, sans parler de posture', async () => {
     snapshot = { ...base, level: 3, state: { status: 'pending', level: 3 } };
     renderDemo();
-    expect(await screen.findByText(/validez la posture/)).toBeInTheDocument();
+    const main = screen.getByTestId('main-zone');
+    expect(await within(main).findByText('Une dernière vérification')).toBeInTheDocument();
+    expect(main.textContent).not.toMatch(/posture|angle|inclinaison|gyroscope|score|niveau/i);
+  });
+
+  it('côté portail : aucune raison de refus après un échec', () => {
+    snapshot = {
+      ...base,
+      level: 3,
+      state: { status: 'pending', level: 3 },
+      lastVerdict: { level: 2, score: 0, granted: false, reason: 'PIN incorrect' },
+    };
+    renderDemo();
+    const main = screen.getByTestId('main-zone');
+    expect(main.textContent).not.toMatch(/incorrect|échec|refus|score|hors seuil/i);
   });
 
   it('le panneau Direct ne montre que le signal du niveau courant', () => {
@@ -134,7 +159,7 @@ describe('Demo', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it('accordé : verdict et bouton Recommencer', async () => {
+  it('accordé : écran de bienvenue, sans score ni bouton', () => {
     snapshot = {
       ...base,
       state: {
@@ -144,20 +169,22 @@ describe('Demo', () => {
       },
     };
     renderDemo();
-    expect(screen.getByRole('status', { name: 'verdict' })).toBeInTheDocument();
     const main = screen.getByTestId('main-zone');
-    await userEvent.click(within(main).getByRole('button', { name: 'Recommencer' }));
-    expect(send).toHaveBeenCalledWith({ type: 'reset' });
+    expect(within(main).getByText('Connexion réussie')).toBeInTheDocument();
+    expect(main.textContent).not.toMatch(/score|niveau/i);
+    expect(within(main).queryByRole('button')).toBeNull();
   });
 
-  it('bloqué : verdict d’échec', () => {
+  it('bloqué : accès suspendu, sans raison', () => {
     snapshot = {
       ...base,
       level: 2,
       state: { status: 'blocked', verdict: { level: 2, score: 10, color: 'red', granted: false } },
     };
     renderDemo();
-    expect(screen.getByText('Échec')).toBeInTheDocument();
+    const main = screen.getByTestId('main-zone');
+    expect(within(main).getByText('Accès suspendu')).toBeInTheDocument();
+    expect(main.textContent).not.toMatch(/score|niveau|incorrect|hors seuil/i);
   });
 
   it('les seuils de la jauge viennent du snapshot (serveur)', () => {
@@ -168,7 +195,7 @@ describe('Demo', () => {
       thresholds: { ...DEFAULT_THRESHOLDS, keystroke: { accept: 70, warn: 40 } },
     };
     renderDemo();
-    const gauge = within(screen.getByTestId('panel-direct')).getByRole('meter');
+    const gauge = within(screen.getByTestId('panel-score')).getByRole('meter');
     expect(gauge).toHaveAttribute('data-color', 'green');
     expect(screen.getByLabelText('seuil acceptation 70')).toBeInTheDocument();
   });
@@ -188,11 +215,11 @@ describe('Demo', () => {
     const banner = within(direct).getByTestId('fail-banner');
     expect(banner).toHaveTextContent('Échec niveau 1 — passage au niveau suivant');
     expect(banner).toHaveTextContent('Signal hors seuil (score 23 / 100)');
-    const gauge = within(direct).getByRole('meter');
+    const gauge = within(screen.getByTestId('panel-score')).getByRole('meter');
     expect(gauge).toHaveAttribute('data-color', 'red');
     expect(within(gauge).getByText('23')).toBeInTheDocument();
     // le profil de A montre aussi la frappe pour comparer
-    expect(within(screen.getByTestId('panel-profil')).getByText(/Profil appris sur 10/)).toBeInTheDocument();
+    expect(within(screen.getByTestId('panel-direct')).getByText(/Profil de A appris sur 10/)).toBeInTheDocument();
     expect(await screen.findByAltText(/QR code/)).toBeInTheDocument();
   });
 
@@ -235,12 +262,12 @@ describe('Demo', () => {
   it('indicateur de telephone : zone principale (niveaux 2-3) et zone de controle', () => {
     snapshot = { ...base, level: 2, state: { status: 'pending', level: 2 } };
     const { unmount } = renderDemo();
-    expect(within(screen.getByTestId('main-zone')).getByText('Téléphone en attente')).toBeInTheDocument();
-    expect(screen.getAllByText('Téléphone en attente')).toHaveLength(2);
+    expect(within(screen.getByTestId('main-zone')).getByText(/En attente de votre confirmation/)).toBeInTheDocument();
+    expect(screen.getAllByText('Téléphone en attente')).toHaveLength(1);
     unmount();
     snapshot = { ...base, level: 3, state: { status: 'pending', level: 3 }, phoneConnected: true };
     renderDemo();
-    expect(within(screen.getByTestId('main-zone')).getByText('Téléphone connecté')).toBeInTheDocument();
+    expect(within(screen.getByTestId('main-zone')).getByText(/Appareil connecté/)).toBeInTheDocument();
 
   });
 
@@ -265,7 +292,10 @@ describe('Demo', () => {
     expect(within(direct).getByText(/Direct — Posture du téléphone/)).toBeInTheDocument();
     expect(within(direct).getByTestId('needle')).toBeInTheDocument();
     expect(within(direct).getByLabelText('angle mesuré')).toHaveTextContent('12°');
-    expect(within(screen.getByTestId('panel-score')).getByRole('meter')).toHaveAttribute('data-color', 'neutral');
+    // la jauge suit l'angle en direct : 12° est loin de la posture de A -> rouge, pas neutre
+    const meter = within(screen.getByTestId('panel-score')).getByRole('meter');
+    expect(meter).toHaveAttribute('data-color', 'red');
+    expect(screen.getByTestId('gauge-caption')).toHaveTextContent('Score en direct');
   });
 
   it('niveau 2 : profil de A en libelles francais dans le tableau comparatif', () => {
@@ -282,7 +312,7 @@ describe('Demo', () => {
 
 describe('Demo — frappe en direct (niveau 1)', () => {
   const direct = () => screen.getByTestId('panel-direct');
-  const gauge = () => within(direct()).getByRole('meter');
+  const gauge = () => within(screen.getByTestId('panel-score')).getByRole('meter');
   const liveBars = () =>
     within(direct()).getByLabelText('signature en direct').querySelectorAll('rect:not(.barcode-ghost):not(.barcode-pause)');
   const pwd = () => screen.getByLabelText('Mot de passe');
@@ -293,7 +323,7 @@ describe('Demo — frappe en direct (niveau 1)', () => {
     expect(within(direct()).getByLabelText('signature de référence').querySelectorAll('rect')).toHaveLength(3);
     expect(liveBars()).toHaveLength(0);
     expect(gauge()).toHaveAttribute('data-color', 'neutral');
-    expect(within(screen.getByTestId('panel-profil')).getByLabelText('signature de référence').querySelectorAll('rect')).toHaveLength(3);
+    expect(within(screen.getByTestId('panel-direct')).getByLabelText('signature de référence').querySelectorAll('rect')).toHaveLength(3);
   });
 
   it('chaque touche relachee ajoute une barre et fait bouger la jauge avant Entree', async () => {
@@ -361,7 +391,7 @@ describe('Demo — frappe en direct (niveau 1)', () => {
     snapshot = serverAnswer;
     rerenderWith(r);
     expect(within(direct()).getByTestId('keystroke-view')).toHaveAttribute('data-mode', 'server');
-    expect(within(gauge()).getByText('23')).toBeInTheDocument();
+    expect(gauge()).toHaveAttribute('aria-valuenow', '23');
     expect(screen.getByTestId('gauge-caption')).toHaveTextContent('Score officiel');
     expect(liveBars()).toHaveLength(1);
   });
@@ -465,5 +495,27 @@ describe('ControlBar', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Recommencer' }));
     expect(onReset).toHaveBeenCalled();
     expect(screen.getByRole('link', { name: /config/i })).toHaveAttribute('href', '/config');
+  });
+});
+
+describe('Demo : score de posture en direct', () => {
+  const at = (beta: number) => {
+    snapshot = {
+      ...base,
+      level: 3,
+      state: { status: 'pending', level: 3 },
+      expected: { ...base.expected, beta: 42 },
+      liveOrientation: { alpha: 0, beta, gamma: 0 },
+    };
+    return renderDemo();
+  };
+  const scoreText = () => within(screen.getByTestId('panel-score')).getByRole('meter').textContent;
+
+  it('le score dépend de l’angle : 100 seulement pour le même angle', () => {
+    const { unmount } = at(42);
+    expect(scoreText()).toContain('100');
+    unmount();
+    at(45);
+    expect(scoreText()).not.toContain('100');
   });
 });
