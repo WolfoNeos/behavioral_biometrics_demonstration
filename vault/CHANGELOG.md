@@ -1,5 +1,8 @@
 # Changelog du Vault
 
+## 2026-11-19 — Refonte de l'interface (branche feat/refonte-interface)
+Style unifié et minimaliste (palette neutre, ombres légères, titres de panneaux discrets, pavé PIN arrondi). Téléphone : un seul écran, la demande du code PIN, à tous les niveaux. La posture (niveau 3) est mesurée en silence : le capteur est armé au premier appui sur le pavé, les ~2 dernières secondes sont envoyées à « Valider », l'angle n'est jamais affiché. Aucun verdict, score ni raison d'échec sur le téléphone (« Regardez l'écran » à la fin) : tout se lit sur le PC. Au niveau 3 le PIN saisi est ignoré (seule l'orientation est notée). [[features/demo-biometrie/README]]
+
 ## 2026-11-11 — Démo biométrie : correctifs d'affichage de la frappe
 Les barres tapées restent à l'écran après Entrée (« En attente du serveur ») jusqu'à la réponse du serveur ; échelle du code-barres plafonnée (une pause de 3 s ne l'écrase plus, repère rouge) avec barres alignées sur la référence ; plus de légende « Score provisoire » sans référence ; mode God : les majuscules ont un événement. [[features/demo-biometrie/README]]
 
