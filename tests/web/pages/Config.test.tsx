@@ -27,6 +27,18 @@ const baseProfile: Profile = { password: 'secret', pin: '1234', keystroke: null,
 const events: KeyEvent[] = [{ key: 's', down: 0, up: 50 }];
 
 let profile: Profile;
+let network = {
+  baseUrl: 'https://192.168.1.20:5173',
+  source: 'auto',
+  https: true,
+  candidates: [
+    { name: 'Wi-Fi', address: '192.168.1.20', url: 'https://192.168.1.20:5173', active: true, covered: true },
+    { name: 'Hotspot', address: '192.168.43.10', url: 'https://192.168.43.10:5173', active: false, covered: false },
+  ],
+  certValidTo: null,
+  covered: true,
+  certCommand: 'npm run cert -- --force',
+};
 let putThresholdsStatus = 200;
 const calls: { method: string; url: string; body?: unknown }[] = [];
 
@@ -50,10 +62,17 @@ const handler = async (url: string, init?: RequestInit): Promise<Response> => {
   }
   if (url === '/api/enroll/keystroke') return json(profile);
   if (url === '/api/session') return json({ id: 'abc', url: 'http://192.168.1.20:5173/m/abc' });
+  if (url === '/api/network' && method === 'GET') return json(network);
+  if (url === '/api/network' && method === 'PUT') {
+    network = { ...network, baseUrl: body.baseUrl, source: 'manual' };
+    return json(network);
+  }
+  if (url === '/api/network/detect') return json({ ...network, source: 'auto' });
   return json({}, 404);
 };
 
 beforeEach(() => {
+  network = { ...network, baseUrl: 'https://192.168.1.20:5173', source: 'auto', covered: true };
   profile = { ...baseProfile };
   putThresholdsStatus = 200;
   calls.length = 0;
@@ -360,5 +379,67 @@ describe('Config', () => {
     renderPage();
     await screen.findByText('0 / 10');
     expect(within(document.body).getByRole('link', { name: /démo/i })).toHaveAttribute('href', '/');
+  });
+});
+
+describe('Config : réseau (changement de wifi)', () => {
+  it('affiche l’adresse des QR et les réseaux détectés', async () => {
+    renderPage();
+    expect(await screen.findByTestId('net-url')).toHaveTextContent('https://192.168.1.20:5173');
+    expect(screen.getByText('Hotspot')).toBeInTheDocument();
+    expect(screen.getByText('Certificat à régénérer')).toBeInTheDocument();
+  });
+
+  it('« Utiliser » change l’adresse et régénère le QR d’enrôlement', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId('net-url');
+    await user.click(screen.getByRole('button', { name: 'Utiliser' }));
+    await waitFor(() => expect(screen.getByTestId('net-url')).toHaveTextContent('https://192.168.43.10:5173'));
+    expect(calls.some((c) => c.method === 'PUT' && c.url === '/api/network' && (c.body as { baseUrl: string }).baseUrl === 'https://192.168.43.10:5173')).toBe(true);
+    expect(await screen.findByText(/pointent vers le nouveau réseau/)).toBeInTheDocument();
+  });
+
+  it('adresse manuelle appliquée', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId('net-url');
+    await user.type(screen.getByLabelText('Adresse manuelle'), '10.1.2.3');
+    await user.click(screen.getByRole('button', { name: 'Appliquer' }));
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT' && c.url === '/api/network')).toBe(true));
+  });
+
+  it('avertit quand le certificat ne couvre pas l’adresse', async () => {
+    network = { ...network, covered: false };
+    renderPage();
+    expect(await screen.findByRole('alert')).toHaveTextContent(/certificat HTTPS ne couvre pas/);
+    expect(screen.getByText('npm run cert -- --force')).toBeInTheDocument();
+  });
+});
+
+describe('Config : écran de réussite', () => {
+  it('modifie le message et les opérations puis enregistre', async () => {
+    const user = userEvent.setup();
+    let saved: Record<string, unknown> | null = null;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === '/api/welcome' && init?.method === 'PUT') {
+          saved = JSON.parse(init.body as string);
+          return json(saved);
+        }
+        if (url === '/api/welcome') return json({});
+        return handler(url, init);
+      }),
+    );
+    renderPage();
+    const notice = await screen.findByLabelText('Message du conseiller');
+    await user.clear(notice);
+    await user.type(notice, 'Blague du jour');
+    await user.click(screen.getByRole('button', { name: 'Supprimer l’opération 1' }));
+    await user.click(screen.getByRole('button', { name: '+ Ajouter une opération' }));
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(await screen.findByText('Écran de réussite enregistré')).toBeInTheDocument();
+    expect((saved as unknown as { notice: string }).notice).toBe('Blague du jour');
   });
 });

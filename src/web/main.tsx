@@ -5,6 +5,7 @@ import './styles/tokens.css';
 import './styles/components.css';
 import './styles/portal.css';
 import './styles/mobile.css';
+import './styles/admin.css';
 
 createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
