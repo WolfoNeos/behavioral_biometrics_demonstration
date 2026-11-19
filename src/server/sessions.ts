@@ -269,7 +269,7 @@ export class SessionManager {
     } else {
       const result =
         profile.beta !== null
-          ? scoreOrientation(profile.beta, payload.readings, th.orientation.toleranceDeg)
+          ? scoreOrientation(profile.beta, payload.readings, th.orientation.toleranceDeg, th.orientation.accept)
           : null;
       if (result) s.live.orientation = result;
       score = result?.score ?? 0;
