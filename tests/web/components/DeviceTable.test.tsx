@@ -30,3 +30,36 @@ describe('DeviceTable', () => {
     for (const raw of fields) expect(screen.queryByText(raw)).toBeNull();
   });
 });
+
+describe('DeviceTable : comparaison A / mesuré', () => {
+  const lines = [
+    { field: 'platform', expected: 'Win32', actual: 'Win32', match: true },
+    { field: 'canvasHash', expected: 'h1', actual: 'h2', match: false },
+  ];
+
+  it('colore identique / différent et affiche l impact sur le score', () => {
+    render(<DeviceTable lines={lines} />);
+    const rows = screen.getAllByRole('row');
+    expect(rows[1]).toHaveClass('cmp-same');
+    expect(rows[2]).toHaveClass('cmp-diff');
+    expect(rows[1]).toHaveTextContent('+25'); // poids 1 sur 4
+    expect(rows[2]).toHaveTextContent('−75'); // canvas : poids 3 sur 4
+  });
+
+  it('signale le plafonnement quand l identité diffère', () => {
+    render(<DeviceTable lines={lines} />);
+    expect(screen.getByTestId('device-total')).toHaveTextContent(/Score brut : 25/);
+    expect(screen.getByTestId('device-total')).toHaveTextContent(/plafonné à 40/);
+  });
+
+  it('sans mesure : montre le profil de A en attente', () => {
+    render(
+      <DeviceTable
+        lines={[]}
+        expected={{ userAgent: 'UA-A', platform: 'P', language: 'fr', screen: 's', timezone: 'Z', canvasHash: 'h' }}
+      />,
+    );
+    expect(screen.getByText('UA-A')).toBeInTheDocument();
+    expect(screen.queryByTestId('device-total')).toBeNull();
+  });
+});

@@ -115,7 +115,7 @@ describe('Demo', () => {
     renderDemo();
     const direct = screen.getByTestId('panel-direct');
     expect(within(direct).queryByTestId('chart')).toBeNull();
-    expect(within(direct).getByText('Caractéristique')).toBeInTheDocument();
+    expect(within(direct).getByText('Critère')).toBeInTheDocument();
     expect(within(screen.getByTestId('panel-profil')).queryByTestId('chart')).toBeNull();
   });
 

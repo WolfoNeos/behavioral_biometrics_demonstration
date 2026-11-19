@@ -213,7 +213,7 @@ function DirectSignal({ snap, level, liveRows }: { snap: Snapshot; level: Level;
     return <KeystrokeSignal rows={rows} mode={mode} />;
   }
   if (level === 2) {
-    return <DeviceTable lines={snap.live.device?.lines ?? []} />;
+    return <DeviceTable lines={snap.live.device?.lines ?? []} expected={snap.expected.fingerprint} />;
   }
   // avant « Valider » : l'aiguille suit le telephone en direct ; apres : la mesure notee
   const beta = snap.liveOrientation?.beta ?? snap.live.orientation?.beta ?? null;

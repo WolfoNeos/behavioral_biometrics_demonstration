@@ -193,3 +193,26 @@ button.primary { font-size: var(--text-md); font-weight: 600; padding: var(--spa
 .m-verdict { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
 .m-verdict-icon { font-size: 5rem; line-height: 1; }
 .m-verdict.granted { color: var(--color-green); }
+
+/* Niveau 2 : comparaison côte à côte du profil de A et de l'appareil mesuré */
+.device-compare { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; width: 100%; }
+.device-compare .values-table { table-layout: fixed; font-size: 1rem; }
+.device-compare .values-table th, .device-compare .values-table td { padding: 6px var(--space-2); border-bottom: none; white-space: nowrap; word-break: normal; }
+.device-compare .values-table th { font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; }
+.device-compare .values-table th:nth-child(1), .device-compare .values-table td:nth-child(1) { width: 22%; color: var(--color-ink-muted); font-weight: 500; }
+.device-compare .values-table th:nth-child(4), .device-compare .values-table td:nth-child(4) { width: 15%; }
+.device-compare .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.device-compare .cmp-val { display: inline-block; max-width: calc(100% - 1.6em); overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.device-compare td:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
+.device-compare td:nth-child(3) { overflow: hidden; }
+.device-compare td .ok, .device-compare td .ko { margin-left: 0.4em; }
+.device-compare tbody tr td:first-child { border-radius: 8px 0 0 8px; }
+.device-compare tbody tr td:last-child { border-radius: 0 8px 8px 0; }
+.device-compare .cmp-same td { background: var(--color-green-soft); }
+.device-compare .cmp-same .num { color: var(--color-green); }
+.device-compare .cmp-diff td { background: var(--color-red-soft); }
+.device-compare .cmp-diff .num { color: var(--color-red); }
+.device-compare .cmp-pending td { background: var(--color-bg); }
+.cmp-total { margin: 0; font-size: 1.05rem; color: var(--color-ink-muted); }
+.cmp-total strong { color: var(--color-ink); font-size: 1.3rem; }
+.cmp-cap { color: var(--color-red); }
