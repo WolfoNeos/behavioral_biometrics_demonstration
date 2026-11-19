@@ -342,43 +342,53 @@ export function Demo() {
     );
   }
 
+  const caption = provisional
+    ? awaiting
+      ? 'En attente du serveur'
+      : provisional.score !== null
+        ? 'Score provisoire'
+        : ''
+    : officialScore !== null
+      ? 'Score officiel'
+      : '';
+  const gauge = (
+    <div className="gauge-col">
+      <Gauge score={provisional ? provisional.score : officialScore} accept={th.accept} warn={th.warn} />
+      <p className="gauge-caption" data-testid="gauge-caption">
+        {caption}
+      </p>
+    </div>
+  );
+  // niveaux 2 et 3 : visuel comparatif pleine largeur en haut, jauge en bas (pas de liste redondante)
+  const wide = shown.level !== 1;
+
   return (
     <div className="demo">
       <main className="main-zone" data-testid="main-zone">
         {main}
       </main>
-      <aside className="side">
+      <aside className={wide ? 'side side-wide' : 'side'}>
         <section className="panel" data-testid="panel-direct" aria-label="Direct">
           <h2>Direct — {SIGNAL_NAME[shown.level]}</h2>
           {shown.failed && <FailBanner verdict={shown.failed} />}
-          <div className="direct-body">
-            <div className="gauge-col">
-              <Gauge
-                score={provisional ? provisional.score : officialScore}
-                accept={th.accept}
-                warn={th.warn}
-              />
-              <p className="gauge-caption" data-testid="gauge-caption">
-                {provisional
-                  ? awaiting
-                    ? 'En attente du serveur'
-                    : provisional.score !== null
-                      ? 'Score provisoire'
-                      : ''
-                  : officialScore !== null
-                    ? 'Score officiel'
-                    : ''}
-              </p>
-            </div>
+          <div className={wide ? 'direct-body direct-wide' : 'direct-body'}>
+            {!wide && gauge}
             <div className="signal">
               <DirectSignal snap={snapshot} level={shown.level} liveRows={provisional?.rows ?? null} />
             </div>
           </div>
         </section>
-        <section className="panel panel-profil" data-testid="panel-profil" aria-label="Profil de A">
-          <h2>Profil de A</h2>
-          <ProfileSignal snap={snapshot} level={shown.level} />
-        </section>
+        {wide ? (
+          <section className="panel panel-score" data-testid="panel-score" aria-label="Score">
+            <h2>Score</h2>
+            {gauge}
+          </section>
+        ) : (
+          <section className="panel panel-profil" data-testid="panel-profil" aria-label="Profil de A">
+            <h2>Profil de A</h2>
+            <ProfileSignal snap={snapshot} level={shown.level} />
+          </section>
+        )}
         <div className="control-zone">
           <PhoneStatus connected={snapshot.phoneConnected} />
           <ControlBar onJump={onJump} onReset={onReset} />

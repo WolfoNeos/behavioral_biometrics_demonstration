@@ -116,7 +116,7 @@ describe('Demo', () => {
     const direct = screen.getByTestId('panel-direct');
     expect(within(direct).queryByTestId('chart')).toBeNull();
     expect(within(direct).getByText('Critère')).toBeInTheDocument();
-    expect(within(screen.getByTestId('panel-profil')).queryByTestId('chart')).toBeNull();
+    expect(within(screen.getByTestId('panel-score')).queryByTestId('chart')).toBeNull();
   });
 
   it('B hors champ envoie god B', () => {
@@ -226,7 +226,7 @@ describe('Demo', () => {
   it('niveau sans mesure : jauge neutre, pas de 0 rouge', () => {
     snapshot = { ...base, level: 2, state: { status: 'pending', level: 2 } };
     renderDemo();
-    const gauge = within(screen.getByTestId('panel-direct')).getByRole('meter');
+    const gauge = within(screen.getByTestId('panel-score')).getByRole('meter');
     expect(gauge).toHaveAttribute('data-color', 'neutral');
     expect(within(gauge).getByText('—')).toBeInTheDocument();
     expect(screen.queryByTestId('fail-banner')).toBeNull();
@@ -265,13 +265,14 @@ describe('Demo', () => {
     expect(within(direct).getByText(/Direct — Posture du téléphone/)).toBeInTheDocument();
     expect(within(direct).getByTestId('needle')).toBeInTheDocument();
     expect(within(direct).getByLabelText('angle mesuré')).toHaveTextContent('12°');
-    expect(within(direct).getByRole('meter')).toHaveAttribute('data-color', 'neutral');
+    expect(within(screen.getByTestId('panel-score')).getByRole('meter')).toHaveAttribute('data-color', 'neutral');
   });
 
-  it('profil de A : libelles francais', () => {
+  it('niveau 2 : profil de A en libelles francais dans le tableau comparatif', () => {
     snapshot = { ...base, level: 2, state: { status: 'pending', level: 2 } };
     renderDemo();
-    const profil = screen.getByTestId('panel-profil');
+    const profil = screen.getByTestId('panel-direct');
+    expect(screen.queryByTestId('panel-profil')).toBeNull();
     for (const label of ['Navigateur', 'Système', 'Langue', 'Écran', 'Fuseau horaire', 'Empreinte canvas']) {
       expect(within(profil).getByText(label)).toBeInTheDocument();
     }

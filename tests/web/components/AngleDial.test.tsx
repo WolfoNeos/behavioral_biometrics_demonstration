@@ -16,3 +16,20 @@ describe('AngleDial', () => {
     expect(screen.getByLabelText('angle attendu')).toHaveTextContent('45°');
   });
 });
+
+describe('AngleDial : verdict lisible', () => {
+  it('dans la zone de A', () => {
+    render(<AngleDial expectedBeta={42} tolerance={5} beta={40} />);
+    expect(screen.getByTestId('dial-verdict')).toHaveTextContent('Dans la zone de A (écart 2°)');
+  });
+
+  it('hors de la zone de A', () => {
+    render(<AngleDial expectedBeta={42} tolerance={5} beta={2} />);
+    expect(screen.getByTestId('dial-verdict')).toHaveTextContent('Hors de la zone de A (écart 40°)');
+  });
+
+  it('sans mesure : en attente', () => {
+    render(<AngleDial expectedBeta={42} tolerance={5} beta={null} />);
+    expect(screen.getByTestId('dial-verdict')).toHaveTextContent('En attente');
+  });
+});

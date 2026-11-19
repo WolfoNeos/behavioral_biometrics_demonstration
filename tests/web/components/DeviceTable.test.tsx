@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { DeviceTable } from '../../../src/web/components/DeviceTable';
+import { DeviceTable, friendlyUserAgent } from '../../../src/web/components/DeviceTable';
 
 describe('DeviceTable', () => {
   it('une ligne par champ avec coche ou croix', () => {
@@ -61,5 +61,24 @@ describe('DeviceTable : comparaison A / mesuré', () => {
     );
     expect(screen.getByText('UA-A')).toBeInTheDocument();
     expect(screen.queryByTestId('device-total')).toBeNull();
+  });
+});
+
+describe('friendlyUserAgent', () => {
+  it('résume le navigateur et le système', () => {
+    expect(
+      friendlyUserAgent(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 27_2_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/157.0.8103.37 Mobile/15E148 Safari/604.1',
+      ),
+    ).toBe('Chrome 157 · iOS 27.2');
+    expect(
+      friendlyUserAgent(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+      ),
+    ).toBe('Safari 18 · iOS 18.0');
+  });
+
+  it('valeur brute si non reconnue', () => {
+    expect(friendlyUserAgent('UA')).toBe('UA');
   });
 });

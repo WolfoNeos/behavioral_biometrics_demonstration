@@ -58,16 +58,6 @@
 .values-table .ok { color: var(--color-green); font-weight: 700; }
 .values-table .ko { color: var(--color-red); font-weight: 700; }
 
-/* Cadran d'angle */
-.angle-dial { display: inline-flex; flex-direction: column; align-items: center; width: 100%; max-width: 360px; font-family: var(--font-sans); }
-.angle-dial svg { width: 100%; height: auto; }
-.dial-track { fill: none; stroke: var(--color-grey-soft); stroke-width: 18; }
-.dial-tolerance { fill: none; stroke: var(--color-green); stroke-width: 18; }
-.dial-needle { stroke: var(--color-ink); stroke-width: 4; stroke-linecap: round; }
-.dial-hub { fill: var(--color-ink); }
-.dial-expected-mark { stroke: var(--color-green); stroke-width: 3; }
-.dial-value { font-size: var(--text-xl); font-weight: 700; font-variant-numeric: tabular-nums; }
-.dial-expected { font-size: var(--text-md); color: var(--color-ink-muted); }
 
 /* Carte de verdict */
 .verdict-card { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); text-align: center; }
@@ -111,9 +101,7 @@ body { margin: 0; background: var(--color-bg); font-family: var(--font-sans); co
 .panel-profil .barcode-row + .barcode-row { display: none; }
 .panel .values-table { font-size: 1rem; }
 .panel .values-table th, .panel .values-table td { padding: 4px var(--space-2); word-break: break-all; }
-.panel .angle-dial { max-width: 300px; }
-.panel .dial-value { font-size: 2rem; }
-.login-form { display: flex; flex-direction: column; gap: var(--space-3); width: 100%; max-width: 560px; font-size: var(--text-lg); }
+.panel .panel .login-form { display: flex; flex-direction: column; gap: var(--space-3); width: 100%; max-width: 560px; font-size: var(--text-lg); }
 .login-form h2 { font-size: var(--text-xl); font-weight: 600; letter-spacing: -0.02em; margin: 0; }
 .login-form label { display: flex; flex-direction: column; gap: var(--space-1); font-weight: 500; color: var(--color-ink-muted); font-size: 1.05rem; }
 .login-form input { font: inherit; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-bg); transition: border-color var(--transition), box-shadow var(--transition); }
@@ -194,25 +182,76 @@ button.primary { font-size: var(--text-md); font-weight: 600; padding: var(--spa
 .m-verdict-icon { font-size: 5rem; line-height: 1; }
 .m-verdict.granted { color: var(--color-green); }
 
-/* Niveau 2 : comparaison côte à côte du profil de A et de l'appareil mesuré */
-.device-compare { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; width: 100%; }
-.device-compare .values-table { table-layout: fixed; font-size: 1rem; }
-.device-compare .values-table th, .device-compare .values-table td { padding: 6px var(--space-2); border-bottom: none; white-space: nowrap; word-break: normal; }
-.device-compare .values-table th { font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; }
-.device-compare .values-table th:nth-child(1), .device-compare .values-table td:nth-child(1) { width: 22%; color: var(--color-ink-muted); font-weight: 500; }
-.device-compare .values-table th:nth-child(4), .device-compare .values-table td:nth-child(4) { width: 15%; }
-.device-compare .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
-.device-compare .cmp-val { display: inline-block; max-width: calc(100% - 1.6em); overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
-.device-compare td:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
-.device-compare td:nth-child(3) { overflow: hidden; }
-.device-compare td .ok, .device-compare td .ko { margin-left: 0.4em; }
-.device-compare tbody tr td:first-child { border-radius: 8px 0 0 8px; }
-.device-compare tbody tr td:last-child { border-radius: 0 8px 8px 0; }
+/* Niveau 2 : comparaison A / appareil mesuré, lisible au vidéoprojecteur */
+.side-wide { grid-template-rows: minmax(0, 2.6fr) minmax(0, 1fr) auto; }
+.direct-wide { grid-template-columns: minmax(0, 1fr); align-items: start; overflow: auto; }
+.panel-score { align-items: center; }
+.panel-score h2 { align-self: flex-start; }
+.panel-score .gauge-col { flex: 1; justify-content: center; min-height: 0; }
+.panel-score .gauge { max-width: 260px; }
+.panel-score .gauge-score { font-size: 3rem; margin-top: -2.2rem; }
+
+.device-compare { display: flex; flex-direction: column; gap: var(--space-2); width: 100%; min-width: 0; }
+.device-compare .values-table { border-collapse: separate; border-spacing: 0 6px; font-size: 1.35rem; table-layout: fixed; }
+.device-compare .values-table th { font-size: 0.85rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 0 var(--space-3); border: none; }
+.device-compare .values-table td { padding: 10px var(--space-3); border: none; vertical-align: middle; white-space: normal; word-break: break-word; }
+.device-compare th:nth-child(1), .device-compare td:nth-child(1) { width: 20%; font-weight: 600; }
+.device-compare th:nth-child(4), .device-compare td:nth-child(4) { width: 17%; white-space: nowrap; }
+.device-compare th:nth-child(5), .device-compare td:nth-child(5) { width: 11%; }
+.device-compare .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+.device-compare tbody td:first-child { border-radius: 10px 0 0 10px; }
+.device-compare tbody td:last-child { border-radius: 0 10px 10px 0; }
 .device-compare .cmp-same td { background: var(--color-green-soft); }
-.device-compare .cmp-same .num { color: var(--color-green); }
 .device-compare .cmp-diff td { background: var(--color-red-soft); }
-.device-compare .cmp-diff .num { color: var(--color-red); }
 .device-compare .cmp-pending td { background: var(--color-bg); }
-.cmp-total { margin: 0; font-size: 1.05rem; color: var(--color-ink-muted); }
-.cmp-total strong { color: var(--color-ink); font-size: 1.3rem; }
-.cmp-cap { color: var(--color-red); }
+.device-compare .cmp-same .cmp-status, .device-compare .cmp-same .num { color: var(--color-green); }
+.device-compare .cmp-diff .cmp-status, .device-compare .cmp-diff .num { color: var(--color-red); }
+.device-compare .cmp-status { font-weight: 700; }
+.device-compare .cmp-status .ok, .device-compare .cmp-status .ko { margin-right: 0.35em; font-size: 1.5rem; }
+.device-compare .cmp-mono { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 1.2rem; }
+.cmp-total { margin: 0; font-size: 1.3rem; color: var(--color-ink-muted); }
+.cmp-total strong { color: var(--color-ink); font-size: 1.8rem; }
+.cmp-cap { color: var(--color-red); font-weight: 600; }
+
+/* Niveau 3 : posture du téléphone vue de profil */
+.angle-dial { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: var(--space-4); align-items: center; width: 100%; height: 100%; min-height: 0; font-family: var(--font-sans); }
+.angle-dial svg { width: 100%; height: 100%; max-height: 100%; min-height: 0; }
+.dial-track { fill: none; stroke: var(--color-grey-soft); stroke-width: 3; }
+.dial-ground { stroke: var(--color-grey); stroke-width: 2; stroke-linecap: round; }
+.dial-tick { stroke: var(--color-grey); stroke-width: 2; }
+.dial-tick-label { fill: var(--color-ink-muted); font-size: 16px; font-weight: 500; }
+.dial-tolerance { fill: var(--color-green-soft); stroke: var(--color-green); stroke-width: 2; }
+.dial-expected-line { stroke: var(--color-green); stroke-width: 2; stroke-dasharray: 6 6; }
+.dial-expected-label { fill: var(--color-green); font-size: 28px; font-weight: 700; }
+.dial-phone rect { fill: var(--color-ink); transition: fill var(--transition); }
+.dial-phone circle { fill: var(--color-grey); }
+.dial-ok .dial-phone rect { fill: var(--color-green); }
+.dial-ko .dial-phone rect { fill: var(--color-red); }
+.dial-hub { fill: var(--color-ink); }
+.dial-info { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.dial-measure { display: flex; flex-direction: column; }
+.dial-caption { font-size: 0.85rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-ink-muted); }
+.dial-value { font-size: 4.5rem; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.dial-ok .dial-value { color: var(--color-green); }
+.dial-ko .dial-value { color: var(--color-red); }
+.dial-expected { font-size: 2rem; font-weight: 600; color: var(--color-green); font-variant-numeric: tabular-nums; }
+.dial-verdict { margin: 0; padding: var(--space-2) var(--space-3); border-radius: 10px; font-size: 1.3rem; font-weight: 600; background: var(--color-bg); color: var(--color-ink-muted); }
+.dial-ok .dial-verdict { background: var(--color-green-soft); color: var(--color-green); }
+.dial-ko .dial-verdict { background: var(--color-red-soft); color: var(--color-red); }
+.direct-wide { grid-template-rows: minmax(0, 1fr); }
+.direct-wide .signal { justify-content: flex-start; }
+
+/* ajustements de lisibilité du tableau (niveau 2) */
+.device-compare .values-table { table-layout: auto; font-size: 1.2rem; border-spacing: 0 4px; }
+.device-compare .values-table td { padding: 8px 12px; word-break: normal; overflow-wrap: normal; }
+.device-compare th:nth-child(1), .device-compare td:nth-child(1) { width: 1%; white-space: nowrap; }
+.device-compare th:nth-child(4), .device-compare td:nth-child(4) { width: 1%; white-space: nowrap; }
+.device-compare th:nth-child(5), .device-compare td:nth-child(5) { width: 1%; white-space: nowrap; }
+.device-compare .cmp-mono { font-size: 1.05rem; white-space: nowrap; }
+.device-compare .cmp-status .ok, .device-compare .cmp-status .ko { font-size: 1.3rem; }
+.device-compare .values-table { font-size: 1.4rem; border-spacing: 0 6px; }
+.device-compare .values-table td { padding: 12px 14px; }
+.device-compare .cmp-mono { font-size: 1.2rem; }
+.device-compare .values-table { font-size: 1.28rem; border-spacing: 0 5px; }
+.device-compare .values-table td { padding: 10px 12px; }
+.device-compare .cmp-mono { font-size: 1.1rem; }
