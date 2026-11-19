@@ -5,7 +5,7 @@ import { Lock, MobileShell } from '../components/BankPortal';
 import { collectFingerprint } from '../capture/fingerprint';
 import { requestOrientation } from '../capture/orientation';
 import { LIVE_ORIENTATION_INTERVAL_MS } from '../../shared/types';
-import type { OrientationReading } from '../../shared/types';
+import type { OrientationReading, PhoneScreen } from '../../shared/types';
 import { usePhoneSession } from '../ws';
 
 /**
@@ -92,17 +92,33 @@ function Keypad({
   onSubmit,
   connected,
   again,
+  onPad,
 }: {
   onSubmit: (pin: string, taps: Tap[]) => Promise<boolean>;
   connected: boolean;
   /** Étape suivante : même pavé, demande reformulée (vérification supplémentaire). */
   again: boolean;
+  /** Reflet pour le PC : nombre de chiffres saisis et touche pressée (jamais les chiffres). */
+  onPad: (pad: { digits: number; pressed: string | null }) => void;
 }) {
   const [digits, setDigits] = useState('');
   const [busy, setBusy] = useState(false);
   const [unsent, setUnsent] = useState(false);
+  const [pressed, setPressed] = useState<string | null>(null);
   const taps = useRef<Tap[]>([]);
   const pending = useRef<number | null>(null);
+  const flash = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    onPad({ digits: digits.length, pressed });
+  }, [digits.length, pressed, onPad]);
+
+  /** Allume brièvement la touche (reflet sur le PC). */
+  const lit = (k: string): void => {
+    setPressed(k);
+    if (flash.current) clearTimeout(flash.current);
+    flash.current = setTimeout(() => setPressed(null), 220);
+  };
 
   const press = (d: string): void => {
     if (digits.length >= MAX_PIN) return;
@@ -113,6 +129,7 @@ function Keypad({
   };
 
   const erase = (): void => {
+    lit('erase');
     taps.current.pop();
     setDigits((v) => v.slice(0, -1));
   };
@@ -131,6 +148,7 @@ function Keypad({
   const digitProps = (d: string) => ({
     onPointerDown: () => {
       pending.current = performance.now();
+      lit(d);
     },
     onPointerUp: () => {
       press(d);
@@ -138,7 +156,10 @@ function Keypad({
     },
     onClick: (e: MouseEvent) => {
       // clavier / lecteur d'écran : pas d'événement pointeur
-      if (e.detail === 0) press(d);
+      if (e.detail === 0) {
+        press(d);
+        lit(d);
+      }
     },
   });
 
@@ -216,6 +237,7 @@ export function Mobile() {
   const levelRef = useRef<number | undefined>(undefined);
   levelRef.current = snapshot?.level;
   const [phase, setPhase] = useState<Phase>('input');
+  const [pad, setPad] = useState<{ digits: number; pressed: string | null }>({ digits: 0, pressed: null });
   const sentAt = useRef<number | undefined>(undefined); // niveau au moment de l'envoi
 
   const sensor = useSilentOrientation((reading) => {
@@ -225,6 +247,22 @@ export function Mobile() {
 
   const level = snapshot?.level;
   const status = snapshot?.state.status;
+
+  // reflet de l'écran pour le PC (aide à la compréhension de la démo)
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  const screen: PhoneScreen =
+    snapshot === null ? 'connecting' : status !== 'pending' ? 'done' : phase === 'input' ? 'pin' : phase;
+  useEffect(() => {
+    if (lost || !connected) return;
+    sendRef.current({
+      type: 'phoneView',
+      screen,
+      digits: screen === 'pin' ? pad.digits : 0,
+      pressed: screen === 'pin' ? pad.pressed : null,
+      again: level === 3,
+    });
+  }, [screen, pad.digits, pad.pressed, level, connected, lost]);
 
   // envoi accepté -> « vérification en cours » ; réponse du serveur -> étape suivante ou fin
   useEffect(() => {
@@ -291,6 +329,7 @@ export function Mobile() {
       <Keypad
         connected={connected}
         again={snapshot.level === 3}
+        onPad={setPad}
         onSubmit={async (pin, taps) => {
           const lvl = levelRef.current;
           let sent = true;
@@ -298,7 +337,7 @@ export function Mobile() {
           else if (lvl === 3) {
             const readings = sensor.readings();
             if (readings.length === 0) return false; // capteur muet : même message neutre
-            sent = send({ type: 'orientation', readings });
+            sent = send({ type: 'orientation', pin, readings });
           } else return true; // niveau 1 : la saisie se fait sur le PC, le pavé est ignoré
           if (sent) {
             sentAt.current = lvl;

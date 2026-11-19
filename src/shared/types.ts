@@ -73,7 +73,7 @@ export type SubmitPayload =
       fingerprint: Fingerprint;
       taps: { down: number; up: number }[];
     }
-  | { kind: 'orientation'; readings: OrientationReading[] };
+  | { kind: 'orientation'; readings: OrientationReading[]; pin?: string };
 
 /** Intervalle minimal entre deux envois de l'orientation en direct (telephone et serveur). */
 export const LIVE_ORIENTATION_INTERVAL_MS = 100;
@@ -123,6 +123,19 @@ export interface ExpectedBar {
   known: boolean;
 }
 
+/** Écran affiché sur le téléphone, reflété à côté du QR code pour expliquer la démo. */
+export type PhoneScreen = 'connecting' | 'pin' | 'checking' | 'step' | 'done';
+
+export interface PhoneView {
+  screen: PhoneScreen;
+  /** Nombre de chiffres saisis (jamais les chiffres eux-mêmes). */
+  digits: number;
+  /** Touche en cours d'appui : un chiffre, ou « erase ». */
+  pressed: string | null;
+  /** Étape suivante : le pavé est redemandé (vérification supplémentaire). */
+  again: boolean;
+}
+
 export interface Snapshot {
   state: AuthState;
   level: Level;
@@ -137,4 +150,8 @@ export interface Snapshot {
   thresholds: Thresholds;
   /** Une entree par position du mot de passe enregistre ; null sans mot de passe ou sans profil de frappe. */
   expectedBars: ExpectedBar[] | null;
+  /** Reflet de l'écran du téléphone ; null sans téléphone connecté. */
+  phoneView?: PhoneView | null;
+  /** Secret (mot de passe ou PIN) correct à chaque étape soumise : true = attendu, false = incorrect. */
+  secrets?: Partial<Record<Level, boolean>>;
 }

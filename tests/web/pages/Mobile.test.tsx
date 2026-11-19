@@ -58,6 +58,10 @@ function ui() {
   );
 }
 
+/** Messages envoyés au serveur, hors reflet d'écran (phoneView) qui accompagne chaque changement. */
+const sent = () => send.mock.calls.map((c) => c[0]).filter((m) => m.type !== 'phoneView');
+const views = () => send.mock.calls.map((c) => c[0]).filter((m) => m.type === 'phoneView');
+
 const fire = (beta: number | null) => {
   const ev = new Event('deviceorientation') as Event & Record<string, unknown>;
   Object.assign(ev, { alpha: null, beta, gamma: 3 });
@@ -88,8 +92,8 @@ describe('Mobile', () => {
     render(ui());
     await typePin(user);
     await user.click(screen.getByRole('button', { name: 'Valider' }));
-    await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
-    const msg = send.mock.calls[0][0];
+    await waitFor(() => expect(sent()).toHaveLength(1));
+    const msg = sent()[0];
     expect(msg.type).toBe('pin');
     expect(msg.pin).toBe('1234');
     expect(msg.fingerprint).toEqual(fp);
@@ -120,6 +124,7 @@ describe('Mobile', () => {
     await waitFor(() =>
       expect(send).toHaveBeenCalledWith({
         type: 'orientation',
+        pin: '12',
         readings: [
           { alpha: 0, beta: 41, gamma: 3 },
           { alpha: 0, beta: 42, gamma: 3 },
@@ -148,8 +153,8 @@ describe('Mobile', () => {
     fire(30);
     fire(31); // trop rapproché : non envoyé
     fire(null); // beta invalide : ignoré
-    expect(send).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenCalledWith({ type: 'orientationLive', alpha: 0, beta: 30, gamma: 3 });
+    expect(sent()).toHaveLength(1);
+    expect(sent()[0]).toEqual({ type: 'orientationLive', alpha: 0, beta: 30, gamma: 3 });
   });
 
   it('capteur muet : message neutre, rien n’est envoyé', async () => {
@@ -160,7 +165,7 @@ describe('Mobile', () => {
     await typePin(user, '12');
     await user.click(screen.getByRole('button', { name: 'Valider' }));
     expect(await screen.findByText('Réessayez')).toBeTruthy();
-    expect(send).not.toHaveBeenCalled();
+    expect(sent()).toHaveLength(0);
   });
 
   it('accès accordé ou bloqué : aucun verdict ni score sur le téléphone', () => {
@@ -203,7 +208,7 @@ describe('Mobile', () => {
     send.mockImplementation(() => true);
     await user.click(screen.getByRole('button', { name: 'Valider' }));
     expect(await screen.findByText('Vérification en cours…')).toBeTruthy();
-    expect(send.mock.calls[1][0]).toMatchObject({ type: 'pin', pin: '1234' });
+    expect(sent()[1]).toMatchObject({ type: 'pin', pin: '1234' });
     expect(screen.queryByText('Réessayez')).toBeNull();
   });
 
@@ -258,4 +263,36 @@ describe('Mobile : retour d’information entre les étapes', () => {
     expect(await screen.findByText('Vérification en cours…')).toBeTruthy();
     expect(await screen.findByRole('button', { name: 'Valider' }, { timeout: 7000 })).toBeTruthy();
   }, 10000);
+});
+
+describe('Mobile : reflet de l’écran pour le PC', () => {
+  it('annonce le pavé, le nombre de chiffres et la touche pressée, jamais les chiffres', async () => {
+    const user = userEvent.setup();
+    render(ui());
+    await waitFor(() => expect(views().length).toBeGreaterThan(0));
+    expect(views()[0]).toMatchObject({ type: 'phoneView', screen: 'pin', digits: 0, pressed: null, again: false });
+    await user.click(screen.getByRole('button', { name: '7' }));
+    await user.click(screen.getByRole('button', { name: '3' }));
+    await waitFor(() => expect(views().some((v) => v.digits === 2)).toBe(true));
+    expect(views().some((v) => v.pressed === '7')).toBe(true);
+    // aucun message ne contient le PIN
+    expect(JSON.stringify(views())).not.toContain('73');
+  });
+
+  it('annonce « vérification en cours » après l’envoi et « done » à la fin', async () => {
+    const user = userEvent.setup();
+    const r = render(ui());
+    await typePin(user, '12');
+    await user.click(screen.getByRole('button', { name: 'Valider' }));
+    await waitFor(() => expect(views().some((v) => v.screen === 'checking')).toBe(true));
+    snapshot = snap({ state: { status: 'granted', level: 2, verdict } });
+    act(() => r.rerender(ui()));
+    await waitFor(() => expect(views().at(-1)).toMatchObject({ screen: 'done', digits: 0 }));
+  });
+
+  it('au niveau 3 : demande reformulée annoncée (again)', async () => {
+    snapshot = level3();
+    render(ui());
+    await waitFor(() => expect(views().at(-1)).toMatchObject({ screen: 'pin', again: true }));
+  });
 });

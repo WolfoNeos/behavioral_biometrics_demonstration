@@ -290,7 +290,7 @@ describe('SessionManager orientation en direct', () => {
     expect(phone.lastState().liveOrientation).toEqual({ alpha: 1, beta: 30, gamma: 2 });
     phone.emit(
       'message',
-      JSON.stringify({ type: 'orientation', readings: [{ alpha: 0, beta: 45, gamma: 0 }] }),
+      JSON.stringify({ type: 'orientation', pin: '1234', readings: [{ alpha: 0, beta: 45, gamma: 0 }] }),
     );
     expect(m.snapshot(s.id).liveOrientation).toBeNull();
   });
@@ -369,7 +369,7 @@ describe('SessionManager telephone et WebSocket', () => {
     // le second soumet la posture au niveau 3
     second.emit(
       'message',
-      JSON.stringify({ type: 'orientation', readings: [{ alpha: 0, beta: 45, gamma: 0 }] }),
+      JSON.stringify({ type: 'orientation', pin: '1234', readings: [{ alpha: 0, beta: 45, gamma: 0 }] }),
     );
     expect(m.snapshot(s.id).state.status).toBe('granted');
     // les deux recoivent l'etat
@@ -437,7 +437,7 @@ describe('SessionManager telephone et WebSocket', () => {
     // payload du niveau 3 alors que la session est au niveau 1 : ignore
     pc.emit(
       'message',
-      JSON.stringify({ type: 'orientation', readings: [{ alpha: 0, beta: 45, gamma: 0 }] }),
+      JSON.stringify({ type: 'orientation', pin: '1234', readings: [{ alpha: 0, beta: 45, gamma: 0 }] }),
     );
     expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level: 1 });
   });
@@ -477,7 +477,7 @@ describe('SessionManager robustesse des messages entrants', () => {
     m.jump(s.id, 3);
     pc.emit(
       'message',
-      JSON.stringify({ type: 'orientation', readings: [{ alpha: null, beta: 45, gamma: null }] }),
+      JSON.stringify({ type: 'orientation', pin: '1234', readings: [{ alpha: null, beta: 45, gamma: null }] }),
     );
     const snap = m.snapshot(s.id);
     expect(snap.state.status).toBe('granted');
@@ -574,5 +574,84 @@ describe('SessionManager expectedBars', () => {
     current = { ...profile, password: 'abc' };
     m.broadcastAll();
     expect(pc.lastState().expectedBars).toHaveLength(3);
+  });
+});
+
+describe('phoneView (reflet de l’écran du téléphone)', () => {
+  it('est relayé dans le snapshot, validé, et effacé à la déconnexion du téléphone', () => {
+    const mgr = new SessionManager({ getProfile: () => ({ password: '', pin: '', keystroke: null, fingerprint: null, beta: null }), getThresholds: () => DEFAULT_THRESHOLDS, baseUrl: 'https://x' });
+    const s = mgr.create();
+    const handlers: Record<string, ((d?: unknown) => void)[]> = {};
+    const phone = {
+      send: () => undefined,
+      close: () => undefined,
+      on: (ev: string, cb: (d?: unknown) => void) => {
+        (handlers[ev] ??= []).push(cb);
+      },
+    };
+    mgr.attachPhone(s.id, phone as never);
+    expect(mgr.snapshot(s.id).phoneView).toBeNull();
+    mgr.handleMessage(s.id, JSON.stringify({ type: 'phoneView', screen: 'pin', digits: 3, pressed: '7', again: false }));
+    expect(mgr.snapshot(s.id).phoneView).toEqual({ screen: 'pin', digits: 3, pressed: '7', again: false });
+    // messages invalides ignorés
+    mgr.handleMessage(s.id, JSON.stringify({ type: 'phoneView', screen: 'hack', digits: 3, pressed: null, again: false }));
+    mgr.handleMessage(s.id, JSON.stringify({ type: 'phoneView', screen: 'pin', digits: 99, pressed: null, again: false }));
+    mgr.handleMessage(s.id, JSON.stringify({ type: 'phoneView', screen: 'pin', digits: 1, pressed: 'abc', again: false }));
+    expect(mgr.snapshot(s.id).phoneView?.digits).toBe(3);
+    handlers['close'].forEach((cb) => cb());
+    expect(mgr.snapshot(s.id).phoneView).toBeNull();
+  });
+});
+
+describe('PIN redemandé à l’étape 3 et secrets par étape', () => {
+  const orient = (pin: string | undefined, beta = 45) =>
+    JSON.stringify({ type: 'orientation', ...(pin === undefined ? {} : { pin }), readings: [{ alpha: 0, beta, gamma: 0 }] });
+
+  it('bonne posture mais PIN faux : refus, session bloquée', () => {
+    const m = setup();
+    const s = m.create();
+    const pc = new FakeWs();
+    m.attachPc(s.id, pc);
+    m.jump(s.id, 3);
+    pc.emit('message', orient('0000'));
+    const snap = m.snapshot(s.id);
+    expect(snap.state.status).toBe('blocked');
+    expect(snap.lastVerdict).toMatchObject({ level: 3, granted: false, reason: 'PIN incorrect' });
+    expect(snap.secrets?.[3]).toBe(false);
+    // la mesure de posture est tout de même conservée pour le bilan
+    expect(snap.live.orientation?.score).toBeGreaterThan(90);
+  });
+
+  it('PIN absent compte comme faux', () => {
+    const m = setup();
+    const s = m.create();
+    const pc = new FakeWs();
+    m.attachPc(s.id, pc);
+    m.jump(s.id, 3);
+    pc.emit('message', orient(undefined));
+    expect(m.snapshot(s.id).state.status).toBe('blocked');
+  });
+
+  it('bonne posture et bon PIN : accordé, secret correct', () => {
+    const m = setup();
+    const s = m.create();
+    const pc = new FakeWs();
+    m.attachPc(s.id, pc);
+    m.jump(s.id, 3);
+    pc.emit('message', orient('1234'));
+    const snap = m.snapshot(s.id);
+    expect(snap.state.status).toBe('granted');
+    expect(snap.secrets?.[3]).toBe(true);
+  });
+
+  it('les secrets sont suivis par étape puis effacés par reset', () => {
+    const m = setup();
+    const s = m.create();
+    m.submit(s.id, 1, { kind: 'keystroke', events: [], password: 'faux' });
+    expect(m.snapshot(s.id).secrets).toEqual({ 1: false });
+    m.submit(s.id, 2, { kind: 'pin', pin: '1234', fingerprint: fp, taps: [] });
+    expect(m.snapshot(s.id).secrets).toEqual({ 1: false, 2: true });
+    m.reset(s.id);
+    expect(m.snapshot(s.id).secrets).toEqual({});
   });
 });

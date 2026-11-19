@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Fingerprint, KeyEvent, Level, OrientationReading, Snapshot } from '../shared/types';
+import type { Fingerprint, KeyEvent, Level, OrientationReading, PhoneView, Snapshot } from '../shared/types';
 
 export type PhoneMessage =
   | { type: 'pin'; pin: string; fingerprint: Fingerprint; taps: { down: number; up: number }[] }
-  | { type: 'orientation'; readings: OrientationReading[] }
-  | ({ type: 'orientationLive' } & OrientationReading);
+  | { type: 'orientation'; pin: string; readings: OrientationReading[] }
+  | ({ type: 'orientationLive' } & OrientationReading)
+  | ({ type: 'phoneView' } & PhoneView);
 
 export type ClientMessage =
   | { type: 'keystroke'; events: KeyEvent[]; password: string }
