@@ -5,6 +5,8 @@ export interface GaugeProps {
   score: number | null;
   accept: number;
   warn: number;
+  /** Nom accessible de la jauge (par défaut « score »). */
+  label?: string;
 }
 
 const CX = 100;
@@ -58,7 +60,7 @@ function useCountUp(target: number | null, ms = 500): number | null {
   return value;
 }
 
-export function Gauge({ score, accept, warn }: GaugeProps) {
+export function Gauge({ score, accept, warn, label = 'score' }: GaugeProps) {
   // la couleur vient de la valeur affichee (arrondie) : « 80 » n'est jamais orange
   const shown = score === null ? null : Math.round(score);
   const color =
@@ -70,7 +72,7 @@ export function Gauge({ score, accept, warn }: GaugeProps) {
     <div
       className={`gauge ${color}`}
       role="meter"
-      aria-label="score"
+      aria-label={label}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={shown ?? undefined}

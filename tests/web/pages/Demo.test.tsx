@@ -519,3 +519,61 @@ describe('Demo : score de posture en direct', () => {
     expect(scoreText()).not.toContain('100');
   });
 });
+
+describe('Demo : écran de réussite personnalisable', () => {
+  it('affiche le contenu configuré (salutation, opérations, message)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            name: 'Professeur',
+            accountLabel: 'Compte secret',
+            balance: '1 000 000',
+            currency: 'EUR',
+            notice: 'Une blague de test',
+            transactions: [{ icon: '🍕', label: 'Pizza de la réussite', amount: '− 12,00' }],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    );
+    try {
+      snapshot = {
+        ...base,
+        state: { status: 'granted', level: 1, verdict: { level: 1, score: 92, color: 'green', granted: true } },
+      };
+      renderDemo();
+      const main = screen.getByTestId('main-zone');
+      expect(await within(main).findByText(/Bonjour Professeur/)).toBeInTheDocument();
+      expect(within(main).getByText('Pizza de la réussite')).toBeInTheDocument();
+      expect(within(main).getByText('Une blague de test')).toBeInTheDocument();
+      expect(main.textContent).not.toMatch(/score|niveau/i);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('Demo : bilan de fin de session', () => {
+  it('accordé : confiance globale et récapitulatif à droite, rien de tel à gauche', () => {
+    snapshot = {
+      ...base,
+      level: 3,
+      state: { status: 'granted', level: 3, verdict: { level: 3, score: 92, color: 'green', granted: true } },
+      live: { keystroke: { score: 23, perKey }, device: { score: 40, lines: deviceLines } },
+    };
+    renderDemo();
+    const bilan = screen.getByTestId('panel-score');
+    expect(within(bilan).getByText('Bilan de la session')).toBeInTheDocument();
+    expect(within(bilan).getByRole('meter', { name: 'confiance globale' })).toHaveAttribute('aria-valuenow', '76');
+    expect(within(bilan).getByLabelText('Frappe : Doute : vérification suivante')).toBeInTheDocument();
+    expect(within(bilan).getByLabelText('Posture : Validé')).toBeInTheDocument();
+    expect(screen.getByTestId('main-zone').textContent).not.toMatch(/confiance|score|bilan/i);
+  });
+
+  it('en cours : pas de bilan', () => {
+    renderDemo();
+    expect(screen.queryByTestId('session-recap')).toBeNull();
+  });
+});

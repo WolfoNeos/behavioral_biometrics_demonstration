@@ -136,9 +136,6 @@
 .gauge-fill { transition: stroke-dasharray 600ms cubic-bezier(0.2, 0.7, 0.2, 1), stroke 300ms ease; }
 .gauge-score { transition: color 300ms ease; }
 
-.control-zone { padding: 0.3rem 0.4rem 0.3rem 0.9rem; border-radius: 999px; background: rgb(255 255 255 / 70%); border: 1px solid #e6eaf0; }
-.control-bar { opacity: 0.8; }
-.control-bar button { border-radius: 999px; padding: 0.25rem 0.8rem; }
 .side-wide { grid-template-rows: auto minmax(0, 2.2fr) minmax(0, 1fr) auto; }
 .panel-score .gauge { max-width: 230px; }
 .panel-score .gauge-caption { margin-top: 2px; font-size: 1rem; }
@@ -147,18 +144,11 @@
 .config { max-width: 1280px; }
 .cfg-header { padding: 0.9rem 1.2rem; border-radius: var(--radius); background: linear-gradient(120deg, #0a2f55 0%, #0b3d6b 55%, #155a9c 100%); box-shadow: 0 8px 24px rgb(11 61 107 / 22%); align-items: center; }
 .cfg-header h1 { color: #fff; font-size: 1.4rem; letter-spacing: -0.01em; }
-.cfg-header a { color: #fff; opacity: 0.85; text-decoration: none; font-weight: 500; }
-.cfg-header a:hover { opacity: 1; text-decoration: underline; }
 .config .card { position: relative; border: 1px solid #e6eaf0; box-shadow: 0 6px 22px rgb(17 24 39 / 6%), 0 1px 2px rgb(17 24 39 / 4%); overflow: hidden; }
 .config .card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #0b3d6b; }
 .cfg-section h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; }
 .config input { border: 1px solid var(--color-border); border-radius: 10px; background: #fafbfd; transition: border-color var(--transition), box-shadow var(--transition); }
 .config input:focus { outline: none; border-color: #0b3d6b; background: #fff; box-shadow: 0 0 0 4px rgb(11 61 107 / 12%); }
-.config button { border-radius: 999px; padding: 0.45rem 1rem; font-weight: 500; }
-.config button.primary, .config .cfg-form button:only-of-type { font-size: 1rem; }
-.config button.primary { background: #0b3d6b; border-color: #0b3d6b; box-shadow: 0 4px 14px rgb(11 61 107 / 25%); }
-.config button.primary:hover:not(:disabled) { background: #0f4f8a; }
-.cfg-counter { color: #0b3d6b; }
 
 /* ===== Finitions : lisibilité au vidéoprojecteur et transitions ===== */
 .side .panel h2 { font-size: 1.05rem; }
@@ -197,3 +187,61 @@
 .panel-score { padding-top: 0.4rem; padding-bottom: 0.4rem; }
 .panel-score h2 { margin-bottom: 0; }
 .device-compare .values-table td { padding: 8px 12px; }
+
+/* ===== Écran de réussite : mini espace client ===== */
+.welcome:not(.suspended) { max-width: 580px; align-items: stretch; gap: 0.9rem; text-align: left; }
+.welcome-top { display: flex; align-items: center; gap: 1rem; }
+.welcome-top .success-check { width: 64px; height: 64px; flex-shrink: 0; }
+.welcome-top h2 { font-size: 1.75rem; animation-delay: 450ms; }
+.welcome-top .login-sub { margin-top: 0.15rem; animation-delay: 550ms; }
+.welcome:not(.suspended) .account-card { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0; padding: 1.1rem 1.4rem; background: linear-gradient(135deg, #0a2f55 0%, #0b3d6b 50%, #1666b0 100%); animation-delay: calc(550ms + var(--i, 0) * 110ms); }
+.account-main { display: flex; flex-direction: column; min-width: 0; }
+.welcome:not(.suspended) .account-balance { margin: 0.1rem 0 0; font-size: 2.4rem; }
+.spark { width: 120px; height: 44px; flex-shrink: 0; }
+.spark path { fill: none; stroke: #7ff0a8; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 130; stroke-dashoffset: 130; animation: draw 1000ms 900ms ease-out forwards; }
+
+.txn-card { padding: 0.9rem 1.2rem 0.5rem; background: var(--color-surface); border: 1px solid #e3e9f0; border-radius: 18px; box-shadow: 0 6px 22px rgb(17 24 39 / 6%); animation: card-in 500ms calc(550ms + var(--i, 1) * 110ms) both; }
+.txn-card h3 { margin: 0 0 0.3rem; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-ink-muted); }
+.txn-card ul { list-style: none; margin: 0; padding: 0; }
+.txn-card li { display: flex; align-items: center; gap: 0.8rem; padding: 0.55rem 0; border-top: 1px solid #eef1f5; animation: card-in 400ms calc(650ms + var(--i, 2) * 110ms) both; }
+.txn-card li:first-child { border-top: none; }
+.txn-icon { display: grid; place-items: center; width: 38px; height: 38px; flex-shrink: 0; font-size: 1.2rem; background: #eef3f9; border-radius: 12px; }
+.txn-label { flex: 1; min-width: 0; font-size: 1.05rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.txn-amount { font-size: 1.05rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.txn-amount.credit { color: var(--color-green); }
+
+.notice { display: flex; align-items: flex-start; gap: 0.8rem; padding: 0.9rem 1.1rem; color: #5a3b00; background: #fff6e0; border: 1px solid #f6dfa6; border-radius: 16px; animation: notice-in 600ms calc(650ms + var(--i, 4) * 110ms) cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.notice svg { width: 22px; height: 22px; flex-shrink: 0; margin-top: 2px; fill: none; stroke: #b7791f; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; transform-origin: 50% 0; animation: bell 900ms calc(1100ms + var(--i, 4) * 110ms) ease both; }
+.notice p { margin: 0; font-size: 1.05rem; line-height: 1.45; font-style: italic; }
+@keyframes notice-in { from { opacity: 0; transform: translateY(14px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes bell { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(14deg); } 40% { transform: rotate(-12deg); } 60% { transform: rotate(8deg); } 80% { transform: rotate(-4deg); } }
+
+/* ===== Bilan de fin de session ===== */
+.panel-recap { padding-top: 0.5rem; padding-bottom: 0.5rem; animation: panel-in 450ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.panel-recap h2 { margin-bottom: 0.1rem; }
+.recap { flex: 1; min-height: 0; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 1.4rem; align-items: center; }
+.recap-trust { display: flex; flex-direction: column; align-items: center; }
+.recap-trust .gauge { max-width: 190px; }
+.recap-trust .gauge-score { font-size: 2.6rem; margin-top: -2rem; }
+.recap-trust .gauge-caption { margin-top: 2px; font-size: 1rem; }
+.recap-main { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+.recap-verdict { align-self: flex-start; margin: 0; padding: 0.2rem 0.8rem; font-size: 1.1rem; font-weight: 700; border-radius: 999px; }
+.recap-verdict.ok { color: var(--color-green); background: var(--color-green-soft); }
+.recap-verdict.ko { color: var(--color-red); background: var(--color-red-soft); }
+.recap-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.recap-step { display: grid; grid-template-columns: 1.7rem 5.5rem 2.6rem minmax(60px, 1fr) 15rem; align-items: center; gap: 0.6rem; font-size: 1.05rem; }
+.recap-mark { display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; font-size: 0.85rem; font-weight: 800; color: #fff; background: var(--color-grey); }
+.recap-step.passed .recap-mark { background: var(--color-green); }
+.recap-step.doubt .recap-mark { background: var(--color-orange); }
+.recap-step.failed .recap-mark { background: var(--color-red); }
+.recap-name { font-weight: 600; }
+.recap-score { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.recap-bar { height: 8px; background: var(--color-grey-soft); border-radius: 999px; overflow: hidden; }
+.recap-bar i { display: block; height: 100%; border-radius: inherit; background: var(--color-grey); animation: bar-grow 700ms 300ms cubic-bezier(0.2, 0.7, 0.2, 1) both; transform-origin: left; }
+.recap-step.passed .recap-bar i { background: var(--color-green); }
+.recap-step.doubt .recap-bar i { background: var(--color-orange); }
+.recap-step.failed .recap-bar i { background: var(--color-red); }
+.recap-step.skipped { opacity: 0.55; }
+.recap-outcome { font-size: 0.95rem; color: var(--color-ink-muted); white-space: nowrap; }
+.recap-note { margin: 0; font-size: 0.85rem; color: var(--color-ink-muted); }
+@keyframes bar-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }

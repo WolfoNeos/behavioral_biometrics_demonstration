@@ -4,6 +4,7 @@ import { AngleDial } from '../components/AngleDial';
 import { LoginForm, PortalShell, StepUp, Suspended, Welcome } from '../components/BankPortal';
 import { Barcode } from '../components/Barcode';
 import { ConsoleHeader } from '../components/ConsoleHeader';
+import { SessionRecap } from '../components/SessionRecap';
 import { ControlBar } from '../components/ControlBar';
 import { DeviceTable, FIELD_LABELS } from '../components/DeviceTable';
 import { Gauge } from '../components/Gauge';
@@ -11,6 +12,9 @@ import { ThresholdChart } from '../components/ThresholdChart';
 import { liveView, rowsFromLive, rowsFromPerKey, summarize } from '../components/keystrokeRows';
 import type { KeyRow } from '../components/keystrokeRows';
 import { angleScore } from '../../shared/scoring/orientation';
+import { buildRecap } from '../../shared/trust';
+import { DEFAULT_WELCOME, sanitizeWelcome } from '../../shared/welcome';
+import type { WelcomeContent } from '../../shared/welcome';
 import { useSession } from '../ws';
 import type { ClientMessage } from '../ws';
 
@@ -170,8 +174,28 @@ function levelThresholds(level: Level, t: Thresholds): { accept: number; warn: n
   return level === 1 ? t.keystroke : level === 2 ? t.device : t.orientation;
 }
 
+/** Contenu de l'écran de réussite, relu à chaque nouvelle réussite (modifiable en configuration). */
+function useWelcome(active: boolean): WelcomeContent {
+  const [content, setContent] = useState<WelcomeContent>(DEFAULT_WELCOME);
+  useEffect(() => {
+    if (!active || typeof fetch !== 'function') return;
+    let live = true;
+    fetch('/api/welcome')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: unknown) => {
+        if (live && j) setContent(sanitizeWelcome(j));
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [active]);
+  return content;
+}
+
 export function Demo() {
   const { snapshot, send } = useSession();
+  const welcome = useWelcome(snapshot?.state.status === 'granted');
   useGodMode(send);
   // frappe en cours dans le champ mot de passe (vide hors saisie, et des Entree)
   const [typed, setTyped] = useState<KeyEvent[]>([]);
@@ -224,7 +248,7 @@ export function Demo() {
 
   let main;
   if (state.status === 'granted') {
-    main = <Welcome />;
+    main = <Welcome content={welcome} />;
   } else if (state.status === 'blocked') {
     main = <Suspended />;
   } else if (level === 1) {
@@ -244,6 +268,7 @@ export function Demo() {
         ? 'Score en direct'
         : 'Score officiel'
       : '';
+  const recap = buildRecap(snapshot);
   const gauge = (
     <div className="gauge-col">
       <Gauge score={provisional ? provisional.score : officialScore} accept={th.accept} warn={th.warn} />
@@ -268,13 +293,20 @@ export function Demo() {
             </div>
           </div>
         </section>
-        <section className="panel panel-score" data-testid="panel-score" aria-label="Score">
-          <h2>Score</h2>
-          {gauge}
-        </section>
+        {recap ? (
+          <section className="panel panel-score panel-recap" data-testid="panel-score" aria-label="Bilan de la session">
+            <h2>Bilan de la session</h2>
+            <SessionRecap recap={recap} />
+          </section>
+        ) : (
+          <section className="panel panel-score" data-testid="panel-score" aria-label="Score">
+            <h2>Score</h2>
+            {gauge}
+          </section>
+        )}
         <div className="control-zone">
           <PhoneStatus connected={snapshot.phoneConnected} />
-          <ControlBar onJump={onJump} onReset={onReset} />
+          <ControlBar onJump={onJump} onReset={onReset} level={level} />
         </div>
       </aside>
     </div>

