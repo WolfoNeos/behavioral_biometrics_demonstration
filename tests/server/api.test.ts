@@ -141,3 +141,77 @@ describe('API REST', () => {
     expect(url).toBe(`https://demo.test/m/${id}`);
   });
 });
+
+describe('API réseau (changement de wifi)', () => {
+  const nics = {
+    wifi: [{ address: '192.168.43.10', family: 'IPv4', internal: false }],
+    eth: [{ address: '10.0.0.5', family: 'IPv4', internal: false }],
+  };
+  let netApp: FastifyInstance;
+  let netDir: string;
+  beforeEach(async () => {
+    netDir = mkdtempSync(join(tmpdir(), 'net-'));
+    netApp = await buildServer({
+      dataDir: netDir,
+      baseUrl: 'https://192.168.1.20:5173',
+      getInterfaces: () => nics,
+      getCerts: () => null,
+    });
+  });
+  afterEach(async () => {
+    await netApp.close();
+    rmSync(netDir, { recursive: true, force: true });
+  });
+
+  it('GET /api/network : adresse courante et interfaces détectées', async () => {
+    const info = (await netApp.inject({ url: '/api/network' })).json();
+    expect(info.baseUrl).toBe('https://192.168.1.20:5173');
+    expect(info.source).toBe('auto');
+    expect(info.candidates.map((c: { address: string }) => c.address)).toEqual(['192.168.43.10', '10.0.0.5']);
+    expect(info.certCommand).toMatch(/npm run cert/);
+  });
+
+  it('PUT /api/network change l’adresse des QR à chaud', async () => {
+    const created = (await netApp.inject({ method: 'POST', url: '/api/session' })).json();
+    expect(created.url).toMatch(/^https:\/\/192\.168\.1\.20:5173\/m\//);
+    const put = await netApp.inject({ method: 'PUT', url: '/api/network', payload: { baseUrl: '192.168.43.10' } });
+    expect(put.statusCode).toBe(200);
+    expect(put.json()).toMatchObject({ baseUrl: 'https://192.168.43.10:5173', source: 'manual' });
+    const next = (await netApp.inject({ method: 'POST', url: '/api/session' })).json();
+    expect(next.url).toMatch(/^https:\/\/192\.168\.43\.10:5173\/m\//);
+  });
+
+  it('PUT /api/network invalide -> 400, adresse inchangée', async () => {
+    for (const baseUrl of ['', 'ftp://x', 42, '://']) {
+      const r = await netApp.inject({ method: 'PUT', url: '/api/network', payload: { baseUrl } });
+      expect(r.statusCode).toBe(400);
+    }
+    expect((await netApp.inject({ url: '/api/network' })).json().baseUrl).toBe('https://192.168.1.20:5173');
+  });
+
+  it('POST /api/network/detect : repasse sur la meilleure interface détectée', async () => {
+    const r = await netApp.inject({ method: 'POST', url: '/api/network/detect' });
+    expect(r.json()).toMatchObject({ baseUrl: 'http://192.168.43.10:5173', source: 'auto' });
+  });
+});
+
+describe('API écran de réussite', () => {
+  it('GET renvoie les valeurs par défaut ; PUT les persiste et les nettoie', async () => {
+    const first = (await app.inject({ url: '/api/welcome' })).json();
+    expect(first.transactions.length).toBeGreaterThan(0);
+    const put = await app.inject({
+      method: 'PUT',
+      url: '/api/welcome',
+      payload: { name: 'Prof', notice: 'Bravo', transactions: [{ icon: '🎉', label: 'Fête', amount: '− 5' }] },
+    });
+    expect(put.statusCode).toBe(200);
+    const next = (await app.inject({ url: '/api/welcome' })).json();
+    expect(next.name).toBe('Prof');
+    expect(next.transactions).toEqual([{ icon: '🎉', label: 'Fête', amount: '− 5' }]);
+  });
+
+  it('PUT invalide -> 400', async () => {
+    const r = await app.inject({ method: 'PUT', url: '/api/welcome', payload: '[]', headers: { 'content-type': 'application/json' } });
+    expect(r.statusCode).toBe(400);
+  });
+});

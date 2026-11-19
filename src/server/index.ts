@@ -6,13 +6,24 @@ import websocket from '@fastify/websocket';
 import { buildKeystrokeProfile } from '../shared/scoring/keystroke';
 import type { Fingerprint, KeyEvent, Profile, Thresholds } from '../shared/types';
 import { listCandidates, pickBaseUrl } from './baseUrl';
+import type { Interfaces } from './baseUrl';
 import { loadCerts } from './certs';
+import type { Certs } from './certs';
+import { describeNetwork, normalizeBaseUrl } from './network';
+import type { NetworkSource } from './network';
 import { SessionManager } from './sessions';
-import { loadProfile, loadThresholds, saveProfile, saveThresholds } from './store';
+import { loadProfile, loadThresholds, loadWelcome, saveProfile, saveThresholds, saveWelcome } from './store';
+import { sanitizeWelcome } from '../shared/welcome';
 
 export interface ServerOptions {
   dataDir?: string;
   baseUrl?: string;
+  /** Origine de l'adresse de base : variable d'environnement, détection ou saisie manuelle. */
+  baseUrlSource?: NetworkSource;
+  /** Interfaces réseau (injectable pour les tests). */
+  getInterfaces?: () => Interfaces;
+  /** Certificats HTTPS (injectable pour les tests). */
+  getCerts?: () => Certs | null;
 }
 
 const PORT = 3001;
@@ -40,7 +51,11 @@ export async function buildServer(opts: ServerOptions = {}) {
   const dataDir = resolve(opts.dataDir ?? 'data');
   const profilePath = join(dataDir, 'profile.json');
   const thresholdsPath = join(dataDir, 'thresholds.json');
+  const welcomePath = join(dataDir, 'welcome.json');
   const baseUrl = opts.baseUrl ?? 'https://localhost:5173';
+  let baseUrlSource: NetworkSource = opts.baseUrlSource ?? 'auto';
+  const getInterfaces = opts.getInterfaces ?? (() => networkInterfaces());
+  const getCerts = opts.getCerts ?? (() => loadCerts());
 
   const app = Fastify();
   await app.register(websocket);
@@ -76,6 +91,18 @@ export async function buildServer(opts: ServerOptions = {}) {
     return loadThresholds(thresholdsPath);
   });
 
+  // Écran affiché une fois la sécurité passée (textes, solde, blagues…)
+  app.get('/api/welcome', async () => loadWelcome(welcomePath));
+  app.put('/api/welcome', async (req, reply) => {
+    const b = req.body as Record<string, unknown> | null;
+    if (!b || typeof b !== 'object' || Array.isArray(b)) {
+      return reply.code(400).send({ error: 'contenu invalide' });
+    }
+    saveWelcome(sanitizeWelcome(b), welcomePath);
+    return loadWelcome(welcomePath);
+  });
+
+
   app.post('/api/enroll/keystroke', async (req, reply) => {
     const { samples } = (req.body ?? {}) as { samples?: KeyEvent[][] };
     if (!Array.isArray(samples) || samples.length === 0) {
@@ -96,6 +123,30 @@ export async function buildServer(opts: ServerOptions = {}) {
     saveProfile(profile, profilePath);
     sessions.broadcastAll();
     return profile;
+  });
+
+  // Réseau : adresse encodée dans les QR, modifiable à chaud (changement de wifi)
+  const network = () =>
+    describeNetwork({
+      baseUrl: sessions.getBaseUrl(),
+      source: baseUrlSource,
+      interfaces: getInterfaces(),
+      certPem: getCerts()?.cert ?? null,
+    });
+
+  app.get('/api/network', async () => network());
+  app.put('/api/network', async (req, reply) => {
+    const url = normalizeBaseUrl((req.body as { baseUrl?: unknown } | null)?.baseUrl);
+    if (!url) return reply.code(400).send({ error: 'adresse invalide (ex. https://192.168.1.20:5173)' });
+    baseUrlSource = 'manual';
+    sessions.setBaseUrl(url);
+    return network();
+  });
+  // redétection : meilleure interface actuelle (nouveau wifi), schéma selon les certificats
+  app.post('/api/network/detect', async () => {
+    baseUrlSource = 'auto';
+    sessions.setBaseUrl(pickBaseUrl({ interfaces: getInterfaces(), hasCerts: getCerts() !== null }));
+    return network();
   });
 
   app.post('/api/session', async () => {
@@ -124,7 +175,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     hasCerts: loadCerts() !== null,
   });
   for (const c of listCandidates(interfaces)) console.log(`Candidat reseau : ${c.name} ${c.address}`);
-  const app = await buildServer({ baseUrl });
+  const app = await buildServer({ baseUrl, baseUrlSource: process.env.DEMO_BASE_URL ? 'env' : 'auto' });
   await app.listen({ port: PORT });
   console.log(`URL de base (QR) : ${baseUrl}`);
 }

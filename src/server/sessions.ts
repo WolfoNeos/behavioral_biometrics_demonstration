@@ -174,6 +174,16 @@ export class SessionManager {
     return this.sessions.has(id);
   }
 
+  /** Nouvelle adresse du front (autre wifi) : les QR se mettent à jour à la prochaine diffusion. */
+  setBaseUrl(baseUrl: string): void {
+    this.opts.baseUrl = baseUrl;
+    this.broadcastAll();
+  }
+
+  getBaseUrl(): string {
+    return this.opts.baseUrl;
+  }
+
   url(id: string): string {
     return `${this.opts.baseUrl}/m/${id}`;
   }
