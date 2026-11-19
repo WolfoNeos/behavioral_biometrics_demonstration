@@ -6,7 +6,7 @@ export interface VerdictCardProps {
 
 export function VerdictCard({ verdict }: VerdictCardProps) {
   const state = verdict === null ? 'pending' : verdict.granted ? 'granted' : 'denied';
-  const title = state === 'granted' ? 'Authentifié' : state === 'denied' ? 'Échec' : 'En attente';
+  const title = state === 'granted' ? 'Authenticated' : state === 'denied' ? 'Failed' : 'Pending';
   const glyph =
     state === 'granted' ? 'M30 62 L50 80 L90 38' : state === 'denied' ? 'M38 38 L82 82 M82 38 L38 82' : 'M40 60 H80';
   return (
@@ -19,7 +19,7 @@ export function VerdictCard({ verdict }: VerdictCardProps) {
       {verdict && (
         <>
           <div className="verdict-score">{Math.round(verdict.score)}</div>
-          <div className="verdict-score-label">score sur 100</div>
+          <div className="verdict-score-label">score out of 100</div>
         </>
       )}
     </div>

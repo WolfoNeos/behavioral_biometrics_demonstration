@@ -33,7 +33,7 @@ describe('Gauge', () => {
   });
   it('affiche les marqueurs de seuils', () => {
     render(<Gauge score={30} accept={80} warn={50} />);
-    expect(screen.getByLabelText('seuil acceptation 80')).toBeInTheDocument();
-    expect(screen.getByLabelText('seuil alerte 50')).toBeInTheDocument();
+    expect(screen.getByLabelText('acceptance threshold 80')).toBeInTheDocument();
+    expect(screen.getByLabelText('warning threshold 50')).toBeInTheDocument();
   });
 });

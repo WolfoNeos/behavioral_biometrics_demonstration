@@ -5,6 +5,8 @@ import QRCode from 'qrcode';
 import { attachKeystrokeCapture } from '../capture/keystroke';
 import { DEFAULT_THRESHOLDS } from '../../shared/types';
 import type { KeyEvent, Profile, Thresholds } from '../../shared/types';
+import { DEFAULT_WELCOME, MAX_TRANSACTIONS, sanitizeWelcome } from '../../shared/welcome';
+import type { WelcomeContent } from '../../shared/welcome';
 
 const QUICK_SAMPLES = 3;
 const POLL_MS = 2000;
@@ -12,14 +14,14 @@ const POLL_MS = 2000;
 type FormValues = Record<string, string>;
 
 const FIELDS: { key: string; label: string }[] = [
-  { key: 'ks.accept', label: 'Frappe : seuil d’acceptation' },
-  { key: 'ks.warn', label: 'Frappe : seuil d’alerte' },
-  { key: 'dev.accept', label: 'Appareil : seuil d’acceptation' },
-  { key: 'dev.warn', label: 'Appareil : seuil d’alerte' },
-  { key: 'ori.accept', label: 'Posture : seuil d’acceptation' },
-  { key: 'ori.warn', label: 'Posture : seuil d’alerte' },
-  { key: 'ori.tol', label: 'Posture : tolérance (degrés)' },
-  { key: 'n', label: "Nombre d'échantillons d'enrôlement" },
+  { key: 'ks.accept', label: 'Typing: acceptance threshold' },
+  { key: 'ks.warn', label: 'Typing: warning threshold' },
+  { key: 'dev.accept', label: 'Device: acceptance threshold' },
+  { key: 'dev.warn', label: 'Device: warning threshold' },
+  { key: 'ori.accept', label: 'Posture: acceptance threshold' },
+  { key: 'ori.warn', label: 'Posture: warning threshold' },
+  { key: 'ori.tol', label: 'Posture: tolerance (degrees)' },
+  { key: 'n', label: "Number of enrollment samples" },
 ];
 
 const toForm = (t: Thresholds): FormValues => ({
@@ -46,7 +48,7 @@ const fromForm = (f: FormValues): Thresholds => ({
 
 async function errorMessage(res: Response): Promise<string> {
   const body = (await res.json().catch(() => ({}))) as { error?: string };
-  return body.error ?? `Erreur ${res.status}`;
+  return body.error ?? `Error ${res.status}`;
 }
 
 const jsonInit = (method: string, body: unknown): RequestInit => ({
@@ -78,29 +80,29 @@ function Identity({ profile, onSaved }: { profile: Profile | null; onSaved: (sav
       if (res.ok) {
         // le serveur efface le profil de frappe si le mot de passe a change
         onSaved((await res.json()) as Profile);
-        setMsg({ ok: true, text: 'Identité enregistrée' });
+        setMsg({ ok: true, text: 'Identity saved' });
       } else {
         setMsg({ ok: false, text: await errorMessage(res) });
       }
     } catch {
-      setMsg({ ok: false, text: 'Serveur injoignable' });
+      setMsg({ ok: false, text: 'Server unreachable' });
     }
   };
 
   return (
     <section className="card cfg-section">
-      <h2>Identité de A</h2>
+      <h2>A’s identity</h2>
       <form className="cfg-form" onSubmit={(e) => void save(e)}>
         <label>
-          Mot de passe
+          Password
           <input type="text" value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
         <label>
-          Code PIN
+          PIN code
           <input type="text" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} />
         </label>
-        <button type="submit" className="primary">
-          Enregistrer l&apos;identité
+        <button type="submit" className="btn btn-primary">
+          Save identity
         </button>
         {msg && (
           <p className={msg.ok ? 'cfg-ok' : 'cfg-error'} role={msg.ok ? 'status' : 'alert'}>
@@ -180,7 +182,7 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
       setError(null);
       setDone({ n: all.length, keys: Math.round(keys) });
     } catch {
-      if (gen === generation.current) setError('Serveur injoignable');
+      if (gen === generation.current) setError('Server unreachable');
     } finally {
       inFlight.current = false;
     }
@@ -199,7 +201,7 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
         return;
       }
       if (typed !== password) {
-        setError('Le texte saisi ne correspond pas au mot de passe : échantillon refusé');
+        setError('The text entered does not match the password: sample rejected');
         return;
       }
       setError(null);
@@ -212,25 +214,24 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
 
   return (
     <section className="card cfg-section">
-      <h2>Enrôlement de la frappe</h2>
+      <h2>Typing enrollment</h2>
       <p className="hint">
-        Saisissez le mot de passe puis appuyez sur Entrée, à chaque échantillon.
-        {quick && ' Recalibrage rapide : moins précis, remplace le profil de frappe.'}
+        Type the password, then press Enter, for each sample.
+        {quick && ' Quick recalibration: less accurate, replaces the typing profile.'}
       </p>
       {profile?.keystroke && count === 0 && (
         <p className="cfg-ok" role="status">
-          {`Frappe déjà enrôlée (${profile.keystroke.samples} échantillons). Ré-enrôler ou « Recalibrage rapide » la remplace.`}
+          {`Typing already enrolled (${profile.keystroke.samples} samples). Re-enrolling or “Quick recalibration” replaces it.`}
         </p>
       )}
       <p className="hint">
-        Le texte saisi doit correspondre au mot de passe enregistré (modifiez-le d&apos;abord dans « Identité » puis
-        enregistrez).
+        The text entered must match the saved password (change it first under “Identity”, then save).
       </p>
       <div className="cfg-counter" aria-live="polite">
         <span className="cfg-count">{`${count} / ${target}`}</span>
       </div>
       <label className="cfg-form">
-        Saisie du mot de passe
+        Password entry
         <input ref={inputRef} type="password" autoComplete="off" className="cfg-capture" />
       </label>
       {error && (
@@ -240,22 +241,22 @@ function KeystrokeEnrol({ profile, target: configured }: { profile: Profile | nu
       )}
       {done && (
         <p className="cfg-ok" role="status">
-          Enrôlement terminé ✓ : {done.n} échantillons, environ {done.keys} touches par saisie
+          Enrollment complete ✓: {done.n} samples, about {done.keys} keys per entry
         </p>
       )}
       <div className="cfg-actions">
-        <button type="button" onClick={() => reset(false)}>
-          Recommencer l&apos;enrôlement
+        <button type="button" className="btn btn-secondary" onClick={() => reset(false)}>
+          Restart enrollment
         </button>
-        <button type="button" onClick={() => reset(true)}>
-          Recalibrage rapide
+        <button type="button" className="btn btn-secondary" onClick={() => reset(true)}>
+          Quick recalibration
         </button>
       </div>
     </section>
   );
 }
 
-function PhoneEnrol({ profile }: { profile: Profile | null }) {
+function PhoneEnrol({ profile, netVersion }: { profile: Profile | null; netVersion: number }) {
   const [link, setLink] = useState<string | null>(null);
   const [qr, setQr] = useState<string | null>(null);
 
@@ -283,24 +284,24 @@ function PhoneEnrol({ profile }: { profile: Profile | null }) {
     return () => {
       live = false;
     };
-  }, []);
+  }, [netVersion]);
 
   const enrolled = profile && profile.fingerprint && profile.beta !== null;
 
   return (
     <section className="card cfg-section">
-      <h2>Enrôlement du téléphone de A</h2>
-      <p className="hint">Scannez ce code avec le téléphone de A, tenu comme d&apos;habitude.</p>
-      <div className="qr-block">
-        {qr && <img src={qr} alt="QR code vers la page d'enrôlement du téléphone" width={240} height={240} />}
+      <h2>Phone enrollment for A</h2>
+      <p className="hint">Scan this code with A’s phone, held as usual.</p>
+      <div className="cfg-qr">
+        {qr && <img src={qr} alt="QR code to the phone enrollment page" width={240} height={240} />}
         {link && <code className="cfg-link">{link}</code>}
       </div>
       {enrolled ? (
         <p className="cfg-ok" role="status">
-          {`Téléphone enregistré ✓ (inclinaison ${Math.round(profile.beta as number)}°)`}
+          {`Phone enrolled ✓ (tilt ${Math.round(profile.beta as number)}°)`}
         </p>
       ) : (
-        <p className="hint">Téléphone non enregistré</p>
+        <p className="hint">Phone not enrolled</p>
       )}
     </section>
   );
@@ -327,15 +328,15 @@ function ThresholdsForm({
       const saved = (await res.json()) as Thresholds;
       setForm(toForm(saved));
       onSaved(saved);
-      setMsg({ ok: true, text: 'Seuils enregistrés' });
+      setMsg({ ok: true, text: 'Thresholds saved' });
     } catch {
-      setMsg({ ok: false, text: 'Serveur injoignable' });
+      setMsg({ ok: false, text: 'Server unreachable' });
     }
   };
 
   return (
     <section className="card cfg-section">
-      <h2>Seuils</h2>
+      <h2>Thresholds</h2>
       <form
         className="cfg-form cfg-grid"
         onSubmit={(e) => {
@@ -354,17 +355,331 @@ function ThresholdsForm({
           </label>
         ))}
         <div className="cfg-actions">
-          <button type="submit" className="primary">
-            Enregistrer les seuils
+          <button type="submit" className="btn btn-primary">
+            Save thresholds
           </button>
           <button
             type="button"
+            className="btn btn-secondary"
             onClick={() => {
               setForm(toForm(DEFAULT_THRESHOLDS));
               void save(DEFAULT_THRESHOLDS);
             }}
           >
-            Valeurs par défaut
+            Default values
+          </button>
+        </div>
+        {msg && (
+          <p className={msg.ok ? 'cfg-ok' : 'cfg-error'} role={msg.ok ? 'status' : 'alert'}>
+            {msg.text}
+          </p>
+        )}
+      </form>
+    </section>
+  );
+}
+
+interface NetCandidate {
+  name: string;
+  address: string;
+  url: string;
+  active: boolean;
+  covered: boolean | null;
+}
+interface NetInfo {
+  baseUrl: string;
+  source: 'env' | 'auto' | 'manual';
+  https: boolean;
+  candidates: NetCandidate[];
+  certValidTo: string | null;
+  covered: boolean | null;
+  certCommand: string;
+}
+
+const SOURCE_LABEL = { env: 'DEMO_BASE_URL variable', auto: 'automatic detection', manual: 'manual entry' } as const;
+
+/** Network : adresse encodée dans les QR, à changer en un clic quand on change de wifi. */
+function NetworkCard({ onChanged }: { onChanged: () => void }) {
+  const [info, setInfo] = useState<NetInfo | null>(null);
+  const [manual, setManual] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const load = useCallback(async (): Promise<void> => {
+    try {
+      const res = await fetch('/api/network');
+      if (!res.ok) throw new Error('indisponible');
+      setInfo((await res.json()) as NetInfo);
+    } catch {
+      setMsg({ ok: false, text: 'Network unavailable' });
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const apply = async (request: Promise<Response>, okText: string): Promise<void> => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await request;
+      if (!res.ok) {
+        setMsg({ ok: false, text: await errorMessage(res) });
+        return;
+      }
+      setInfo((await res.json()) as NetInfo);
+      setMsg({ ok: true, text: okText });
+      onChanged();
+    } catch {
+      setMsg({ ok: false, text: 'Server unreachable' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const use = (baseUrl: string): Promise<void> =>
+    apply(fetch('/api/network', jsonInit('PUT', { baseUrl })), 'Address updated: QR codes now point to the new network');
+
+  const copy = async (text: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // presse-papiers indisponible : la commande reste affichée
+    }
+  };
+
+  return (
+    <section className="card cfg-section cfg-network" aria-label="Network">
+      <div className="cfg-head">
+        <h2>Network</h2>
+        <p className="hint">QR code address: change it when the demo moves to another Wi-Fi network.</p>
+      </div>
+      {info && (
+        <>
+          <div className="net-current">
+            <code className="net-url" data-testid="net-url">
+              {info.baseUrl}
+            </code>
+            <div className="net-chips">
+              <span className={info.https ? 'chip chip-ok' : 'chip'}>{info.https ? 'HTTPS' : 'HTTP'}</span>
+              {info.covered !== null && (
+                <span className={info.covered ? 'chip chip-ok' : 'chip chip-warn'}>
+                  {info.covered ? 'Certificate valid for this address' : 'Certificate not valid for this address'}
+                </span>
+              )}
+              <span className="chip">{SOURCE_LABEL[info.source]}</span>
+            </div>
+          </div>
+          {info.covered === false && (
+            <div className="net-alert" role="alert">
+              <p>
+                The HTTPS certificate does not cover this address: phones will show a warning and the
+                motion sensor will be blocked. Regenerate it, then restart the demo:
+              </p>
+              <div className="net-cmd">
+                <code>{info.certCommand}</code>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copy(info.certCommand)}>
+                  {copied ? 'Copied ✓' : 'Copy'}
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="net-list">
+            <h3>Detected networks</h3>
+            {info.candidates.length === 0 && <p className="hint">No network detected: connect, then refresh.</p>}
+            {info.candidates.map((c) => (
+              <div key={c.url} className={c.active ? 'net-row active' : 'net-row'}>
+                <div className="net-row-main">
+                  <strong>{c.address}</strong>
+                  <span>{c.name}</span>
+                </div>
+                {c.covered === false && <span className="chip chip-warn">Certificate to regenerate</span>}
+                {c.active ? (
+                  <span className="chip chip-ok">In use</span>
+                ) : (
+                  <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void use(c.url)}>
+                    Use
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      <form
+        className="net-manual"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (manual.trim()) void use(manual.trim());
+        }}
+      >
+        <label>
+          Manual address
+          <input
+            type="text"
+            value={manual}
+            placeholder="192.168.1.20 or https://…"
+            onChange={(e) => setManual(e.target.value)}
+          />
+        </label>
+        <button type="submit" className="btn btn-primary" disabled={busy || !manual.trim()}>
+          Apply
+        </button>
+      </form>
+      <div className="cfg-actions">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={busy}
+          onClick={() => void apply(fetch('/api/network/detect', { method: 'POST' }), 'Network detected automatically')}
+        >
+          Detect automatically
+        </button>
+        <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void load()}>
+          Refresh list
+        </button>
+      </div>
+      {msg && (
+        <p className={msg.ok ? 'cfg-ok' : 'cfg-error'} role={msg.ok ? 'status' : 'alert'}>
+          {msg.text}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** Screen affiché une fois la sécurité passée : textes, solde et petites blagues à régler. */
+function WelcomeEditor() {
+  const [form, setForm] = useState<WelcomeContent>(DEFAULT_WELCOME);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    fetch('/api/welcome')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: unknown) => {
+        if (live && j) setForm(sanitizeWelcome(j));
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const set = (patch: Partial<WelcomeContent>): void => setForm((f) => ({ ...f, ...patch }));
+  const setTxn = (i: number, patch: Partial<WelcomeContent['transactions'][number]>): void =>
+    setForm((f) => ({ ...f, transactions: f.transactions.map((t, k) => (k === i ? { ...t, ...patch } : t)) }));
+
+  const save = async (content: WelcomeContent): Promise<void> => {
+    setMsg(null);
+    try {
+      const res = await fetch('/api/welcome', jsonInit('PUT', content));
+      if (!res.ok) {
+        setMsg({ ok: false, text: await errorMessage(res) });
+        return;
+      }
+      setForm(sanitizeWelcome(await res.json()));
+      setMsg({ ok: true, text: 'Success screen saved' });
+    } catch {
+      setMsg({ ok: false, text: 'Server unreachable' });
+    }
+  };
+
+  return (
+    <section className="card cfg-section" aria-label="Success screen">
+      <div className="cfg-head">
+        <h2>Success screen</h2>
+        <p className="hint">What the audience sees once security is passed: room for little jokes.</p>
+      </div>
+      <form
+        className="cfg-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save(form);
+        }}
+      >
+        <label>
+          First name or nickname (greeting)
+          <input type="text" value={form.name} placeholder="ex. Professor" onChange={(e) => set({ name: e.target.value })} />
+        </label>
+        <div className="cfg-grid">
+          <label>
+            Account label
+            <input type="text" value={form.accountLabel} onChange={(e) => set({ accountLabel: e.target.value })} />
+          </label>
+          <label>
+            Balance
+            <input type="text" value={form.balance} onChange={(e) => set({ balance: e.target.value })} />
+          </label>
+        </div>
+        <label>
+          Advisor message
+          <textarea rows={2} value={form.notice} onChange={(e) => set({ notice: e.target.value })} />
+        </label>
+        <fieldset className="cfg-txns">
+          <legend>Recent transactions</legend>
+          {form.transactions.map((t, i) => (
+            <div className="cfg-txn" key={i}>
+              <input
+                type="text"
+                className="txn-in-icon"
+                aria-label={`Icon ${i + 1}`}
+                value={t.icon}
+                onChange={(e) => setTxn(i, { icon: e.target.value })}
+              />
+              <input
+                type="text"
+                className="txn-in-label"
+                aria-label={`Label ${i + 1}`}
+                value={t.label}
+                onChange={(e) => setTxn(i, { label: e.target.value })}
+              />
+              <input
+                type="text"
+                className="txn-in-amount"
+                aria-label={`Amount ${i + 1}`}
+                value={t.amount}
+                onChange={(e) => setTxn(i, { amount: e.target.value })}
+              />
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                aria-label={`Delete transaction ${i + 1}`}
+                onClick={() => setForm((f) => ({ ...f, transactions: f.transactions.filter((_, k) => k !== i) }))}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          {form.transactions.length < MAX_TRANSACTIONS && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm cfg-add"
+              onClick={() =>
+                setForm((f) => ({ ...f, transactions: [...f.transactions, { icon: '💸', label: '', amount: '' }] }))
+              }
+            >
+              + Add a transaction
+            </button>
+          )}
+        </fieldset>
+        <div className="cfg-actions">
+          <button type="submit" className="btn btn-primary">
+            Save
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              setForm(DEFAULT_WELCOME);
+              void save(DEFAULT_WELCOME);
+            }}
+          >
+            Default texts
           </button>
         </div>
         {msg && (
@@ -380,6 +695,7 @@ function ThresholdsForm({
 export function Config() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [thresholds, setThresholds] = useState<Thresholds | null>(null);
+  const [netVersion, setNetVersion] = useState(0);
 
   useEffect(() => {
     let live = true;
@@ -408,24 +724,31 @@ export function Config() {
   return (
     <main className="config">
       <header className="cfg-header">
-        <h1>Configuration</h1>
-        <Link to="/">← Retour à la démo</Link>
+        <div>
+          <h1>Configuration</h1>
+          <p>Prepare the demo: network, A’s identity, enrollments and thresholds</p>
+        </div>
+        <Link to="/" className="btn btn-light">
+          ← Back to the demo
+        </Link>
       </header>
+      <NetworkCard onChanged={() => setNetVersion((v) => v + 1)} />
       <div className="cfg-columns">
-        <Identity
-          profile={profile}
-          onSaved={setProfile}
-
-        />
-        {thresholds ? (
-          <KeystrokeEnrol profile={profile} target={thresholds.enrollSamples} />
-        ) : (
-          <section className="card cfg-section">
-            <p className="hint">Chargement…</p>
-          </section>
-        )}
-        <PhoneEnrol profile={profile} />
-        {thresholds && <ThresholdsForm thresholds={thresholds} onSaved={setThresholds} />}
+        <div className="cfg-col">
+          <Identity profile={profile} onSaved={setProfile} />
+          <PhoneEnrol profile={profile} netVersion={netVersion} />
+        </div>
+        <div className="cfg-col">
+          {thresholds ? (
+            <KeystrokeEnrol profile={profile} target={thresholds.enrollSamples} />
+          ) : (
+            <section className="card cfg-section">
+              <p className="hint">Loading…</p>
+            </section>
+          )}
+          {thresholds && <ThresholdsForm thresholds={thresholds} onSaved={setThresholds} />}
+          <WelcomeEditor />
+        </div>
       </div>
     </main>
   );

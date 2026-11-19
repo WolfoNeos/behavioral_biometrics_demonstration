@@ -73,7 +73,7 @@ export type SubmitPayload =
       fingerprint: Fingerprint;
       taps: { down: number; up: number }[];
     }
-  | { kind: 'orientation'; readings: OrientationReading[] };
+  | { kind: 'orientation'; readings: OrientationReading[]; pin?: string };
 
 /** Intervalle minimal entre deux envois de l'orientation en direct (telephone et serveur). */
 export const LIVE_ORIENTATION_INTERVAL_MS = 100;
@@ -100,7 +100,7 @@ export interface ExpectedReference {
 }
 
 /** Raison d'un echec ; null quand l'acces est accorde. */
-export type FailReason = 'password incorrect' | 'PIN incorrect' | 'signal hors seuil';
+export type FailReason = 'password incorrect' | 'PIN incorrect' | 'signal out of range';
 
 /** Dernier verdict rendu dans la session (efface par reset et jump). */
 export interface LastVerdict {
@@ -123,6 +123,19 @@ export interface ExpectedBar {
   known: boolean;
 }
 
+/** Screen affiché sur le téléphone, reflété à côté du QR code pour expliquer la démo. */
+export type PhoneScreen = 'connecting' | 'pin' | 'checking' | 'step' | 'done';
+
+export interface PhoneView {
+  screen: PhoneScreen;
+  /** Nombre de digits entered (jamais les chiffres eux-mêmes). */
+  digits: number;
+  /** Touche en cours d'appui : un chiffre, ou « erase ». */
+  pressed: string | null;
+  /** Étape suivante : le pavé est redemandé (vérification supplémentaire). */
+  again: boolean;
+}
+
 export interface Snapshot {
   state: AuthState;
   level: Level;
@@ -131,10 +144,14 @@ export interface Snapshot {
   phoneConnected: boolean;
   sessionUrl: string;
   lastVerdict: LastVerdict | null;
-  /** Orientation courante diffusee par le telephone au niveau 3 (avant « Valider »). */
+  /** Orientation courante diffusee par le telephone au niveau 3 (avant « Confirm »). */
   liveOrientation: OrientationReading | null;
-  /** Seuils en vigueur cote serveur (la jauge ne peut pas les contredire). */
+  /** Thresholds en vigueur cote serveur (la jauge ne peut pas les contredire). */
   thresholds: Thresholds;
   /** Une entree par position du mot de passe enregistre ; null sans mot de passe ou sans profil de frappe. */
   expectedBars: ExpectedBar[] | null;
+  /** Reflet de l'écran du téléphone ; null sans téléphone connecté. */
+  phoneView?: PhoneView | null;
+  /** Secret (mot de passe ou PIN) correct à chaque étape soumise : true = attendu, false = incorrect. */
+  secrets?: Partial<Record<Level, boolean>>;
 }

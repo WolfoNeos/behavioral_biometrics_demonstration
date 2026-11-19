@@ -14,6 +14,7 @@ import type {
   Level,
   LiveResults,
   OrientationReading,
+  PhoneView,
   Profile,
   Snapshot,
   SubmitPayload,
@@ -40,6 +41,10 @@ export interface Session {
   pcs: Set<WsLike>;
   lastVerdict: LastVerdict | null;
   liveOrientation: OrientationReading | null;
+  /** Dernier écran annoncé par le téléphone (reflet affiché sur le PC). */
+  phoneView: PhoneView | null;
+  /** Secret correct ou non, par étape soumise (affiché dans le bilan). */
+  secrets: Partial<Record<Level, boolean>>;
   /** Horodatage de la derniere diffusion due a l'orientation en direct. */
   liveSentAt: number;
   liveTimer: ReturnType<typeof setTimeout> | null;
@@ -100,9 +105,22 @@ function parsePayload(msg: Record<string, unknown>): SubmitPayload | null {
         gamma: (r.gamma as number | null | undefined) ?? 0,
       }),
     );
-    return { kind: 'orientation', readings };
+    // un PIN absent compte comme faux : la page téléphone l'envoie toujours
+    return { kind: 'orientation', readings, pin: typeof msg.pin === 'string' ? msg.pin : '' };
   }
   return null;
+}
+
+const PHONE_SCREENS = ['connecting', 'pin', 'checking', 'step', 'done'];
+
+/** Valide un message `phoneView` : écran connu, nombre de chiffres borné, touche valide. */
+function parsePhoneView(msg: Record<string, unknown>): PhoneView | null {
+  const { screen, digits, pressed, again } = msg;
+  if (typeof screen !== 'string' || !PHONE_SCREENS.includes(screen)) return null;
+  if (typeof digits !== 'number' || !Number.isInteger(digits) || digits < 0 || digits > 8) return null;
+  if (pressed !== null && !(typeof pressed === 'string' && /^([0-9]|erase)$/.test(pressed))) return null;
+  if (typeof again !== 'boolean') return null;
+  return { screen: screen as PhoneView['screen'], digits, pressed, again };
 }
 
 /** Valide un message `orientationLive` : beta fini, alpha/gamma finis ou null (-> 0). */
@@ -163,6 +181,8 @@ export class SessionManager {
       pcs: new Set(),
       lastVerdict: null,
       liveOrientation: null,
+      phoneView: null,
+      secrets: {},
       liveSentAt: 0,
       liveTimer: null,
     };
@@ -174,13 +194,23 @@ export class SessionManager {
     return this.sessions.has(id);
   }
 
+  /** Nouvelle adresse du front (autre wifi) : les QR se mettent à jour à la prochaine diffusion. */
+  setBaseUrl(baseUrl: string): void {
+    this.opts.baseUrl = baseUrl;
+    this.broadcastAll();
+  }
+
+  getBaseUrl(): string {
+    return this.opts.baseUrl;
+  }
+
   url(id: string): string {
     return `${this.opts.baseUrl}/m/${id}`;
   }
 
   private get(id: string): Session {
     const s = this.sessions.get(id);
-    if (!s) throw new Error(`Session inconnue : ${id}`);
+    if (!s) throw new Error(`Unknown session: ${id}`);
     return s;
   }
 
@@ -196,6 +226,8 @@ export class SessionManager {
       sessionUrl: this.url(id),
       lastVerdict: s.lastVerdict,
       liveOrientation: s.liveOrientation,
+      phoneView: s.phoneView,
+      secrets: s.secrets,
       thresholds: this.opts.getThresholds(),
       // reference par position, sans caractere : relue a chaque diffusion (profil modifie)
       expectedBars: buildExpectedBars(p.password, p.keystroke),
@@ -228,7 +260,7 @@ export class SessionManager {
     s.pcs.add(ws);
     ws.on('message', (data) => this.handleMessage(id, data));
     ws.on('close', () => s.pcs.delete(ws));
-    ws.on('error', (err) => console.error('erreur ws pc', err));
+    ws.on('error', (err) => console.error('pc ws error', err));
     this.broadcast(id);
   }
 
@@ -239,10 +271,13 @@ export class SessionManager {
     ws.on('message', (data) => this.handleMessage(id, data));
     ws.on('close', () => {
       if (!s.phones.delete(ws)) return;
-      if (s.phones.size === 0) s.liveOrientation = null;
+      if (s.phones.size === 0) {
+        s.liveOrientation = null;
+        s.phoneView = null;
+      }
       if (this.sessions.has(id)) this.broadcast(id);
     });
-    ws.on('error', (err) => console.error('erreur ws telephone', err));
+    ws.on('error', (err) => console.error('phone ws error', err));
     this.broadcast(id);
   }
 
@@ -269,11 +304,14 @@ export class SessionManager {
     } else {
       const result =
         profile.beta !== null
-          ? scoreOrientation(profile.beta, payload.readings, th.orientation.toleranceDeg)
+          ? scoreOrientation(profile.beta, payload.readings, th.orientation.toleranceDeg, th.orientation.accept)
           : null;
       if (result) s.live.orientation = result;
       score = result?.score ?? 0;
+      // le PIN est redemandé à cette étape : faux, même avec une bonne posture, on refuse
+      if (payload.pin !== undefined && payload.pin !== profile.pin) failed = 'PIN incorrect';
     }
+    s.secrets[level] = failed === null;
 
     const before = s.state;
     let verdict: Verdict;
@@ -293,7 +331,7 @@ export class SessionManager {
         level,
         score: verdict.score,
         granted: verdict.granted,
-        reason: verdict.granted ? null : (failed ?? 'signal hors seuil'),
+        reason: verdict.granted ? null : (failed ?? 'signal out of range'),
       };
     }
     // une soumission quitte toujours l'etape en cours : l'orientation en direct n'a plus cours
@@ -312,6 +350,7 @@ export class SessionManager {
       delete s.live.tactile;
     }
     delete s.live.orientation;
+    for (const l of [1, 2, 3] as Level[]) if (l >= level) delete s.secrets[l];
     s.lastVerdict = null;
     s.liveOrientation = null;
     this.broadcast(id);
@@ -321,6 +360,7 @@ export class SessionManager {
     const s = this.get(id);
     s.state = startState();
     s.live = {};
+    s.secrets = {};
     s.lastVerdict = null;
     s.liveOrientation = null;
     this.broadcast(id);
@@ -361,6 +401,7 @@ export class SessionManager {
     const beta = (profile.beta ?? 0) + (a ? 0 : 4 * tol);
     return this.submit(id, 3, {
       kind: 'orientation',
+      pin: profile.pin,
       readings: [{ alpha: 0, beta, gamma: 0 }],
     });
   }
@@ -386,6 +427,14 @@ export class SessionManager {
           if (state.status !== 'pending' || state.level !== 3) return;
           const reading = parseLiveOrientation(msg);
           if (reading) this.liveOrientationUpdate(id, reading);
+          return;
+        }
+        case 'phoneView': {
+          const view = parsePhoneView(msg);
+          if (view) {
+            this.get(id).phoneView = view;
+            this.broadcast(id);
+          }
           return;
         }
         case 'jump':

@@ -36,7 +36,7 @@
 .barcode { font-family: var(--font-sans); }
 .barcode-row { margin-bottom: var(--space-3); }
 .barcode-label { font-size: var(--text-sm); color: var(--color-ink-muted); margin-bottom: var(--space-1); }
-.barcode svg { width: 100%; height: 64px; display: block; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); }
+.barcode svg { width: 100%; height: 64px; display: block; background: var(--color-bg); border-radius: 10px; }
 .barcode-live rect { fill: var(--color-ink); }
 .barcode-expected rect { fill: var(--color-grey); }
 /* frappe en direct : reference en filigrane, barres colorees selon l'ecart a A */
@@ -54,20 +54,9 @@
 .values-table { width: 100%; border-collapse: collapse; font-size: var(--text-md); font-variant-numeric: tabular-nums; }
 .values-table th, .values-table td { padding: var(--space-2) var(--space-3); text-align: left; border-bottom: 1px solid var(--color-border); }
 .values-table th { color: var(--color-ink-muted); font-weight: 600; font-size: var(--text-sm); }
-.values-table .key { font-weight: 700; font-family: monospace; }
-.values-table .ok { color: var(--color-green); font-weight: 700; }
+.values-table .values-table .ok { color: var(--color-green); font-weight: 700; }
 .values-table .ko { color: var(--color-red); font-weight: 700; }
 
-/* Cadran d'angle */
-.angle-dial { display: inline-flex; flex-direction: column; align-items: center; width: 100%; max-width: 360px; font-family: var(--font-sans); }
-.angle-dial svg { width: 100%; height: auto; }
-.dial-track { fill: none; stroke: var(--color-grey-soft); stroke-width: 18; }
-.dial-tolerance { fill: none; stroke: var(--color-green); stroke-width: 18; }
-.dial-needle { stroke: var(--color-ink); stroke-width: 4; stroke-linecap: round; }
-.dial-hub { fill: var(--color-ink); }
-.dial-expected-mark { stroke: var(--color-green); stroke-width: 3; }
-.dial-value { font-size: var(--text-xl); font-weight: 700; font-variant-numeric: tabular-nums; }
-.dial-expected { font-size: var(--text-md); color: var(--color-ink-muted); }
 
 /* Carte de verdict */
 .verdict-card { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); text-align: center; }
@@ -86,10 +75,10 @@
 html, body, #root { height: 100%; }
 body { margin: 0; background: var(--color-bg); font-family: var(--font-sans); color: var(--color-ink); overflow: hidden; }
 .demo { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: var(--space-3); height: 100vh; overflow: hidden; padding: var(--space-3); box-sizing: border-box; }
-.main-zone { display: flex; align-items: center; justify-content: center; min-height: 0; overflow: hidden; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--space-4); }
+.main-zone { display: flex; align-items: center; justify-content: center; min-height: 0; overflow: hidden; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); box-shadow: var(--shadow); padding: var(--space-4); }
 .side { display: grid; grid-template-rows: minmax(0, 1.5fr) minmax(0, 1fr) auto; gap: var(--space-3); min-width: 0; min-height: 0; }
-.panel { display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--space-2) var(--space-4); }
-.panel h2 { margin: 0 0 var(--space-1); font-size: 1.4rem; flex-shrink: 0; }
+.panel { display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); box-shadow: var(--shadow); padding: var(--space-3) var(--space-4); }
+.panel h2 { margin: 0 0 var(--space-2); font-size: 0.95rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-ink-muted); flex-shrink: 0; }
 .direct-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: var(--space-4); align-items: center; }
 .direct-body .gauge { max-width: 240px; }
 .gauge-col { display: flex; flex-direction: column; align-items: center; }
@@ -111,32 +100,15 @@ body { margin: 0; background: var(--color-bg); font-family: var(--font-sans); co
 .panel-profil .barcode-row + .barcode-row { display: none; }
 .panel .values-table { font-size: 1rem; }
 .panel .values-table th, .panel .values-table td { padding: 4px var(--space-2); word-break: break-all; }
-.panel .angle-dial { max-width: 300px; }
-.panel .dial-value { font-size: 2rem; }
-.login-form { display: flex; flex-direction: column; gap: var(--space-3); width: 100%; max-width: 560px; font-size: var(--text-lg); }
-.login-form h2 { font-size: var(--text-xl); margin: 0; }
-.login-form label { display: flex; flex-direction: column; gap: var(--space-1); font-weight: 600; }
-.login-form input { font: inherit; padding: var(--space-3); border: 2px solid var(--color-border); border-radius: var(--radius); }
-.login-form input:focus { outline: 3px solid var(--color-ink); }
-.hint { color: var(--color-ink-muted); font-size: 1rem; margin: 0; }
-.qr-block { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; }
-.qr-block img { max-width: 100%; height: auto; }
-.instruction { font-size: var(--text-xl); font-weight: 600; margin: 0; max-width: 28ch; }
-.final-verdict { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
-.final-verdict .verdict-card { padding: var(--space-5); }
-.level-reached { font-size: var(--text-lg); margin: 0; }
-button { font: inherit; cursor: pointer; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-ink); border-radius: 8px; padding: var(--space-2) var(--space-3); }
-button.primary { font-size: var(--text-lg); padding: var(--space-3) var(--space-5); background: var(--color-ink); color: var(--color-white); border-color: var(--color-ink); }
-.control-zone { justify-self: end; display: flex; align-items: center; gap: var(--space-3); }
-.control-zone .phone-status { font-size: 0.875rem; }
-.qr-zone { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
+.panel .panel button { font: inherit; cursor: pointer; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-ink); border-radius: 10px; padding: var(--space-2) var(--space-3); transition: background var(--transition), opacity var(--transition); }
+button:hover:not(:disabled) { background: var(--color-bg); }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; }
+button.primary { font-size: var(--text-md); font-weight: 600; padding: var(--space-3) var(--space-5); background: var(--color-ink); color: var(--color-white); border-color: var(--color-ink); }
 .phone-status { margin: 0; font-size: var(--text-md); font-weight: 600; color: var(--color-ink-muted); }
 .phone-status::before { content: ''; display: inline-block; width: 0.7em; height: 0.7em; border-radius: 50%; margin-right: 0.4em; background: var(--color-grey); vertical-align: middle; }
 .phone-status.ok { color: var(--color-green); }
 .phone-status.ok::before { background: var(--color-green); }
-.fail-banner { flex-shrink: 0; margin: 0 0 var(--space-1); padding: var(--space-1) var(--space-3); border-radius: var(--radius); background: var(--color-red-soft); color: var(--color-red); font-size: 1.05rem; }
-.control-bar { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; font-size: 0.875rem; opacity: 0.75; }
-.control-bar a { color: var(--color-ink-muted); }
+.fail-banner { flex-shrink: 0; margin: 0 0 var(--space-1); padding: var(--space-1) var(--space-3); border-radius: 10px; background: var(--color-red-soft); color: var(--color-red); font-size: 1rem; }
 .profile-list { margin: 0; font-size: 1rem; }
 .profile-list div { display: flex; gap: var(--space-3); padding: 2px 0; border-bottom: 1px solid var(--color-border); }
 .profile-list dt { width: 9rem; color: var(--color-ink-muted); flex-shrink: 0; }
@@ -146,29 +118,10 @@ button.primary { font-size: var(--text-lg); padding: var(--space-3) var(--space-
 .panel .values-table th:nth-child(3), .panel .values-table td:nth-child(3) { white-space: nowrap; }
 
 /* Page mobile : portrait, un pouce */
-.mobile { box-sizing: border-box; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-4); padding: var(--space-4) var(--space-3); text-align: center; position: relative; }
-.mobile .conn { position: absolute; top: var(--space-2); right: var(--space-3); font-size: var(--text-sm); color: var(--color-red); font-weight: 600; }
-.mobile .conn.ok { color: var(--color-green); }
-.m-title { font-size: var(--text-lg); margin: 0; }
+.mobile { box-sizing: border-box; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-4); padding: var(--space-4) var(--space-3); text-align: center; position: relative; background: var(--color-bg); }
+.m-title { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
 .m-sub { font-size: var(--text-md); color: var(--color-ink-muted); margin: 0; }
-.m-error { font-size: var(--text-md); color: var(--color-red); background: var(--color-red-soft); border-radius: var(--radius); padding: var(--space-3); margin: 0; }
-.m-btn { width: 100%; max-width: 360px; min-height: 64px; font-size: var(--text-lg); font-weight: 700; background: var(--color-ink); color: var(--color-white); border-color: var(--color-ink); border-radius: var(--radius); }
-.m-btn:disabled { background: var(--color-grey); border-color: var(--color-grey); }
-.pin, .posture { display: flex; flex-direction: column; align-items: center; gap: var(--space-4); width: 100%; }
-.pin-dots { display: flex; gap: var(--space-3); min-height: 28px; }
-.dot { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--color-ink); box-sizing: border-box; }
-.dot.filled { background: var(--color-ink); }
-.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); width: 100%; max-width: 360px; }
-.key { min-height: 72px; font-size: var(--text-xl); font-weight: 700; border-radius: var(--radius); touch-action: manipulation; user-select: none; }
-.key:active { background: var(--color-grey-soft); }
-.key-aux { color: var(--color-ink-muted); }
-.key-ok { background: var(--color-green); color: var(--color-white); border-color: var(--color-green); font-size: var(--text-md); }
-.key-ok:disabled { background: var(--color-grey); border-color: var(--color-grey); }
-.beta-value { font-size: var(--text-xxl); font-weight: 700; font-variant-numeric: tabular-nums; }
-.m-verdict { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
-.m-verdict-icon { font-size: 9rem; line-height: 1; font-weight: 700; }
-.m-verdict.granted { color: var(--color-green); }
-.m-verdict.denied { color: var(--color-red); }
+.m-error { font-size: 1rem; color: var(--color-red); background: var(--color-red-soft); border-radius: 10px; padding: var(--space-2) var(--space-3); margin: 0; }
 
 /* Page de configuration (PC, presentateur) */
 .config { box-sizing: border-box; max-width: 1280px; margin: 0 auto; padding: var(--space-4); font-family: var(--font-sans); }
@@ -183,8 +136,90 @@ button.primary { font-size: var(--text-lg); padding: var(--space-3) var(--space-
 .cfg-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
 .cfg-grid .cfg-actions, .cfg-grid p { grid-column: 1 / -1; }
 .cfg-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.cfg-counter { font-size: var(--text-xl); font-weight: 700; font-variant-numeric: tabular-nums; }
 .cfg-ok { color: var(--color-green); background: var(--color-green-soft); border-radius: var(--radius); padding: var(--space-2) var(--space-3); margin: 0; }
 .cfg-error { color: var(--color-red); background: var(--color-red-soft); border-radius: var(--radius); padding: var(--space-2) var(--space-3); margin: 0; }
 .cfg-link { word-break: break-all; color: var(--color-ink-muted); }
 @media (max-width: 900px) { .cfg-columns, .cfg-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Enrôlement du téléphone (présentateur, avant la démo) */
+.m-btn { width: 100%; max-width: 360px; min-height: 60px; font-size: 1.1rem; font-weight: 600; background: var(--color-ink); color: var(--color-white); border-color: var(--color-ink); border-radius: 50px; }
+.m-btn:disabled { background: var(--color-grey-soft); color: var(--color-grey); border-color: var(--color-grey-soft); }
+.beta-value { font-size: var(--text-xxl); font-weight: 600; font-variant-numeric: tabular-nums; }
+.m-verdict { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
+.m-verdict-icon { font-size: 5rem; line-height: 1; }
+.m-verdict.granted { color: var(--color-green); }
+
+/* Level 2 : comparaison A / appareil mesuré, lisible au vidéoprojecteur */
+.side-wide { grid-template-rows: minmax(0, 2.6fr) minmax(0, 1fr) auto; }
+.direct-wide { grid-template-columns: minmax(0, 1fr); align-items: start; overflow: auto; }
+.panel-score { align-items: center; }
+.panel-score h2 { align-self: flex-start; }
+.panel-score .gauge-col { flex: 1; justify-content: center; min-height: 0; }
+.panel-score .gauge { max-width: 260px; }
+.panel-score .gauge-score { font-size: 3rem; margin-top: -2.2rem; }
+
+.device-compare { display: flex; flex-direction: column; gap: var(--space-2); width: 100%; min-width: 0; }
+.device-compare .values-table { border-collapse: separate; border-spacing: 0 6px; font-size: 1.35rem; table-layout: fixed; }
+.device-compare .values-table th { font-size: 0.85rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 0 var(--space-3); border: none; }
+.device-compare .values-table td { padding: 10px var(--space-3); border: none; vertical-align: middle; white-space: normal; word-break: break-word; }
+.device-compare th:nth-child(1), .device-compare td:nth-child(1) { width: 20%; font-weight: 600; }
+.device-compare th:nth-child(4), .device-compare td:nth-child(4) { width: 17%; white-space: nowrap; }
+.device-compare th:nth-child(5), .device-compare td:nth-child(5) { width: 11%; }
+.device-compare .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+.device-compare tbody td:first-child { border-radius: 10px 0 0 10px; }
+.device-compare tbody td:last-child { border-radius: 0 10px 10px 0; }
+.device-compare .cmp-same td { background: var(--color-green-soft); }
+.device-compare .cmp-diff td { background: var(--color-red-soft); }
+.device-compare .cmp-pending td { background: var(--color-bg); }
+.device-compare .cmp-same .cmp-status, .device-compare .cmp-same .num { color: var(--color-green); }
+.device-compare .cmp-diff .cmp-status, .device-compare .cmp-diff .num { color: var(--color-red); }
+.device-compare .cmp-status { font-weight: 700; }
+.device-compare .cmp-status .ok, .device-compare .cmp-status .ko { margin-right: 0.35em; font-size: 1.5rem; }
+.device-compare .cmp-mono { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 1.2rem; }
+.cmp-total { margin: 0; font-size: 1.3rem; color: var(--color-ink-muted); }
+.cmp-total strong { color: var(--color-ink); font-size: 1.8rem; }
+.cmp-cap { color: var(--color-red); font-weight: 600; }
+
+/* Level 3 : posture du téléphone vue de profil */
+.angle-dial { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: var(--space-4); align-items: center; width: 100%; height: 100%; min-height: 0; font-family: var(--font-sans); }
+.angle-dial svg { width: 100%; height: 100%; max-height: 100%; min-height: 0; }
+.dial-track { fill: none; stroke: var(--color-grey-soft); stroke-width: 3; }
+.dial-ground { stroke: var(--color-grey); stroke-width: 2; stroke-linecap: round; }
+.dial-tick { stroke: var(--color-grey); stroke-width: 2; }
+.dial-tick-label { fill: var(--color-ink-muted); font-size: 16px; font-weight: 500; }
+.dial-tolerance { fill: var(--color-green-soft); stroke: var(--color-green); stroke-width: 2; }
+.dial-expected-line { stroke: var(--color-green); stroke-width: 2; stroke-dasharray: 6 6; }
+.dial-expected-label { fill: var(--color-green); font-size: 28px; font-weight: 700; }
+.dial-phone rect { fill: var(--color-ink); transition: fill var(--transition); }
+.dial-phone circle { fill: var(--color-grey); }
+.dial-ok .dial-phone rect { fill: var(--color-green); }
+.dial-ko .dial-phone rect { fill: var(--color-red); }
+.dial-hub { fill: var(--color-ink); }
+.dial-info { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.dial-measure { display: flex; flex-direction: column; }
+.dial-caption { font-size: 0.85rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-ink-muted); }
+.dial-value { font-size: 4.5rem; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.dial-ok .dial-value { color: var(--color-green); }
+.dial-ko .dial-value { color: var(--color-red); }
+.dial-expected { font-size: 2rem; font-weight: 600; color: var(--color-green); font-variant-numeric: tabular-nums; }
+.dial-verdict { margin: 0; padding: var(--space-2) var(--space-3); border-radius: 10px; font-size: 1.3rem; font-weight: 600; background: var(--color-bg); color: var(--color-ink-muted); }
+.dial-ok .dial-verdict { background: var(--color-green-soft); color: var(--color-green); }
+.dial-ko .dial-verdict { background: var(--color-red-soft); color: var(--color-red); }
+.direct-wide { grid-template-rows: minmax(0, 1fr); }
+.direct-wide .signal { justify-content: flex-start; }
+
+/* ajustements de lisibilité du tableau (niveau 2) */
+.device-compare .values-table { table-layout: auto; font-size: 1.2rem; border-spacing: 0 4px; }
+.device-compare .values-table td { padding: 8px 12px; word-break: normal; overflow-wrap: normal; }
+.device-compare th:nth-child(1), .device-compare td:nth-child(1) { width: 1%; white-space: nowrap; }
+.device-compare th:nth-child(4), .device-compare td:nth-child(4) { width: 1%; white-space: nowrap; }
+.device-compare th:nth-child(5), .device-compare td:nth-child(5) { width: 1%; white-space: nowrap; }
+.device-compare .cmp-mono { font-size: 1.05rem; white-space: nowrap; }
+.device-compare .cmp-status .ok, .device-compare .cmp-status .ko { font-size: 1.3rem; }
+.device-compare .values-table { font-size: 1.4rem; border-spacing: 0 6px; }
+.device-compare .values-table td { padding: 12px 14px; }
+.device-compare .cmp-mono { font-size: 1.2rem; }
+.device-compare .values-table { font-size: 1.28rem; border-spacing: 0 5px; }
+.device-compare .values-table td { padding: 10px 12px; }
+.device-compare .cmp-mono { font-size: 1.1rem; }
+.hint { color: var(--color-ink-muted); font-size: 1rem; margin: 0; }

@@ -1,31 +1,124 @@
 import { useEffect, useRef, useState } from 'react';
+import type { MouseEvent } from 'react';
 import { useParams } from 'react-router-dom';
+import { Lock, MobileShell } from '../components/BankPortal';
 import { collectFingerprint } from '../capture/fingerprint';
-import { collectOrientation, requestOrientation } from '../capture/orientation';
+import { requestOrientation } from '../capture/orientation';
 import { LIVE_ORIENTATION_INTERVAL_MS } from '../../shared/types';
-import type { OrientationReading, Snapshot, Verdict } from '../../shared/types';
+import type { OrientationReading, PhoneScreen } from '../../shared/types';
 import { usePhoneSession } from '../ws';
 
+/**
+ * Page mobile : un seul écran, la demande du code PIN. Aucun verdict, aucun score, aucune
+ * mesure d'orientation n'y apparaît : l'acceptation et le rejet ne s'affichent que sur le PC,
+ * et la posture (niveau 3) est mesurée en silence pendant la saisie.
+ */
+
 const MAX_PIN = 8;
-const UNAVAILABLE =
-  "Capteur d'orientation indisponible — ouvrez la page en HTTPS et autorisez l'accès au capteur";
-const NO_CONNECTION = 'Pas de connexion — réessayez';
-const SESSION_LOST = 'Session introuvable — rescannez le QR code';
+const WINDOW_MS = 2000;
 
 type Tap = { down: number; up: number };
 
+/**
+ * Mesure d'orientation silencieuse. L'autorisation du capteur (iOS) est demandée au premier
+ * appui sur le pavé ; les ~2 dernières secondes sont gardées pour la validation du niveau 3,
+ * et l'angle est transmis au PC en direct (aiguille du cadran).
+ */
+function useSilentOrientation(onLive: (reading: OrientationReading) => void) {
+  const [armed, setArmed] = useState(false);
+  const asked = useRef(false);
+  const buffer = useRef<{ t: number; r: OrientationReading }[]>([]);
+  const onLiveRef = useRef(onLive);
+  onLiveRef.current = onLive;
+
+  useEffect(() => {
+    if (!armed) return;
+    let lastSent = -Infinity;
+    const onEvent = (e: Event): void => {
+      const { alpha, beta, gamma } = e as DeviceOrientationEvent;
+      if (beta === null || beta === undefined || !Number.isFinite(beta)) return;
+      const now = performance.now();
+      const r = { alpha: alpha ?? 0, beta, gamma: gamma ?? 0 };
+      buffer.current.push({ t: now, r });
+      while (buffer.current.length > 0 && now - buffer.current[0].t > WINDOW_MS) buffer.current.shift();
+      if (now - lastSent < LIVE_ORIENTATION_INTERVAL_MS) return;
+      lastSent = now;
+      onLiveRef.current(r);
+    };
+    window.addEventListener('deviceorientation', onEvent);
+    return () => window.removeEventListener('deviceorientation', onEvent);
+  }, [armed]);
+
+  /** Demande l'autorisation (iOS : seulement depuis un geste utilisateur). */
+  const arm = (): void => {
+    if (asked.current) return;
+    asked.current = true;
+    void requestOrientation().then((r) => {
+      if (r === 'granted') setArmed(true);
+      else asked.current = false; // nouvel essai au prochain appui
+    });
+  };
+  const armRef = useRef(arm);
+  armRef.current = arm;
+
+  useEffect(() => {
+    // sans autorisation à demander (Android, etc.) : le capteur démarre dès l'ouverture de la page
+    const ctor =
+      typeof DeviceOrientationEvent === 'undefined'
+        ? null
+        : (DeviceOrientationEvent as unknown as { requestPermission?: unknown });
+    if (ctor && typeof ctor.requestPermission !== 'function') {
+      asked.current = true;
+      setArmed(true);
+      return;
+    }
+    // iOS : la demande d'autorisation n'est acceptée que dans un « clic » ou un « touchend »
+    // (pas dans pointerdown) ; le premier contact avec la page, n'importe où, la déclenche
+    const onTap = (): void => armRef.current();
+    const events = ['click', 'touchend'] as const;
+    for (const ev of events) window.addEventListener(ev, onTap, { capture: true });
+    return () => {
+      for (const ev of events) window.removeEventListener(ev, onTap, { capture: true });
+    };
+  }, []);
+
+  return {
+    arm,
+    readings: (): OrientationReading[] => buffer.current.map((b) => b.r),
+  };
+}
+
 function Keypad({
-  onSend,
+  onSubmit,
   connected,
+  again,
+  onPad,
 }: {
-  onSend: (pin: string, taps: Tap[]) => Promise<boolean>;
+  onSubmit: (pin: string, taps: Tap[]) => Promise<boolean>;
   connected: boolean;
+  /** Étape suivante : même pavé, demande reformulée (vérification supplémentaire). */
+  again: boolean;
+  /** Reflet pour le PC : nombre de digits entered et touche pressée (jamais les chiffres). */
+  onPad: (pad: { digits: number; pressed: string | null }) => void;
 }) {
   const [digits, setDigits] = useState('');
   const [busy, setBusy] = useState(false);
   const [unsent, setUnsent] = useState(false);
+  const [pressed, setPressed] = useState<string | null>(null);
   const taps = useRef<Tap[]>([]);
   const pending = useRef<number | null>(null);
+  const flash = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    onPad({ digits: digits.length, pressed });
+  }, [digits.length, pressed, onPad]);
+
+  /** Allume brièvement la touche (reflet sur le PC). */
+  const lit = (k: string): void => {
+    setPressed(k);
+    if (flash.current) clearTimeout(flash.current);
+    flash.current = setTimeout(() => setPressed(null), 220);
+  };
 
   const press = (d: string): void => {
     if (digits.length >= MAX_PIN) return;
@@ -36,6 +129,7 @@ function Keypad({
   };
 
   const erase = (): void => {
+    lit('erase');
     taps.current.pop();
     setDigits((v) => v.slice(0, -1));
   };
@@ -43,260 +137,215 @@ function Keypad({
   const validate = async (): Promise<void> => {
     if (digits.length === 0 || busy || !connected) return;
     setBusy(true);
-    const sent = await onSend(digits, taps.current.slice());
+    const sent = await onSubmit(digits, taps.current.slice());
     setBusy(false);
     setUnsent(!sent);
-    if (!sent) return; // PIN conserve : reessayer une fois reconnecte
+    if (!sent) return; // PIN conservé : réessayer
     taps.current = [];
     setDigits('');
   };
 
+  const digitProps = (d: string) => ({
+    onPointerDown: () => {
+      pending.current = performance.now();
+      lit(d);
+    },
+    onPointerUp: () => {
+      press(d);
+      navigator.vibrate?.(6); // léger retour haptique (Android)
+    },
+    onClick: (e: MouseEvent) => {
+      // clavier / lecteur d'écran : pas d'événement pointeur
+      if (e.detail === 0) {
+        press(d);
+        lit(d);
+      }
+    },
+  });
+
   return (
     <div className="pin">
-      <h1 className="m-title">Saisissez votre code PIN</h1>
-      <div className="pin-dots" role="status" aria-label={`${digits.length} chiffres saisis`}>
+      <div className="pin-head">
+        <h1>{again ? 'Enter your PIN again' : 'Enter your PIN'}</h1>
+        <p>{again ? 'Additional verification' : 'To confirm your identity'}</p>
+      </div>
+      <div className={unsent ? 'pin-dots shake' : 'pin-dots'} role="status" aria-label={`${digits.length} digits entered`}>
         {Array.from({ length: Math.max(4, digits.length) }, (_, i) => (
           <span key={i} className={i < digits.length ? 'dot filled' : 'dot'} />
         ))}
       </div>
-      {unsent && (
-        <p className="m-error" role="alert">
-          {NO_CONNECTION}
-        </p>
-      )}
+      <p className="pin-error" role="alert" aria-hidden={!unsent}>
+        {unsent ? 'Try again' : ''}
+      </p>
       <div className="keypad">
         {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
-          <button
-            key={d}
-            type="button"
-            className="key"
-            onPointerDown={() => {
-              pending.current = performance.now();
-            }}
-            onPointerUp={() => press(d)}
-            onClick={(e) => {
-              // clavier / lecteur d'ecran : pas d'evenement pointeur
-              if (e.detail === 0) press(d);
-            }}
-          >
+          <button key={d} type="button" className="key" {...digitProps(d)}>
             {d}
           </button>
         ))}
-        <button type="button" className="key key-aux" aria-label="Effacer" onClick={erase}>
-          ⌫
-        </button>
-        <button
-          type="button"
-          className="key"
-          onPointerDown={() => {
-            pending.current = performance.now();
-          }}
-          onPointerUp={() => press('0')}
-          onClick={(e) => {
-            if (e.detail === 0) press('0');
-          }}
-        >
+        <span aria-hidden="true" />
+        <button type="button" className="key" {...digitProps('0')}>
           0
         </button>
-        <button
-          type="button"
-          className="key key-ok"
-          onClick={() => void validate()}
-          disabled={busy || !connected}
-        >
-          Valider
+        <button type="button" className="key key-aux" aria-label="Delete" onClick={erase}>
+          ⌫
         </button>
       </div>
-    </div>
-  );
-}
-
-function Posture({
-  onSend,
-  onLive,
-  connected,
-}: {
-  onSend: (readings: OrientationReading[]) => boolean;
-  onLive: (reading: OrientationReading) => void;
-  connected: boolean;
-}) {
-  const [perm, setPerm] = useState<'idle' | 'granted' | 'failed'>('idle');
-  const [beta, setBeta] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [empty, setEmpty] = useState(false);
-  const [unsent, setUnsent] = useState(false);
-  const onLiveRef = useRef(onLive);
-  onLiveRef.current = onLive;
-
-  useEffect(() => {
-    if (perm !== 'granted') return;
-    // l'aiguille du PC suit le telephone : envoi limite a ~10 par seconde
-    let lastSent = -Infinity;
-    const onEvent = (e: Event): void => {
-      const { alpha, beta: b, gamma } = e as DeviceOrientationEvent;
-      if (b === null || b === undefined || !Number.isFinite(b)) return;
-      setBeta(b);
-      const now = performance.now();
-      if (now - lastSent < LIVE_ORIENTATION_INTERVAL_MS) return;
-      lastSent = now;
-      onLiveRef.current({ alpha: alpha ?? 0, beta: b, gamma: gamma ?? 0 });
-    };
-    window.addEventListener('deviceorientation', onEvent);
-    return () => window.removeEventListener('deviceorientation', onEvent);
-  }, [perm]);
-
-  const authorize = async (): Promise<void> => {
-    const result = await requestOrientation();
-    setPerm(result === 'granted' ? 'granted' : 'failed');
-  };
-
-  const validate = async (): Promise<void> => {
-    setBusy(true);
-    setEmpty(false);
-    setUnsent(false);
-    const readings = await collectOrientation(2000);
-    setBusy(false);
-    if (readings.length === 0) {
-      setEmpty(true);
-      return;
-    }
-    if (!onSend(readings)) setUnsent(true);
-  };
-
-  if (perm === 'failed') {
-    return (
-      <div className="posture">
-        <h1 className="m-title">Posture</h1>
-        <p className="m-error" role="alert">
-          {UNAVAILABLE}
-        </p>
-        <button type="button" className="m-btn" onClick={() => void authorize()}>
-          Réessayer
-        </button>
-      </div>
-    );
-  }
-
-  if (perm === 'idle') {
-    return (
-      <div className="posture">
-        <h1 className="m-title">Tenez le téléphone comme d&apos;habitude</h1>
-        <button type="button" className="m-btn" onClick={() => void authorize()}>
-          Autoriser le capteur
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="posture">
-      <h1 className="m-title">Gardez la posture, puis validez</h1>
-      <div className="beta-value" aria-label="angle beta">
-        {beta === null ? '—' : `${Math.round(beta)}°`}
-      </div>
-      {empty && (
-        <p className="m-error" role="alert">
-          Aucune mesure reçue, réessayez
-        </p>
-      )}
-      {unsent && (
-        <p className="m-error" role="alert">
-          {NO_CONNECTION}
-        </p>
-      )}
       <button
         type="button"
-        className="m-btn"
+        className="pin-submit"
         onClick={() => void validate()}
-        disabled={busy || !connected}
+        disabled={busy || !connected || digits.length === 0}
       >
-        {busy ? 'Mesure en cours…' : 'Valider'}
+        {busy ? (
+          <>
+            <span className="spinner" aria-hidden="true" /> Verifying…
+          </>
+        ) : (
+          'Confirm'
+        )}
       </button>
     </div>
   );
 }
 
-function VerdictView({ verdict, granted }: { verdict: Verdict; granted: boolean }) {
+type Phase = 'input' | 'checking' | 'step';
+
+/** Screen intermédiaire neutre : ni résultat, ni raison, seulement l'avancement. */
+function Interstitial({ phase }: { phase: 'checking' | 'step' }) {
   return (
-    <div className={`m-verdict ${granted ? 'granted' : 'denied'}`} role="status">
-      <div className="m-verdict-icon" aria-hidden="true">
-        {granted ? '✓' : '✗'}
+    <div className="m-inter" role="status" key={phase}>
+      <div className={phase === 'checking' ? 'inter-ring' : 'inter-ring step'} aria-hidden="true">
+        {phase === 'step' && <Lock />}
       </div>
-      <h1 className="m-title">{granted ? 'Accès accordé' : 'Accès refusé'}</h1>
-      <p className="m-sub">Score : {Math.round(verdict.score)} / 100</p>
+      <h1>{phase === 'checking' ? 'Verifying…' : 'Additional verification'}</h1>
+      <p>
+        {phase === 'checking'
+          ? 'Please wait a moment.'
+          : 'For your security, please confirm your identity again.'}
+      </p>
     </div>
   );
 }
 
-/** Echec du niveau 2 : le telephone ne revele pas la raison (PIN ou appareil), le PC l'affiche. */
-function RefusedNotice({ snapshot }: { snapshot: Snapshot }) {
-  const v = snapshot.lastVerdict;
-  if (!v || v.granted || v.level !== 2) return null;
-  return (
-    <p className="m-error" role="alert">
-      Vérification refusée, regardez l&apos;écran
-    </p>
-  );
-}
-
-function Content({
-  snapshot,
-  send,
-  connected,
-}: {
-  snapshot: Snapshot | null;
-  send: ReturnType<typeof usePhoneSession>['send'];
-  connected: boolean;
-}) {
-  if (snapshot === null) return <p className="m-sub">Connexion à la session…</p>;
-  const { state } = snapshot;
-  if (state.status === 'granted') return <VerdictView verdict={state.verdict} granted />;
-  if (state.status === 'blocked') return <VerdictView verdict={state.verdict} granted={false} />;
-  if (state.level === 2) {
-    return (
-      <Keypad
-        connected={connected}
-        onSend={async (pin, taps) =>
-          send({ type: 'pin', pin, fingerprint: await collectFingerprint(), taps })
-        }
-      />
-    );
-  }
-  if (state.level === 3) {
-    return (
-      <>
-        <RefusedNotice snapshot={snapshot} />
-        <Posture
-          connected={connected}
-          onSend={(readings) => send({ type: 'orientation', readings })}
-          onLive={(reading) => {
-            send({ type: 'orientationLive', ...reading });
-          }}
-        />
-      </>
-    );
-  }
-  return <h1 className="m-title">Saisissez le mot de passe sur l&apos;ordinateur</h1>;
-}
+const STEP_MS = 1800;
+const CHECK_TIMEOUT_MS = 5000;
 
 export function Mobile() {
   const { id = '' } = useParams();
   const { snapshot, connected, lost, send } = usePhoneSession(id);
+  const levelRef = useRef<number | undefined>(undefined);
+  levelRef.current = snapshot?.level;
+  const [phase, setPhase] = useState<Phase>('input');
+  const [pad, setPad] = useState<{ digits: number; pressed: string | null }>({ digits: 0, pressed: null });
+  const sentAt = useRef<number | undefined>(undefined); // niveau au moment de l'envoi
+
+  const sensor = useSilentOrientation((reading) => {
+    // l'aiguille du PC n'a de sens qu'au niveau 3
+    if (levelRef.current === 3) send({ type: 'orientationLive', ...reading });
+  });
+
+  const level = snapshot?.level;
+  const status = snapshot?.state.status;
+
+  // reflet de l'écran pour le PC (aide à la compréhension de la démo)
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  const screen: PhoneScreen =
+    snapshot === null ? 'connecting' : status !== 'pending' ? 'done' : phase === 'input' ? 'pin' : phase;
+  useEffect(() => {
+    if (lost || !connected) return;
+    sendRef.current({
+      type: 'phoneView',
+      screen,
+      digits: screen === 'pin' ? pad.digits : 0,
+      pressed: screen === 'pin' ? pad.pressed : null,
+      again: level === 3,
+    });
+  }, [screen, pad.digits, pad.pressed, level, connected, lost]);
+
+  // envoi accepté -> « vérification en cours » ; réponse du serveur -> étape suivante ou fin
+  useEffect(() => {
+    if (phase !== 'checking') return;
+    if (status !== undefined && status !== 'pending') {
+      setPhase('input');
+      return;
+    }
+    if (level !== undefined && level !== sentAt.current) {
+      setPhase('step');
+      return;
+    }
+    const t = setTimeout(() => setPhase('input'), CHECK_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [phase, level, status]);
+
+  useEffect(() => {
+    if (phase !== 'step') return;
+    const t = setTimeout(() => setPhase('input'), STEP_MS);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  // saut de niveau ou remise à zéro par le présentateur : on revient à la saisie
+  useEffect(() => {
+    if (phase === 'step' && status !== 'pending') setPhase('input');
+  }, [phase, status]);
+
   if (lost) {
     return (
-      <main className="mobile">
-        <p className="m-error" role="alert">
-          {SESSION_LOST}
-        </p>
-      </main>
+      <MobileShell>
+        <p className="m-note">Session not found. Please scan the QR code again.</p>
+      </MobileShell>
     );
   }
+
+  // aucun état à l'écran : le résultat se lit sur le PC
+  if (snapshot === null || snapshot.state.status !== 'pending') {
+    return (
+      <MobileShell>
+        {snapshot === null ? (
+          <p className="m-note">
+            <span className="spinner dark" aria-hidden="true" /> Connecting…
+          </p>
+        ) : (
+          <div className="m-done">
+            <Lock />
+            <p className="m-note">Look at the screen</p>
+          </div>
+        )}
+      </MobileShell>
+    );
+  }
+
+  if (phase !== 'input') {
+    return (
+      <MobileShell>
+        <Interstitial phase={phase} />
+      </MobileShell>
+    );
+  }
+
   return (
-    <main className="mobile">
-      <div className={connected ? 'conn ok' : 'conn'} role="status">
-        {connected ? 'Connecté' : 'Reconnexion…'}
-      </div>
-      <Content snapshot={snapshot} send={send} connected={connected} />
-    </main>
+    <MobileShell>
+      <Keypad
+        connected={connected}
+        again={snapshot.level === 3}
+        onPad={setPad}
+        onSubmit={async (pin, taps) => {
+          const lvl = levelRef.current;
+          let sent = true;
+          if (lvl === 2) sent = send({ type: 'pin', pin, fingerprint: await collectFingerprint(), taps });
+          else if (lvl === 3) {
+            const readings = sensor.readings();
+            if (readings.length === 0) return false; // capteur muet : même message neutre
+            sent = send({ type: 'orientation', pin, readings });
+          } else return true; // niveau 1 : la saisie se fait sur le PC, le pavé est ignoré
+          if (sent) {
+            sentAt.current = lvl;
+            setPhase('checking');
+          }
+          return sent;
+        }}
+      />
+    </MobileShell>
   );
 }

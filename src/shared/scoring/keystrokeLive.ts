@@ -54,7 +54,7 @@ export function buildExpectedBars(
 }
 
 /**
- * Score provisoire, position par position : la barre i est comparee a expected[i] avec la meme
+ * Provisional score, position par position : la barre i est comparee a expected[i] avec la meme
  * formule que scoreKeystroke (memes penalites, meme zone morte, flight de la 1re touche exclu).
  * Pour un mot de passe bien tape et complet, le score egale celui du serveur.
  */

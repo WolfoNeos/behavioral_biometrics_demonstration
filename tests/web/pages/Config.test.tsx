@@ -27,6 +27,18 @@ const baseProfile: Profile = { password: 'secret', pin: '1234', keystroke: null,
 const events: KeyEvent[] = [{ key: 's', down: 0, up: 50 }];
 
 let profile: Profile;
+let network = {
+  baseUrl: 'https://192.168.1.20:5173',
+  source: 'auto',
+  https: true,
+  candidates: [
+    { name: 'Wi-Fi', address: '192.168.1.20', url: 'https://192.168.1.20:5173', active: true, covered: true },
+    { name: 'Hotspot', address: '192.168.43.10', url: 'https://192.168.43.10:5173', active: false, covered: false },
+  ],
+  certValidTo: null,
+  covered: true,
+  certCommand: 'npm run cert -- --force',
+};
 let putThresholdsStatus = 200;
 const calls: { method: string; url: string; body?: unknown }[] = [];
 
@@ -46,14 +58,21 @@ const handler = async (url: string, init?: RequestInit): Promise<Response> => {
   }
   if (url === '/api/thresholds' && method === 'GET') return json(DEFAULT_THRESHOLDS);
   if (url === '/api/thresholds' && method === 'PUT') {
-    return putThresholdsStatus === 200 ? json(body) : json({ error: 'seuils invalides ou incomplets' }, 400);
+    return putThresholdsStatus === 200 ? json(body) : json({ error: 'invalid or incomplete thresholds' }, 400);
   }
   if (url === '/api/enroll/keystroke') return json(profile);
   if (url === '/api/session') return json({ id: 'abc', url: 'http://192.168.1.20:5173/m/abc' });
+  if (url === '/api/network' && method === 'GET') return json(network);
+  if (url === '/api/network' && method === 'PUT') {
+    network = { ...network, baseUrl: body.baseUrl, source: 'manual' };
+    return json(network);
+  }
+  if (url === '/api/network/detect') return json({ ...network, source: 'auto' });
   return json({}, 404);
 };
 
 beforeEach(() => {
+  network = { ...network, baseUrl: 'https://192.168.1.20:5173', source: 'auto', covered: true };
   profile = { ...baseProfile };
   putThresholdsStatus = 200;
   calls.length = 0;
@@ -75,7 +94,7 @@ const renderPage = () =>
   );
 
 async function enter(text: string) {
-  const field = screen.getByLabelText('Saisie du mot de passe') as HTMLInputElement;
+  const field = screen.getByLabelText('Password entry') as HTMLInputElement;
   fireEvent.change(field, { target: { value: text } });
   await act(async () => {
     onDone?.(events);
@@ -102,14 +121,14 @@ describe('Config', () => {
     await waitFor(() => expect(enrollCalls()).toHaveLength(1));
     expect((enrollCalls()[0].body as { samples: unknown[] }).samples).toHaveLength(10);
     expect(field.value).toBe('');
-    expect(await screen.findByText(/Enrôlement terminé/)).toBeInTheDocument();
+    expect(await screen.findByText(/Enrollment complete/)).toBeInTheDocument();
   });
 
   it('refuse une saisie differente du mot de passe', async () => {
     renderPage();
     await screen.findByText('0 / 10');
     const field = await enter('mauvais');
-    expect(await screen.findByRole('alert')).toHaveTextContent(/ne correspond pas/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/does not match/);
     expect(screen.getByText('0 / 10')).toBeInTheDocument();
     expect(field.value).toBe('');
   });
@@ -118,13 +137,13 @@ describe('Config', () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText('0 / 10');
-    const n = screen.getByLabelText("Nombre d'échantillons d'enrôlement");
+    const n = screen.getByLabelText("Number of enrollment samples");
     await user.clear(n);
     await user.type(n, '5');
-    const k = screen.getByLabelText('Frappe : seuil d’acceptation');
+    const k = screen.getByLabelText('Typing: acceptance threshold');
     await user.clear(k);
     await user.type(k, '70');
-    await user.click(screen.getByRole('button', { name: 'Enregistrer les seuils' }));
+    await user.click(screen.getByRole('button', { name: 'Save thresholds' }));
     expect(await screen.findByText('0 / 5')).toBeInTheDocument();
     expect(thresholdPuts()[0].body).toEqual({
       ...DEFAULT_THRESHOLDS,
@@ -138,41 +157,41 @@ describe('Config', () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText('0 / 10');
-    await user.click(screen.getByRole('button', { name: 'Enregistrer les seuils' }));
-    expect(await screen.findByText(/seuils invalides ou incomplets/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save thresholds' }));
+    expect(await screen.findByText(/invalid or incomplete thresholds/)).toBeInTheDocument();
   });
 
   it('restaure les valeurs par defaut', async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText('0 / 10');
-    const n = screen.getByLabelText("Nombre d'échantillons d'enrôlement");
+    const n = screen.getByLabelText("Number of enrollment samples");
     await user.clear(n);
     await user.type(n, '5');
-    await user.click(screen.getByRole('button', { name: 'Valeurs par défaut' }));
+    await user.click(screen.getByRole('button', { name: 'Default values' }));
     await waitFor(() => expect(thresholdPuts()).toHaveLength(1));
     expect(thresholdPuts()[0].body).toEqual(DEFAULT_THRESHOLDS);
-    expect(screen.getByLabelText("Nombre d'échantillons d'enrôlement")).toHaveValue(10);
+    expect(screen.getByLabelText("Number of enrollment samples")).toHaveValue(10);
   });
 
   it('le recalibrage rapide demande 3 echantillons', async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText('0 / 10');
-    await user.click(screen.getByRole('button', { name: 'Recalibrage rapide' }));
+    await user.click(screen.getByRole('button', { name: 'Quick recalibration' }));
     expect(screen.getByText('0 / 3')).toBeInTheDocument();
     for (let i = 0; i < 3; i++) await enter('secret');
     await waitFor(() => expect(enrollCalls()).toHaveLength(1));
     expect((enrollCalls()[0].body as { samples: unknown[] }).samples).toHaveLength(3);
   });
 
-  it('Recommencer remet le compteur a zero', async () => {
+  it('Restart remet le compteur a zero', async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText('0 / 10');
     await enter('secret');
     expect(await screen.findByText('1 / 10')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: "Recommencer l'enrôlement" }));
+    await user.click(screen.getByRole('button', { name: "Restart enrollment" }));
     expect(screen.getByText('0 / 10')).toBeInTheDocument();
   });
 
@@ -182,11 +201,11 @@ describe('Config', () => {
     const before = { ...profile };
     renderPage();
     await screen.findByText('0 / 10');
-    const pin = screen.getByLabelText('Code PIN');
+    const pin = screen.getByLabelText('PIN code');
     await waitFor(() => expect(pin).toHaveValue('1234'));
     await user.clear(pin);
     await user.type(pin, '9876');
-    await user.click(screen.getByRole('button', { name: "Enregistrer l'identité" }));
+    await user.click(screen.getByRole('button', { name: "Save identity" }));
     await waitFor(() => expect(calls.some((c) => c.method === 'PUT' && c.url === '/api/profile')).toBe(true));
     expect(calls.find((c) => c.method === 'PUT' && c.url === '/api/profile')?.body).toEqual({
       ...before,
@@ -217,18 +236,18 @@ describe('Config', () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     renderPage();
     await screen.findByText('0 / 10');
-    expect(screen.queryByText(/Téléphone enregistré/)).toBeNull();
+    expect(screen.queryByText(/Phone enrolled/)).toBeNull();
     profile = { ...baseProfile, fingerprint: fp, beta: 42 };
     await act(async () => {
       vi.advanceTimersByTime(2000);
     });
-    expect(await screen.findByText('Téléphone enregistré ✓ (inclinaison 42°)')).toBeInTheDocument();
+    expect(await screen.findByText('Phone enrolled ✓ (tilt 42°)')).toBeInTheDocument();
   });
 
   it('signale une frappe deja enrolee apres rechargement', async () => {
     profile = { ...baseProfile, keystroke: { mean: {}, std: {}, samples: 7 } };
     renderPage();
-    expect(await screen.findByText(/Frappe déjà enrôlée \(7 échantillons\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/Typing already enrolled \(7 samples\)/)).toBeInTheDocument();
     expect(screen.getByText('0 / 10')).toBeInTheDocument();
   });
 
@@ -236,14 +255,14 @@ describe('Config', () => {
     const user = userEvent.setup();
     profile = { ...baseProfile, keystroke: { mean: {}, std: {}, samples: 7 } };
     renderPage();
-    expect(await screen.findByText(/Frappe déjà enrôlée/)).toBeInTheDocument();
-    const pw = screen.getByLabelText('Mot de passe');
+    expect(await screen.findByText(/Typing already enrolled/)).toBeInTheDocument();
+    const pw = screen.getByLabelText('Password');
     await waitFor(() => expect(pw).toHaveValue('secret'));
     await user.clear(pw);
     await user.type(pw, 'nouveau');
-    await user.click(screen.getByRole('button', { name: "Enregistrer l'identité" }));
-    expect(await screen.findByText('Identité enregistrée')).toBeInTheDocument();
-    expect(screen.queryByText(/déjà enrôlée/)).toBeNull();
+    await user.click(screen.getByRole('button', { name: "Save identity" }));
+    expect(await screen.findByText('Identity saved')).toBeInTheDocument();
+    expect(screen.queryByText(/already enrolled/)).toBeNull();
     expect(profile.keystroke).toBeNull();
   });
 
@@ -251,8 +270,8 @@ describe('Config', () => {
 
     renderPage();
     await screen.findByText('0 / 10');
-    expect(screen.queryByText(/déjà enrôlée/)).toBeNull();
-    expect(screen.getByText(/doit correspondre au mot de passe enregistré/)).toBeInTheDocument();
+    expect(screen.queryByText(/already enrolled/)).toBeNull();
+    expect(screen.getByText(/must match the saved password/)).toBeInTheDocument();
   });
 
   it('un changement de mot de passe remet le compteur a zero', async () => {
@@ -268,11 +287,11 @@ describe('Config', () => {
     await screen.findByText('0 / 4');
     for (let i = 0; i < 3; i++) await enter('secret');
     expect(await screen.findByText('3 / 4')).toBeInTheDocument();
-    const pw = screen.getByLabelText('Mot de passe');
+    const pw = screen.getByLabelText('Password');
     await waitFor(() => expect(pw).toHaveValue('secret'));
     await user.clear(pw);
     await user.type(pw, 'nouveau');
-    await user.click(screen.getByRole('button', { name: "Enregistrer l'identité" }));
+    await user.click(screen.getByRole('button', { name: "Save identity" }));
     expect(await screen.findByText('0 / 4')).toBeInTheDocument();
     for (let i = 0; i < 4; i++) await enter('nouveau');
     await waitFor(() => expect(enrollCalls()).toHaveLength(1));
@@ -290,12 +309,12 @@ describe('Config', () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText('0 / 10');
-    await user.click(screen.getByRole('button', { name: 'Recalibrage rapide' }));
+    await user.click(screen.getByRole('button', { name: 'Quick recalibration' }));
     for (let i = 0; i < 3; i++) await enter('secret');
     expect(await screen.findByText(/boom/)).toBeInTheDocument();
     fail = false;
     await enter('secret');
-    expect(await screen.findByText(/Enrôlement terminé/)).toBeInTheDocument();
+    expect(await screen.findByText(/Enrollment complete/)).toBeInTheDocument();
     expect(screen.queryByRole('alert')).toBeNull();
     expect((enrollCalls().at(-1)!.body as { samples: unknown[] }).samples).toHaveLength(3);
   });
@@ -318,11 +337,11 @@ describe('Config', () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText('0 / 10');
-    await user.click(screen.getByRole('button', { name: 'Recalibrage rapide' }));
+    await user.click(screen.getByRole('button', { name: 'Quick recalibration' }));
     for (let i = 0; i < 5; i++) await enter('secret');
     expect(enrollCalls()).toHaveLength(1);
     await act(async () => release());
-    expect(await screen.findByText(/Enrôlement terminé/)).toBeInTheDocument();
+    expect(await screen.findByText(/Enrollment complete/)).toBeInTheDocument();
     expect(enrollCalls()).toHaveLength(1);
   });
 
@@ -343,22 +362,84 @@ describe('Config', () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText('0 / 10');
-    await user.click(screen.getByRole('button', { name: 'Recalibrage rapide' }));
+    await user.click(screen.getByRole('button', { name: 'Quick recalibration' }));
     for (let i = 0; i < 3; i++) await enter('secret');
-    const pw = screen.getByLabelText('Mot de passe');
+    const pw = screen.getByLabelText('Password');
     await waitFor(() => expect(pw).toHaveValue('secret'));
     await user.clear(pw);
     await user.type(pw, 'nouveau');
-    await user.click(screen.getByRole('button', { name: "Enregistrer l'identité" }));
+    await user.click(screen.getByRole('button', { name: "Save identity" }));
     expect(await screen.findByText('0 / 3')).toBeInTheDocument();
     await act(async () => release());
-    expect(screen.queryByText(/Enrôlement terminé/)).toBeNull();
+    expect(screen.queryByText(/Enrollment complete/)).toBeNull();
     expect(screen.getByText('0 / 3')).toBeInTheDocument();
   });
 
   it('a un lien retour vers la demo', async () => {
     renderPage();
     await screen.findByText('0 / 10');
-    expect(within(document.body).getByRole('link', { name: /démo/i })).toHaveAttribute('href', '/');
+    expect(within(document.body).getByRole('link', { name: /demo/i })).toHaveAttribute('href', '/');
+  });
+});
+
+describe('Config : réseau (changement de wifi)', () => {
+  it('affiche l’adresse des QR et les réseaux détectés', async () => {
+    renderPage();
+    expect(await screen.findByTestId('net-url')).toHaveTextContent('https://192.168.1.20:5173');
+    expect(screen.getByText('Hotspot')).toBeInTheDocument();
+    expect(screen.getByText('Certificate to regenerate')).toBeInTheDocument();
+  });
+
+  it('« Use » change l’adresse et régénère le QR d’enrôlement', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId('net-url');
+    await user.click(screen.getByRole('button', { name: 'Use' }));
+    await waitFor(() => expect(screen.getByTestId('net-url')).toHaveTextContent('https://192.168.43.10:5173'));
+    expect(calls.some((c) => c.method === 'PUT' && c.url === '/api/network' && (c.body as { baseUrl: string }).baseUrl === 'https://192.168.43.10:5173')).toBe(true);
+    expect(await screen.findByText(/now point to the new network/)).toBeInTheDocument();
+  });
+
+  it('adresse manuelle appliquée', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId('net-url');
+    await user.type(screen.getByLabelText('Manual address'), '10.1.2.3');
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT' && c.url === '/api/network')).toBe(true));
+  });
+
+  it('avertit quand le certificat ne couvre pas l’adresse', async () => {
+    network = { ...network, covered: false };
+    renderPage();
+    expect(await screen.findByRole('alert')).toHaveTextContent(/HTTPS certificate does not cover/);
+    expect(screen.getByText('npm run cert -- --force')).toBeInTheDocument();
+  });
+});
+
+describe('Config : écran de réussite', () => {
+  it('modifie le message et les opérations puis enregistre', async () => {
+    const user = userEvent.setup();
+    let saved: Record<string, unknown> | null = null;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === '/api/welcome' && init?.method === 'PUT') {
+          saved = JSON.parse(init.body as string);
+          return json(saved);
+        }
+        if (url === '/api/welcome') return json({});
+        return handler(url, init);
+      }),
+    );
+    renderPage();
+    const notice = await screen.findByLabelText('Advisor message');
+    await user.clear(notice);
+    await user.type(notice, 'Blague du jour');
+    await user.click(screen.getByRole('button', { name: 'Delete transaction 1' }));
+    await user.click(screen.getByRole('button', { name: '+ Add a transaction' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Success screen saved')).toBeInTheDocument();
+    expect((saved as unknown as { notice: string }).notice).toBe('Blague du jour');
   });
 });

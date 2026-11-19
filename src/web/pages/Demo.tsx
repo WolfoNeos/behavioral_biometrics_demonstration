@@ -1,31 +1,36 @@
-import QRCode from 'qrcode';
 import { useEffect, useRef, useState } from 'react';
-import type { FailReason, KeyEvent, LastVerdict, Level, Snapshot, Thresholds, Verdict } from '../../shared/types';
-import { attachKeystrokeCapture } from '../capture/keystroke';
+import type { FailReason, KeyEvent, LastVerdict, Level, Snapshot, Thresholds } from '../../shared/types';
 import { AngleDial } from '../components/AngleDial';
+import { LoginForm, PortalShell, StepUp, Suspended, Welcome } from '../components/BankPortal';
+import { PhoneMirror } from '../components/PhoneMirror';
 import { Barcode } from '../components/Barcode';
+import { ConsoleHeader } from '../components/ConsoleHeader';
+import { SessionRecap } from '../components/SessionRecap';
 import { ControlBar } from '../components/ControlBar';
 import { DeviceTable, FIELD_LABELS } from '../components/DeviceTable';
 import { Gauge } from '../components/Gauge';
 import { ThresholdChart } from '../components/ThresholdChart';
-import { VerdictCard } from '../components/VerdictCard';
 import { liveView, rowsFromLive, rowsFromPerKey, summarize } from '../components/keystrokeRows';
 import type { KeyRow } from '../components/keystrokeRows';
+import { angleScore } from '../../shared/scoring/orientation';
+import { buildRecap } from '../../shared/trust';
+import { DEFAULT_WELCOME, sanitizeWelcome } from '../../shared/welcome';
+import type { WelcomeContent } from '../../shared/welcome';
 import { useSession } from '../ws';
 import type { ClientMessage } from '../ws';
 
 type Send = (msg: ClientMessage) => void;
 
 const SIGNAL_NAME: Record<Level, string> = {
-  1: 'Dynamique de frappe',
-  2: "Empreinte de l'appareil",
-  3: 'Posture du téléphone',
+  1: 'Keystroke dynamics',
+  2: "Device fingerprint",
+  3: 'Phone posture',
 };
 
 const REASON_LABEL: Record<FailReason, string> = {
-  'password incorrect': 'Mot de passe incorrect',
-  'PIN incorrect': 'PIN incorrect',
-  'signal hors seuil': 'Signal hors seuil',
+  'password incorrect': 'Wrong password',
+  'PIN incorrect': 'Wrong PIN',
+  'signal out of range': 'Signal out of range',
 };
 
 function isTextTarget(t: EventTarget | null): boolean {
@@ -46,89 +51,10 @@ function useGodMode(send: Send): void {
   }, [send]);
 }
 
-type Progress = (events: KeyEvent[]) => void;
-
-function LoginForm({
-  send,
-  onProgress,
-  onSubmit,
-}: {
-  send: Send;
-  onProgress: Progress;
-  onSubmit: Progress;
-}) {
-  const pwd = useRef<HTMLInputElement>(null);
-  const sendRef = useRef(send);
-  sendRef.current = send;
-  const progressRef = useRef(onProgress);
-  progressRef.current = onProgress;
-  const submitRef = useRef(onSubmit);
-  submitRef.current = onSubmit;
-
-  useEffect(() => {
-    const input = pwd.current;
-    if (!input) return;
-    const detach = attachKeystrokeCapture(
-      input,
-      (events) => {
-        sendRef.current({ type: 'keystroke', events, password: input.value });
-        input.value = '';
-        submitRef.current(events);
-      },
-      (events) => progressRef.current(events),
-    );
-    return () => {
-      detach();
-      // formulaire retire (saut de niveau, verdict) : plus de frappe en cours
-      progressRef.current([]);
-    };
-  }, []);
-
-  return (
-    <form className="login-form" onSubmit={(e) => e.preventDefault()}>
-      <h2>Connexion</h2>
-      <label>
-        Identifiant
-        <input type="text" name="id" autoComplete="off" />
-      </label>
-      <label>
-        Mot de passe
-        <input ref={pwd} type="password" name="password" autoComplete="off" />
-      </label>
-      <p className="hint">Tapez le mot de passe puis appuyez sur Entrée.</p>
-    </form>
-  );
-}
-
-function QrBlock({ url, level }: { url: string; level: 2 | 3 }) {
-  const [src, setSrc] = useState<string | null>(null);
-  useEffect(() => {
-    let alive = true;
-    QRCode.toDataURL(url, { width: 360, margin: 1 })
-      .then((d) => {
-        if (alive) setSrc(d);
-      })
-      .catch((err) => console.error('QR code impossible', err));
-    return () => {
-      alive = false;
-    };
-  }, [url]);
-  return (
-    <div className="qr-block">
-      {src && <img src={src} alt={`QR code de la session ${url}`} width={360} height={360} />}
-      <p className="instruction">
-        {level === 2
-          ? 'Scannez le QR code et saisissez le code PIN sur le téléphone'
-          : 'Reprenez le téléphone de A et validez la posture'}
-      </p>
-    </div>
-  );
-}
-
 function PhoneStatus({ connected }: { connected: boolean }) {
   return (
     <p className={connected ? 'phone-status ok' : 'phone-status'} role="status">
-      {connected ? 'Téléphone connecté' : 'Téléphone en attente'}
+      {connected ? 'Phone connected' : 'Phone waiting'}
     </p>
   );
 }
@@ -136,19 +62,22 @@ function PhoneStatus({ connected }: { connected: boolean }) {
 function FailBanner({ verdict }: { verdict: LastVerdict }) {
   const reason = verdict.reason ? REASON_LABEL[verdict.reason] : null;
   const detail =
-    verdict.reason === 'signal hors seuil'
+    verdict.reason === 'signal out of range'
       ? `${reason} (score ${Math.round(verdict.score)} / 100)`
       : reason;
   return (
     <div className="fail-banner" role="alert" data-testid="fail-banner">
-      <strong>Échec niveau {verdict.level} — passage au niveau suivant</strong>
+      <span className="fail-icon" aria-hidden="true">
+        !
+      </span>
+      <strong>Level {verdict.level} failed — moving to the next level</strong>
       {detail && <span> · {detail}</span>}
     </div>
   );
 }
 
 /**
- * Niveau dont on montre le signal : apres un echec, le niveau echoue reste affiche (avec un
+ * Level dont on montre le signal : apres un echec, le niveau echoue reste affiche (avec un
  * bandeau) tant que le nouveau niveau n'a pas de mesure ; l'orientation en direct en est une.
  */
 function shownLevel(snap: Snapshot): { level: Level; failed: LastVerdict | null } {
@@ -160,41 +89,33 @@ function shownLevel(snap: Snapshot): { level: Level; failed: LastVerdict | null 
   return { level: snap.level, failed: null };
 }
 
-function FinalVerdict({ verdict, onReset }: { verdict: Verdict; onReset: () => void }) {
-  return (
-    <div className="final-verdict">
-      <VerdictCard verdict={verdict} />
-      <p className="level-reached">Niveau atteint : {verdict.level}</p>
-      <button type="button" className="primary" onClick={onReset}>
-        Recommencer
-      </button>
-    </div>
-  );
-}
-
 const msText = (v: number | null) => (v === null ? '–' : `${Math.round(v)} ms`);
 
-/** Frappe : direct (pendant la saisie), mesure du serveur, ou reference seule. */
+/** Typing: direct (pendant la saisie), mesure du serveur, ou reference seule. */
 type KeystrokeMode = 'live' | 'server' | 'reference';
 
-function KeystrokeSignal({ rows, mode }: { rows: KeyRow[]; mode: KeystrokeMode }) {
+function KeystrokeSignal({ rows, mode, note }: { rows: KeyRow[]; mode: KeystrokeMode; note: string | null }) {
   const sum = summarize(rows);
   return (
     <div className="keystroke-signal" data-testid="keystroke-view" data-mode={mode}>
-      <div className="summary">
-        <span>
-          Écart moyen : <strong>{msText(sum.dwellGap)}</strong>
-        </span>
-        <span>
-          Vol moyen : <strong>{msText(sum.flight)}</strong>
-          {sum.expectedFlight !== null && <span className="summary-ref"> (A : {msText(sum.expectedFlight)})</span>}
-        </span>
-        <span>
-          Touches : <strong>{sum.expected ? `${sum.typed} / ${sum.expected}` : sum.typed}</strong>
-        </span>
+      <div className="ks-stats">
+        <div className="ks-stat">
+          <span className="dial-caption">Average gap</span>
+          <strong>{msText(sum.dwellGap)}</strong>
+        </div>
+        <div className="ks-stat">
+          <span className="dial-caption">Average flight</span>
+          <strong>{msText(sum.flight)}</strong>
+          {sum.expectedFlight !== null && <span className="summary-ref">A: {msText(sum.expectedFlight)}</span>}
+        </div>
+        <div className="ks-stat">
+          <span className="dial-caption">Keys</span>
+          <strong>{sum.expected ? `${sum.typed} / ${sum.expected}` : sum.typed}</strong>
+        </div>
       </div>
       <ThresholdChart rows={rows} />
       <Barcode rows={rows} />
+      {note && <p className="hint ks-note">{note}</p>}
     </div>
   );
 }
@@ -210,12 +131,12 @@ function keystrokeRows(snap: Snapshot, liveRows: KeyRow[] | null): { rows: KeyRo
 function DirectSignal({ snap, level, liveRows }: { snap: Snapshot; level: Level; liveRows: KeyRow[] | null }) {
   if (level === 1) {
     const { rows, mode } = keystrokeRows(snap, liveRows);
-    return <KeystrokeSignal rows={rows} mode={mode} />;
+    return <KeystrokeSignal rows={rows} mode={mode} note={profileNote(snap)} />;
   }
   if (level === 2) {
-    return <DeviceTable lines={snap.live.device?.lines ?? []} />;
+    return <DeviceTable lines={snap.live.device?.lines ?? []} expected={snap.expected.fingerprint} />;
   }
-  // avant « Valider » : l'aiguille suit le telephone en direct ; apres : la mesure notee
+  // avant « Confirm » : l'aiguille suit le telephone en direct ; apres : la mesure notee
   const beta = snap.liveOrientation?.beta ?? snap.live.orientation?.beta ?? null;
   return (
     <AngleDial
@@ -226,60 +147,56 @@ function DirectSignal({ snap, level, liveRows }: { snap: Snapshot; level: Level;
   );
 }
 
-function ProfileSignal({ snap, level }: { snap: Snapshot; level: Level }) {
-  if (level === 1) {
-    const ks = snap.expected.keystroke;
-    if (!ks || !snap.expectedBars) return <p className="hint">Aucun profil de frappe enregistré.</p>;
-    const sum = summarize(rowsFromLive(snap.expectedBars, []));
-    const dwell = snap.expectedBars.filter((b) => b.known).map((b) => b.dwell);
-    const meanDwell = dwell.length ? dwell.reduce((a, b) => a + b, 0) / dwell.length : null;
-    return (
-      <>
-        <Barcode rows={rowsFromLive(snap.expectedBars, [])} showLive={false} />
-        <p className="hint">
-          Profil appris sur {ks.samples} saisies · {snap.expectedBars.length} touches · maintien moyen{' '}
-          {msText(meanDwell)} · vol moyen {msText(sum.expectedFlight)}
-        </p>
-      </>
-    );
-  }
-  if (level === 2) {
-    const fp = snap.expected.fingerprint;
-    if (!fp) return <p className="hint">Aucune empreinte enregistrée.</p>;
-    return (
-      <dl className="profile-list">
-        {(Object.keys(fp) as (keyof typeof fp)[]).map((field) => (
-          <div key={field}>
-            <dt>{FIELD_LABELS[field] ?? field}</dt>
-            <dd>{fp[field]}</dd>
-          </div>
-        ))}
-      </dl>
-    );
-  }
-  return snap.expected.beta === null ? (
-    <p className="hint">Aucune posture enregistrée.</p>
-  ) : (
-    <p className="profile-beta">
-      Angle attendu : {Math.round(snap.expected.beta)}° ± {snap.thresholds.orientation.toleranceDeg}°
-    </p>
-  );
+/** Résumé du profil de frappe de A (affiché sous la reference signature). */
+function profileNote(snap: Snapshot): string {
+  const ks = snap.expected.keystroke;
+  if (!ks || !snap.expectedBars) return 'No typing profile enrolled.';
+  const sum = summarize(rowsFromLive(snap.expectedBars, []));
+  const dwell = snap.expectedBars.filter((b) => b.known).map((b) => b.dwell);
+  const meanDwell = dwell.length ? dwell.reduce((x, y) => x + y, 0) / dwell.length : null;
+  return `A’s profile learned from ${ks.samples} entries · ${snap.expectedBars.length} keys · average hold ${msText(meanDwell)} · average flight ${msText(sum.expectedFlight)}`;
 }
 
-/** Score mesure pour ce niveau ; null si aucune mesure (jauge neutre). */
+/** Score mesure pour ce niveau ; null si no measurement (jauge neutre). */
 function liveScore(snap: Snapshot, level: Level): number | null {
   const l = snap.live;
   if (level === 1) return l.keystroke?.score ?? null;
   if (level === 2) return l.device?.score ?? null;
-  return l.orientation?.score ?? null;
+  if (l.orientation) return l.orientation.score;
+  // avant « Confirm » : le score suit l'angle du téléphone en direct
+  if (snap.liveOrientation && snap.expected.beta !== null) {
+    const t = snap.thresholds.orientation;
+    return angleScore(snap.liveOrientation.beta - snap.expected.beta, t.toleranceDeg, t.accept);
+  }
+  return null;
 }
 
 function levelThresholds(level: Level, t: Thresholds): { accept: number; warn: number } {
   return level === 1 ? t.keystroke : level === 2 ? t.device : t.orientation;
 }
 
+/** Contenu de l'écran de réussite, relu à chaque nouvelle réussite (modifiable en configuration). */
+function useWelcome(active: boolean): WelcomeContent {
+  const [content, setContent] = useState<WelcomeContent>(DEFAULT_WELCOME);
+  useEffect(() => {
+    if (!active || typeof fetch !== 'function') return;
+    let live = true;
+    fetch('/api/welcome')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: unknown) => {
+        if (live && j) setContent(sanitizeWelcome(j));
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [active]);
+  return content;
+}
+
 export function Demo() {
   const { snapshot, send } = useSession();
+  const welcome = useWelcome(snapshot?.state.status === 'granted');
   useGodMode(send);
   // frappe en cours dans le champ mot de passe (vide hors saisie, et des Entree)
   const [typed, setTyped] = useState<KeyEvent[]>([]);
@@ -312,7 +229,9 @@ export function Demo() {
     return (
       <div className="demo">
         <main className="main-zone" data-testid="main-zone">
-          <p className="instruction">Connexion au serveur…</p>
+          <PortalShell>
+            <p className="login-sub">Connecting to the server…</p>
+          </PortalShell>
         </main>
       </div>
     );
@@ -329,59 +248,71 @@ export function Demo() {
   const officialScore = liveScore(snapshot, shown.level);
 
   let main;
-  if (state.status === 'granted' || state.status === 'blocked') {
-    main = <FinalVerdict verdict={state.verdict} onReset={onReset} />;
+  if (state.status === 'granted') {
+    main = <Welcome content={welcome} />;
+  } else if (state.status === 'blocked') {
+    main = <Suspended />;
   } else if (level === 1) {
-    main = <LoginForm send={send} onProgress={onProgress} onSubmit={onSubmit} />;
+    main = <LoginForm send={send} onProgress={onProgress} onSubmit={onSubmit} busy={awaiting} />;
   } else {
     main = (
-      <div className="qr-zone">
-        <QrBlock url={snapshot.sessionUrl} level={level} />
-        <PhoneStatus connected={snapshot.phoneConnected} />
+      <div className="stepup-row">
+        <StepUp url={snapshot.sessionUrl} level={level} phoneConnected={snapshot.phoneConnected} />
+        <PhoneMirror view={snapshot.phoneView ?? null} connected={snapshot.phoneConnected} />
       </div>
     );
   }
 
+  const caption = provisional
+    ? awaiting
+      ? 'Waiting for the server'
+      : provisional.score !== null
+        ? 'Provisional score'
+        : ''
+    : officialScore !== null
+      ? shown.level === 3 && !snapshot.live.orientation
+        ? 'Live score'
+        : 'Official score'
+      : '';
+  const recap = buildRecap(snapshot);
+  const gauge = (
+    <div className="gauge-col">
+      <Gauge score={provisional ? provisional.score : officialScore} accept={th.accept} warn={th.warn} />
+      <p className="gauge-caption" data-testid="gauge-caption">
+        {caption}
+      </p>
+    </div>
+  );
   return (
     <div className="demo">
       <main className="main-zone" data-testid="main-zone">
-        {main}
+        <PortalShell>{main}</PortalShell>
       </main>
-      <aside className="side">
+      <aside className="side side-wide" data-state={state.status}>
+        <ConsoleHeader state={state} />
         <section className="panel" data-testid="panel-direct" aria-label="Direct">
-          <h2>Direct — {SIGNAL_NAME[shown.level]}</h2>
+          <h2>Live — {SIGNAL_NAME[shown.level]}</h2>
           {shown.failed && <FailBanner verdict={shown.failed} />}
-          <div className="direct-body">
-            <div className="gauge-col">
-              <Gauge
-                score={provisional ? provisional.score : officialScore}
-                accept={th.accept}
-                warn={th.warn}
-              />
-              <p className="gauge-caption" data-testid="gauge-caption">
-                {provisional
-                  ? awaiting
-                    ? 'En attente du serveur'
-                    : provisional.score !== null
-                      ? 'Score provisoire'
-                      : ''
-                  : officialScore !== null
-                    ? 'Score officiel'
-                    : ''}
-              </p>
-            </div>
+          <div className="direct-body direct-wide" key={shown.level}>
             <div className="signal">
               <DirectSignal snap={snapshot} level={shown.level} liveRows={provisional?.rows ?? null} />
             </div>
           </div>
         </section>
-        <section className="panel panel-profil" data-testid="panel-profil" aria-label="Profil de A">
-          <h2>Profil de A</h2>
-          <ProfileSignal snap={snapshot} level={shown.level} />
-        </section>
+        {recap ? (
+          <section className="panel panel-score panel-recap" data-testid="panel-score" aria-label="Session summary">
+            <h2>Session summary</h2>
+            <SessionRecap recap={recap} />
+          </section>
+        ) : (
+          <section className="panel panel-score" data-testid="panel-score" aria-label="Score">
+            <h2>Score</h2>
+            {gauge}
+          </section>
+        )}
         <div className="control-zone">
           <PhoneStatus connected={snapshot.phoneConnected} />
-          <ControlBar onJump={onJump} onReset={onReset} />
+          <ControlBar onJump={onJump} onReset={onReset} level={level} />
         </div>
       </aside>
     </div>

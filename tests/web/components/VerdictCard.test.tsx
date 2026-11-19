@@ -3,17 +3,17 @@ import { describe, expect, it } from 'vitest';
 import { VerdictCard } from '../../../src/web/components/VerdictCard';
 
 describe('VerdictCard', () => {
-  it('Authentifié si granted', () => {
+  it('Authenticated si granted', () => {
     render(<VerdictCard verdict={{ level: 1, score: 92, color: 'green', granted: true }} />);
-    expect(screen.getByText('Authentifié')).toBeInTheDocument();
+    expect(screen.getByText('Authenticated')).toBeInTheDocument();
     expect(screen.getByText('92')).toBeInTheDocument();
   });
-  it('Échec sinon', () => {
+  it('Failed sinon', () => {
     render(<VerdictCard verdict={{ level: 1, score: 20, color: 'red', granted: false }} />);
-    expect(screen.getByText('Échec')).toBeInTheDocument();
+    expect(screen.getByText('Failed')).toBeInTheDocument();
   });
-  it('En attente si null', () => {
+  it('Pending if null', () => {
     render(<VerdictCard verdict={null} />);
-    expect(screen.getByText('En attente')).toBeInTheDocument();
+    expect(screen.getByText('Pending')).toBeInTheDocument();
   });
 });

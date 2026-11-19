@@ -2,9 +2,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { DEFAULT_THRESHOLDS } from '../shared/types';
 import type { Profile, Thresholds } from '../shared/types';
+import { sanitizeWelcome } from '../shared/welcome';
+import type { WelcomeContent } from '../shared/welcome';
 
 export const DEFAULT_PROFILE_PATH = resolve('data', 'profile.json');
 export const DEFAULT_THRESHOLDS_PATH = resolve('data', 'thresholds.json');
+export const DEFAULT_WELCOME_PATH = resolve('data', 'welcome.json');
 
 export function emptyProfile(): Profile {
   return { password: '', pin: '', keystroke: null, fingerprint: null, beta: null };
@@ -61,4 +64,13 @@ export function loadThresholds(path = DEFAULT_THRESHOLDS_PATH): Thresholds {
 
 export function saveThresholds(t: Thresholds, path = DEFAULT_THRESHOLDS_PATH): void {
   writeJson(path, t);
+}
+
+/** Contenu de l'écran de réussite ; fichier absent ou invalide -> valeurs par défaut. */
+export function loadWelcome(path = DEFAULT_WELCOME_PATH): WelcomeContent {
+  return sanitizeWelcome(readObject(path));
+}
+
+export function saveWelcome(w: WelcomeContent, path = DEFAULT_WELCOME_PATH): void {
+  writeJson(path, w);
 }
