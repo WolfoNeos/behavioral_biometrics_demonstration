@@ -8,9 +8,13 @@ export type StepOutcome = 'passed' | 'doubt' | 'failed' | 'skipped';
 export interface StepRecap {
   level: Level;
   name: string;
-  /** Score de l'étape ; null si aucune mesure. */
+  /** Score du comportement mesuré à l'étape ; null si aucune mesure. */
   score: number | null;
   outcome: StepOutcome;
+  /** Secret demandé à l'étape (mot de passe ou PIN). */
+  secretLabel: 'Mot de passe' | 'PIN';
+  /** Le secret saisi correspond-il à celui attendu ? null si l'étape n'a pas été soumise. */
+  secret: boolean | null;
 }
 
 export interface SessionRecap {
@@ -26,6 +30,7 @@ export interface SessionRecap {
 }
 
 export const STEP_NAMES: Record<Level, string> = { 1: 'Frappe', 2: 'Appareil', 3: 'Posture' };
+const SECRET_LABEL: Record<Level, 'Mot de passe' | 'PIN'> = { 1: 'Mot de passe', 2: 'PIN', 3: 'PIN' };
 
 const clamp = (v: number): number => Math.max(0, Math.min(100, v));
 
@@ -47,13 +52,15 @@ export function buildRecap(snap: Snapshot): SessionRecap | null {
     2: snap.live.device?.score ?? null,
     3: snap.live.orientation?.score ?? null,
   };
+  const secrets = snap.secrets ?? {};
   const steps = ([1, 2, 3] as Level[]).map((level): StepRecap => {
+    const base = { level, name: STEP_NAMES[level], secretLabel: SECRET_LABEL[level], secret: secrets[level] ?? null };
     if (level === deciding) {
-      return { level, name: STEP_NAMES[level], score: state.verdict.score, outcome: granted ? 'passed' : 'failed' };
+      // la mesure de comportement est celle relevée ; le verdict peut être plus bas (secret refusé)
+      return { ...base, score: live[level] ?? state.verdict.score, outcome: granted ? 'passed' : 'failed' };
     }
     return {
-      level,
-      name: STEP_NAMES[level],
+      ...base,
       score: level < deciding ? live[level] : null,
       outcome: level < deciding ? 'doubt' : 'skipped',
     };

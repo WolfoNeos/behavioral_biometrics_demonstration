@@ -77,9 +77,9 @@
 .dial-expected-tag text { fill: #fff; font-size: 16px; font-weight: 700; }
 .dial-sweep { fill: none; stroke: var(--dial-color); stroke-width: 5; stroke-linecap: round; opacity: 0.9; transition: stroke 250ms ease; }
 .dial-bubble circle { fill: var(--dial-color); transition: fill 250ms ease; }
-.dial-phone .phone-body { fill: var(--dial-color); transition: fill 250ms ease; }
-.dial-phone .phone-screen { fill: rgb(255 255 255 / 16%); }
-.dial-phone .phone-cam { fill: rgb(255 255 255 / 70%); }
+.dial-phone .dial-phone-body { fill: var(--dial-color); transition: fill 250ms ease; }
+.dial-phone .dial-phone-screen { fill: rgb(255 255 255 / 16%); }
+.dial-phone .dial-phone-cam { fill: rgb(255 255 255 / 70%); }
 .dial-hub-dot { fill: #fff; }
 .dial-live { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: 600; color: var(--color-ink-muted); }
 .dial-live i { width: 9px; height: 9px; border-radius: 50%; background: var(--color-grey); }
@@ -229,7 +229,7 @@
 .recap-verdict.ok { color: var(--color-green); background: var(--color-green-soft); }
 .recap-verdict.ko { color: var(--color-red); background: var(--color-red-soft); }
 .recap-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
-.recap-step { display: grid; grid-template-columns: 1.7rem 5.5rem 2.6rem minmax(60px, 1fr) 15rem; align-items: center; gap: 0.6rem; font-size: 1.05rem; }
+.recap-step { display: grid; grid-template-columns: 1.7rem 5.2rem 8.6rem 2.4rem minmax(40px, 1fr) 11.5rem; align-items: center; gap: 0.6rem; font-size: 1.05rem; }
 .recap-mark { display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; font-size: 0.85rem; font-weight: 800; color: #fff; background: var(--color-grey); }
 .recap-step.passed .recap-mark { background: var(--color-green); }
 .recap-step.doubt .recap-mark { background: var(--color-orange); }
@@ -245,3 +245,28 @@
 .recap-outcome { font-size: 0.95rem; color: var(--color-ink-muted); white-space: nowrap; }
 .recap-note { margin: 0; font-size: 0.85rem; color: var(--color-ink-muted); }
 @keyframes bar-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* ===== Reflet de l'écran du téléphone, à côté du QR code ===== */
+.stepup-row { display: flex; align-items: center; justify-content: center; gap: 2rem; width: 100%; }
+.stepup-row .login-card { max-width: 400px; flex: 0 1 400px; }
+.phone-mirror { --s: 0.6; flex: 0 0 auto; margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; animation: card-in 500ms 200ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.phone-mirror figcaption { font-size: 0.85rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-ink-muted); }
+.phone-frame { padding: 9px; background: #111827; border-radius: 38px; box-shadow: 0 18px 40px rgb(11 61 107 / 28%), inset 0 0 0 2px #2b3547; }
+.phone-viewport { position: relative; width: calc(375px * var(--s)); height: calc(760px * var(--s)); overflow: hidden; border-radius: 30px; background: #f4f7fb; }
+.phone-viewport::before { content: ''; position: absolute; z-index: 2; top: 7px; left: 50%; width: 52px; height: 14px; margin-left: -26px; background: #111827; border-radius: 10px; }
+.phone-screen { position: absolute; top: 0; left: 0; width: 375px; height: 760px; transform: scale(var(--s)); transform-origin: 0 0; pointer-events: none; user-select: none; }
+.phone-screen .m-app { min-height: 100%; height: 100%; }
+.phone-screen .m-head { padding-top: 2rem; }
+.phone-screen .key { width: 76px; height: 76px; transition: transform 90ms ease, background 120ms ease; }
+.phone-screen .key.pressed { transform: scale(0.9); background: #cfe0f3; box-shadow: none; }
+.phone-screen .key-aux.pressed { background: #dfe9f5; }
+.phone-screen .pin-submit.disabled { background: #c3d0df; box-shadow: none; }
+.phone-screen .pin { animation: none; }
+.phone-screen.off { display: grid; place-items: center; background: #0b1220; }
+.phone-wait { display: flex; flex-direction: column; align-items: center; gap: 1rem; margin: 0; font-size: 1.5rem; font-weight: 500; color: #9fb2cb; text-align: center; padding: 0 2rem; }
+.phone-wait .spinner { width: 2.2rem; height: 2.2rem; border-width: 4px; }
+@media (max-width: 1250px) { .phone-mirror { display: none; } }
+.phone-screen .key { display: grid; place-items: center; line-height: 1; }
+.recap-secret { display: inline-flex; justify-content: center; padding: 0.1rem 0.5rem; font-size: 0.9rem; font-weight: 600; white-space: nowrap; color: var(--color-ink-muted); background: var(--color-grey-soft); border-radius: 999px; }
+.recap-secret.ok { color: var(--color-green); background: var(--color-green-soft); }
+.recap-secret.ko { color: var(--color-red); background: var(--color-red-soft); }

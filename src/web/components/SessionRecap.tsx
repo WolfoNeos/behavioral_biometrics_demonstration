@@ -4,7 +4,7 @@ import { Gauge } from './Gauge';
 
 const OUTCOME: Record<StepOutcome, { label: string; mark: string }> = {
   passed: { label: 'Validé', mark: '✓' },
-  doubt: { label: 'Doute : vérification suivante', mark: '!' },
+  doubt: { label: 'Doute : étape suivante', mark: '!' },
   failed: { label: 'Refusé', mark: '✕' },
   skipped: { label: 'Non nécessaire', mark: '–' },
 };
@@ -30,6 +30,12 @@ export function SessionRecap({ recap }: { recap: Recap }) {
                 {OUTCOME[s.outcome].mark}
               </span>
               <span className="recap-name">{s.name}</span>
+              <span
+                className={s.secret === null ? 'recap-secret' : s.secret ? 'recap-secret ok' : 'recap-secret ko'}
+                aria-label={`${s.secretLabel} : ${s.secret === null ? 'non demandé' : s.secret ? 'correct' : 'incorrect'}`}
+              >
+                {s.secret === null ? '—' : s.secret ? `${s.secretLabel} ✓` : `${s.secretLabel} ✕`}
+              </span>
               <span className="recap-score">{s.score === null ? '—' : Math.round(s.score)}</span>
               <span className="recap-bar" aria-hidden="true">
                 <i style={{ width: `${s.score === null ? 0 : Math.max(0, Math.min(100, s.score))}%` }} />
@@ -39,7 +45,7 @@ export function SessionRecap({ recap }: { recap: Recap }) {
           ))}
         </ol>
         <p className="recap-note">
-          Confiance = score de la vérification décisive, −{DOUBT_PENALTY} points par doute.
+          Secret = mot de passe ou PIN saisi comparé à celui attendu. Confiance = score de la vérification décisive, −{DOUBT_PENALTY} points par doute.
         </p>
       </div>
     </div>

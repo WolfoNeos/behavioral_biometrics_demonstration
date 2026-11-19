@@ -54,4 +54,19 @@ describe('buildRecap', () => {
     expect(r.trust).toBe(0);
     expect(r.steps[2].outcome).toBe('failed');
   });
+
+  it('reporte si chaque secret correspondait, en plus du comportement', () => {
+    const r = buildRecap(
+      snap({
+        state: { status: 'blocked', verdict: verdict(3, 0, false) },
+        secrets: { 1: true, 2: true, 3: false },
+        live: { keystroke: { score: 90, perKey: [] }, device: { score: 95, lines: [] }, orientation: { score: 97, beta: 42, alpha: 0, gamma: 0, deviation: 0 } },
+      }),
+    )!;
+    expect(r.steps.map((s) => s.secret)).toEqual([true, true, false]);
+    expect(r.steps.map((s) => s.secretLabel)).toEqual(['Mot de passe', 'PIN', 'PIN']);
+    // bonne posture mesurée mais PIN faux : étape refusée, confiance nulle
+    expect(r.steps[2]).toMatchObject({ score: 97, outcome: 'failed' });
+    expect(r.trust).toBe(0);
+  });
 });

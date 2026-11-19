@@ -567,7 +567,7 @@ describe('Demo : bilan de fin de session', () => {
     const bilan = screen.getByTestId('panel-score');
     expect(within(bilan).getByText('Bilan de la session')).toBeInTheDocument();
     expect(within(bilan).getByRole('meter', { name: 'confiance globale' })).toHaveAttribute('aria-valuenow', '76');
-    expect(within(bilan).getByLabelText('Frappe : Doute : vérification suivante')).toBeInTheDocument();
+    expect(within(bilan).getByLabelText('Frappe : Doute : étape suivante')).toBeInTheDocument();
     expect(within(bilan).getByLabelText('Posture : Validé')).toBeInTheDocument();
     expect(screen.getByTestId('main-zone').textContent).not.toMatch(/confiance|score|bilan/i);
   });

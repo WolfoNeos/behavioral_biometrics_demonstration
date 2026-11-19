@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FailReason, KeyEvent, LastVerdict, Level, Snapshot, Thresholds } from '../../shared/types';
 import { AngleDial } from '../components/AngleDial';
 import { LoginForm, PortalShell, StepUp, Suspended, Welcome } from '../components/BankPortal';
+import { PhoneMirror } from '../components/PhoneMirror';
 import { Barcode } from '../components/Barcode';
 import { ConsoleHeader } from '../components/ConsoleHeader';
 import { SessionRecap } from '../components/SessionRecap';
@@ -254,7 +255,12 @@ export function Demo() {
   } else if (level === 1) {
     main = <LoginForm send={send} onProgress={onProgress} onSubmit={onSubmit} busy={awaiting} />;
   } else {
-    main = <StepUp url={snapshot.sessionUrl} level={level} phoneConnected={snapshot.phoneConnected} />;
+    main = (
+      <div className="stepup-row">
+        <StepUp url={snapshot.sessionUrl} level={level} phoneConnected={snapshot.phoneConnected} />
+        <PhoneMirror view={snapshot.phoneView ?? null} connected={snapshot.phoneConnected} />
+      </div>
+    );
   }
 
   const caption = provisional

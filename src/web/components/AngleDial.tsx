@@ -161,9 +161,9 @@ export function AngleDial({ expectedBeta, tolerance, beta }: AngleDialProps) {
               transform={`translate(${PX} ${PY}) rotate(${-clamp(shown)})`}
               filter="url(#phone-shadow)"
             >
-              <rect className="phone-body" x={22} y={-6} width={R - 34} height={12} rx={6} />
-              <rect className="phone-screen" x={28} y={-3} width={R - 52} height={6} rx={3} />
-              <circle className="phone-cam" cx={R - 22} cy={0} r={2} />
+              <rect className="dial-phone-body" x={22} y={-6} width={R - 34} height={12} rx={6} />
+              <rect className="dial-phone-screen" x={28} y={-3} width={R - 52} height={6} rx={3} />
+              <circle className="dial-phone-cam" cx={R - 22} cy={0} r={2} />
             </g>
           </>
         )}
