@@ -19,9 +19,13 @@ export interface PerKeyScore {
 export const STD_FLOOR = 5; // ms
 /** Ecart normalise attribue a une touche inconnue du profil. */
 export const UNKNOWN_KEY_DEVIATION = 6;
-/** Zone morte : un ecart <= 2 ecarts-types est de la variation naturelle, non penalisee. */
+/** Affichage : une touche a moins de 2 ecarts-types est « dans la bande » (vert). */
 export const DEAD_ZONE = 2;
-const excess = (z: number) => Math.max(0, z - DEAD_ZONE);
+/** Calcul du score : au-dela de 1 ecart-type la touche commence a couter (variation naturelle seulement en dessous). */
+export const SCORE_DEAD_ZONE = 1;
+/** Pente du score : 100·exp(-penalite moyenne / SCORE_DECAY). Plus petit = plus severe. */
+export const SCORE_DECAY = 3;
+const excess = (z: number) => Math.max(0, z - SCORE_DEAD_ZONE);
 
 /** Normalisation des touches commune a la capture et au profil : caractere seul en minuscule. */
 export const normalizeKey = (key: string): string => (key.length === 1 ? key.toLowerCase() : key);
@@ -45,7 +49,7 @@ export function keyPenalties(index: number, zDwell: number | null, zFlight: numb
 export function scoreFromPenalties(penalties: number[]): number {
   if (penalties.length === 0) return 0;
   const avg = penalties.reduce((a, b) => a + b, 0) / penalties.length;
-  const raw = 100 * Math.exp(-avg / 3);
+  const raw = 100 * Math.exp(-avg / SCORE_DECAY);
   return Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : 0;
 }
 
@@ -73,11 +77,34 @@ export function buildKeystrokeProfile(samples: KeyEvent[][]): KeystrokeProfile {
     return Math.max(Math.sqrt(v), STD_FLOOR);
   };
   const profile: KeystrokeProfile = { mean: {}, std: {}, samples: samples.length };
+  const n = samples[0]?.length ?? 0;
+  if (n > 0 && samples.every((s) => s.length === n)) {
+    const timings = samples.map(extractTimings);
+    profile.positions = Array.from({ length: n }, (_, i) => {
+      const d = timings.map((t) => t[i].dwell);
+      const f = timings.map((t) => t[i].flight);
+      return { key: samples[0][i].key, mean: { dwell: mean(d), flight: mean(f) }, std: { dwell: std(d), flight: std(f) } };
+    });
+  }
   for (const [key, v] of Object.entries(acc)) {
     profile.mean[key] = { dwell: mean(v.dwell), flight: mean(v.flight) };
     profile.std[key] = { dwell: std(v.dwell), flight: std(v.flight) };
   }
   return profile;
+}
+
+/** Référence d'une touche : par position si le profil en a une, sinon par caractère. */
+export function referenceAt(
+  profile: KeystrokeProfile,
+  key: string,
+  index: number,
+): { mean: { dwell: number; flight: number }; std: { dwell: number; flight: number } } | null {
+  const p = profile.positions?.[index];
+  // la référence par position ne vaut que si la touche est celle de l'enrôlement
+  if (p && p.key === key) return p;
+  const m = profile.mean[key];
+  const s = profile.std[key];
+  return m && s ? { mean: m, std: s } : null;
 }
 
 export function scoreKeystroke(
@@ -89,8 +116,9 @@ export function scoreKeystroke(
 
   const penalties: number[] = [];
   const perKey: PerKeyScore[] = timings.map((t, i) => {
-    const m = profile.mean[t.key];
-    const s = profile.std[t.key];
+    const ref = referenceAt(profile, t.key, i);
+    const m = ref?.mean;
+    const s = ref?.std;
     if (!m || !s) {
       penalties.push(...keyPenalties(i, null, null));
       return {

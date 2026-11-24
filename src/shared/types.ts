@@ -14,6 +14,12 @@ export interface KeystrokeProfile {
   mean: Record<string, { dwell: number; flight: number }>;
   std: Record<string, { dwell: number; flight: number }>;
   samples: number;
+  /**
+   * Référence par position du mot de passe (présente si les saisies d'enrôlement ont toutes la
+   * même longueur). Plus fine que la référence par caractère : une lettre répétée ou un
+   * enchaînement différent ne brouille plus la bande.
+   */
+  positions?: { key: string; mean: { dwell: number; flight: number }; std: { dwell: number; flight: number } }[];
 }
 
 /**

@@ -6,6 +6,7 @@ import {
   extractTimings,
   keyPenalties,
   normalizeKey,
+  referenceAt,
   scoreFromPenalties,
   zScore,
 } from './keystroke';
@@ -39,8 +40,9 @@ export function buildExpectedBars(
   if (!password || !profile) return null;
   return [...password].map((ch, i) => {
     const key = normalizeKey(ch);
-    const m = profile.mean[key];
-    const s = profile.std[key];
+    const ref = referenceAt(profile, key, i);
+    const m = ref?.mean;
+    const s = ref?.std;
     if (!m || !s) return { dwell: 0, flight: 0, stdDwell: STD_FLOOR, stdFlight: STD_FLOOR, known: false };
     return {
       dwell: m.dwell,

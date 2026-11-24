@@ -49,10 +49,10 @@ describe('buildExpectedBars', () => {
     expect(expected).toHaveLength(PASSWORD.length);
     expect(expected[0].flight).toBe(0);
     expect(expected[1]).toMatchObject({
-      dwell: profile.mean.e.dwell,
-      flight: profile.mean.e.flight,
-      stdDwell: profile.std.e.dwell,
-      stdFlight: profile.std.e.flight,
+      dwell: profile.positions![1].mean.dwell,
+      flight: profile.positions![1].mean.flight,
+      stdDwell: profile.positions![1].std.dwell,
+      stdFlight: profile.positions![1].std.flight,
       known: true,
     });
     for (const bar of expected) {
