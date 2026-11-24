@@ -54,9 +54,9 @@ export function DeviceRunsCompare({ runs }: { runs: DeviceRun[] }) {
     (a, b) => Number(b.enabled) - Number(a.enabled) || b.spread - a.spread || Number(differs(b)) - Number(differs(a)),
   );
   return (
-    <div className="device-compare runs-compare" data-testid="device-runs">
+    <div className="runs-compare" data-testid="device-runs">
       <div className="cmp-bar">
-        <p className="cmp-summary" data-testid="runs-summary">
+        <p className="cmp-summary ko" data-testid="runs-summary">
           {runs.length} devices · {rows.filter(differs).length} of {rows.length} criteria differ
         </p>
         <button type="button" className="chip-toggle" aria-pressed={all} onClick={() => setAll(!all)}>
@@ -71,10 +71,13 @@ export function DeviceRunsCompare({ runs }: { runs: DeviceRun[] }) {
               <th>A’s profile</th>
               {runs.map((r) => (
                 <th key={r.phone} title={runLabel(r)}>
-                  {runLabel(r)}
+                  <span className="run-name">Phone {r.n}</span>
+                  <span className="run-browser">{runLabel(r).split(' · ').slice(1).join(' · ')}</span>
                 </th>
               ))}
             </tr>
+          </thead>
+          <tbody>
             <tr className="runs-scores">
               <td>Score</td>
               <td>–</td>
@@ -85,8 +88,6 @@ export function DeviceRunsCompare({ runs }: { runs: DeviceRun[] }) {
                 </td>
               ))}
             </tr>
-          </thead>
-          <tbody>
             {shown.map((row) => (
               <tr key={row.field} className={row.enabled ? undefined : 'cmp-off'}>
                 <td>{row.label}</td>
@@ -99,7 +100,16 @@ export function DeviceRunsCompare({ runs }: { runs: DeviceRun[] }) {
                     className={`${row.match[i] === false ? 'cell-ko' : 'cell-ok'}${MONO.includes(row.field) ? ' cmp-mono' : ''}`}
                     title={a ?? undefined}
                   >
-                    {a === null ? '–' : display(row.field, a)}
+                    {a === null ? (
+                      '–'
+                    ) : (
+                      <>
+                        <span className="mark" aria-label={row.match[i] === false ? 'different' : 'identical'}>
+                          {row.match[i] === false ? '✗' : '✓'}
+                        </span>
+                        {display(row.field, a)}
+                      </>
+                    )}
                   </td>
                 ))}
               </tr>

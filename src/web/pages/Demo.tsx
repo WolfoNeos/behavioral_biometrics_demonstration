@@ -299,7 +299,7 @@ export function Demo() {
     main = (
       <div className="stepup-row">
         <StepUp url={snapshot.sessionUrl} level={level} phoneConnected={snapshot.phoneConnected} />
-        <PhoneMirror view={snapshot.phoneView ?? null} connected={snapshot.phoneConnected} />
+        <PhoneMirror view={snapshot.phoneView ?? null} connected={snapshot.phoneConnected} idle={snapshot.stay === true} />
       </div>
     );
   }

@@ -51,3 +51,27 @@ describe('DeviceRunsCompare', () => {
     expect(screen.getByText(/before PIN/)).toBeInTheDocument();
   });
 });
+
+import { PhoneMirror } from '../../../src/web/components/PhoneMirror';
+
+describe('PhoneMirror figé (Stay on step)', () => {
+  const view = { screen: 'pin' as const, digits: 3, pressed: '5', again: false };
+
+  it('toujours affiché, même sans téléphone, avec un pavé vide', () => {
+    render(<PhoneMirror view={null} connected={false} idle />);
+    expect(screen.getByText('Enter your PIN')).toBeInTheDocument();
+    expect(screen.queryByText(/Waiting for the phone/)).toBeNull();
+  });
+
+  it('ne suit pas le téléphone : ni chiffres saisis ni touche allumée', () => {
+    const { container } = render(<PhoneMirror view={view} connected idle />);
+    expect(container.querySelectorAll('.dot.filled')).toHaveLength(0);
+    expect(container.querySelectorAll('.key.pressed')).toHaveLength(0);
+  });
+
+  it('sans le mode figé, il suit le téléphone', () => {
+    const { container } = render(<PhoneMirror view={view} connected />);
+    expect(container.querySelectorAll('.dot.filled')).toHaveLength(3);
+    expect(container.querySelectorAll('.key.pressed')).toHaveLength(1);
+  });
+});

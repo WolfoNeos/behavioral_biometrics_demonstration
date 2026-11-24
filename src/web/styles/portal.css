@@ -345,10 +345,24 @@
 .attempts ol { flex-wrap: wrap; overflow: visible; }
 .attempt { white-space: nowrap; padding: 2px 9px; }
 
-/* comparaison de plusieurs appareils (étape 2) */
-.runs-table td.cell-ok { color: var(--color-green); }
-.runs-table td.cell-ko { color: var(--color-red); background: var(--color-red-soft); font-weight: 700; }
-.runs-table th { white-space: normal; }
-.runs-scores td { border-bottom: 2px solid var(--color-border); font-size: 1.05rem; }
-.chip-toggle { font: inherit; font-size: 0.85rem; font-weight: 600; padding: 0.25rem 0.7rem; border-radius: 999px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-ink-muted); cursor: pointer; }
+/* comparaison de plusieurs appareils (étape 2) : lisible de loin, une colonne par appareil */
+.runs-compare { display: flex; flex-direction: column; gap: var(--space-2); width: 100%; min-width: 0; }
+.runs-compare .cmp-scroll { overflow: auto; }
+.runs-table { width: 100%; border-collapse: separate; border-spacing: 0 5px; table-layout: fixed; font-size: 1.2rem; }
+.runs-table thead th { position: sticky; top: 0; z-index: 1; background: var(--color-surface); padding: 0 12px 6px; text-align: left; vertical-align: bottom; border: none; }
+.runs-table thead th:first-child { width: 17%; }
+.run-name { display: block; font-size: 1.25rem; font-weight: 800; color: var(--color-ink); letter-spacing: 0; text-transform: none; }
+.run-browser { display: block; font-size: 0.85rem; font-weight: 500; color: var(--color-ink-muted); letter-spacing: 0; text-transform: none; white-space: normal; }
+.runs-table td { padding: 10px 12px; border: none; background: var(--color-bg); white-space: normal; overflow-wrap: anywhere; vertical-align: middle; font-weight: 600; }
+.runs-table td:first-child { color: var(--color-ink); border-radius: 10px 0 0 10px; }
+.runs-table td:last-child { border-radius: 0 10px 10px 0; }
+.runs-table td.cell-ok { background: var(--color-green-soft); color: var(--color-green); }
+.runs-table td.cell-ko { background: var(--color-red-soft); color: var(--color-red); font-weight: 800; }
+.runs-table td .mark { display: inline-block; width: 1.2em; font-weight: 800; }
+.runs-table .cmp-mono { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 1.05rem; }
+.runs-table .cmp-off td { opacity: 0.6; }
+.runs-scores td { font-size: 1.6rem; padding: 8px 12px; }
+.runs-scores td:first-child { font-size: 1.1rem; }
+.runs-scores td strong { font-size: 1.9rem; }
+.chip-toggle { font: inherit; font-size: 0.95rem; font-weight: 600; padding: 0.35rem 0.9rem; border-radius: 999px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-ink-muted); cursor: pointer; }
 .chip-toggle[aria-pressed='true'] { background: #e1ebf6; color: #0b3d6b; }
