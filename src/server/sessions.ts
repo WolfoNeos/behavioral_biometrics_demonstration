@@ -357,6 +357,22 @@ export class SessionManager {
     this.broadcast(id);
   }
 
+  /** Relance une seule étape : ses mesures repartent de zéro, celles des autres sont conservées. */
+  retry(id: string, level: Level): void {
+    const s = this.get(id);
+    s.state = jumpTo(level);
+    if (level === 1) delete s.live.keystroke;
+    if (level === 2) {
+      delete s.live.device;
+      delete s.live.tactile;
+    }
+    if (level === 3) delete s.live.orientation;
+    delete s.secrets[level];
+    s.lastVerdict = null;
+    s.liveOrientation = null;
+    this.broadcast(id);
+  }
+
   reset(id: string): void {
     const s = this.get(id);
     s.state = startState();
@@ -470,6 +486,9 @@ export class SessionManager {
         }
         case 'jump':
           if (isLevel(msg.level)) this.jump(id, msg.level);
+          return;
+        case 'retry':
+          if (isLevel(msg.level)) this.retry(id, msg.level);
           return;
         case 'reset':
           this.reset(id);

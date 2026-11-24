@@ -67,6 +67,20 @@ describe('attachKeystrokeCapture', () => {
     expect(onDone.mock.calls[0][0].map((e) => e.key)).toEqual(['a', 'c']);
   });
 
+  it('champ vidé d’un coup (tout sélectionné puis supprimé) : la frappe repart de zéro', () => {
+    const onDone = vi.fn<(e: KeyEvent[]) => void>();
+    const onProgress = vi.fn<(e: KeyEvent[]) => void>();
+    attachKeystrokeCapture(input, onDone, onProgress);
+    type('a', 10, 50);
+    type('b', 60, 90);
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(onProgress.mock.calls.at(-1)![0]).toEqual([]);
+    type('c', 130, 160);
+    key(input, 'keydown', 'Enter');
+    expect(onDone.mock.calls[0][0].map((e) => e.key)).toEqual(['c']);
+  });
+
   it('cancels paste', () => {
     attachKeystrokeCapture(input, () => {});
     const ev = new Event('paste', { cancelable: true, bubbles: true });

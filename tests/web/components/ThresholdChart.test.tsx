@@ -26,8 +26,8 @@ describe('ThresholdChart', () => {
     // positions numerotees : aucun caractere du mot de passe a l'ecran
     expect(data.labels).toEqual(['1', '2']);
     const by = (l: string) => data.datasets.find((d: { label: string }) => d.label === l).data;
-    expect(by('Live (ms)')).toEqual([100, 130]);
-    expect(by('Expected (ms)')).toEqual([90, 120]);
+    expect(by('Hold (ms)')).toEqual([100, 130]);
+    expect(by('Hold expected (ms)')).toEqual([90, 120]);
     expect(by("Uncertainty band")).toEqual([110, 130]);
     expect(by('Lower bound (ms)')).toEqual([70, 110]);
   });
@@ -46,7 +46,7 @@ describe('ThresholdChart', () => {
     const { legendFilter } = await import('../../../src/web/components/ThresholdChart');
     expect(legendFilter({ text: "Uncertainty band" })).toBe(true);
         expect(legendFilter({ text: 'Lower bound (ms)' })).toBe(false);
-    expect(legendFilter({ text: 'Live (ms)' })).toBe(true);
+    expect(legendFilter({ text: 'Hold (ms)' })).toBe(true);
   });
   it('construction point par point : positions non tapees a null, reference complete', () => {
     const rows = [
@@ -56,9 +56,12 @@ describe('ThresholdChart', () => {
     render(<ThresholdChart rows={rows} />);
     const data = JSON.parse(screen.getByTestId('chart').getAttribute('data-chart')!);
     const by = (l: string) => data.datasets.find((d: { label: string }) => d.label === l);
-    expect(by('Live (ms)').data).toEqual([100, null]);
-    expect(by('Expected (ms)').data).toEqual([90, 120]);
-    expect(by('Live (ms)').pointBackgroundColor).toHaveLength(2);
-    expect(screen.getByText('–')).toBeInTheDocument();
+    expect(by('Hold (ms)').data).toEqual([100, null]);
+    expect(by('Hold expected (ms)').data).toEqual([90, 120]);
+    expect(by('Hold (ms)').pointBackgroundColor).toHaveLength(2);
+    expect(screen.getAllByText('–').length).toBeGreaterThan(0);
+    // courbe du flight : rien à la 1re position (pas de touche avant), puis mesure et attendu
+    expect(by('Flight (ms)').data).toEqual([null, null]);
+    expect(by('Flight expected (ms)').data).toEqual([null, 60]);
   });
 });

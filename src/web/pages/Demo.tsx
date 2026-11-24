@@ -236,12 +236,23 @@ export function Demo() {
     setSubmitted((s) => (s && s.sig !== sig ? null : s));
   }, [sig]);
 
+  // change à chaque Restart / saut : le formulaire est recréé (champs et frappe capturée vides)
+  const [formKey, setFormKey] = useState(0);
   const onJump = (level: Level): void => {
     setSubmitted(null);
+    setFormKey((k) => k + 1);
     send({ type: 'jump', level });
+  };
+  const onRetry = (lvl: Level): void => {
+    if (lvl === 1) {
+      setSubmitted(null);
+      setFormKey((k) => k + 1);
+    }
+    send({ type: 'retry', level: lvl });
   };
   const onReset = (): void => {
     setSubmitted(null);
+    setFormKey((k) => k + 1);
     send({ type: 'reset' });
   };
   const onProgress = (events: KeyEvent[]): void => {
@@ -279,7 +290,7 @@ export function Demo() {
   } else if (state.status === 'blocked') {
     main = <Suspended />;
   } else if (level === 1) {
-    main = <LoginForm send={send} onProgress={onProgress} onSubmit={onSubmit} busy={awaiting} />;
+    main = <LoginForm key={formKey} send={send} onProgress={onProgress} onSubmit={onSubmit} busy={awaiting} />;
   } else {
     main = (
       <div className="stepup-row">
@@ -338,7 +349,7 @@ export function Demo() {
         )}
         <div className="control-zone">
           <PhoneStatus connected={snapshot.phoneConnected} />
-          <ControlBar onJump={onJump} onReset={onReset} level={level} />
+          <ControlBar onJump={onJump} onReset={onReset} onRetry={onRetry} level={level} />
         </div>
       </aside>
     </div>

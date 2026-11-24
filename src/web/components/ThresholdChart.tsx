@@ -46,19 +46,21 @@ const band = (r: KeyRow, sign: 1 | -1) =>
   r.expectedDwell === null || r.bandDwell === null ? null : r.expectedDwell + sign * r.bandDwell;
 
 /**
- * Temps de maintien (dwell) par position : direct (point par point, colore selon l'ecart),
+ * Temps de maintien (dwell) et temps entre touches (flight) par position : direct (point par point, colore selon l'ecart),
  * attendu, bande d'incertitude. Positions numerotees : le mot de passe n'est jamais affiche.
  */
 export function ThresholdChart({ rows }: ThresholdChartProps) {
   const ink = token('--color-ink');
   const grey = token('--color-grey');
   const greySoft = token('--color-grey-soft');
+  const blue = token('--color-blue');
+  const blueSoft = '#93b4f5';
   const pointColors = rows.map((r) => (r.status ? token(STATUS_TOKEN[r.status]) : ink));
   const data = {
     labels: rows.map((_, i) => String(i + 1)),
     datasets: [
       {
-        label: 'Live (ms)',
+        label: 'Hold (ms)',
         data: rows.map((r) => r.dwell),
         borderColor: ink,
         backgroundColor: ink,
@@ -69,12 +71,33 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
         tension: 0.2,
       },
       {
-        label: 'Expected (ms)',
+        label: 'Hold expected (ms)',
         data: rows.map((r) => r.expectedDwell),
         borderColor: grey,
         backgroundColor: grey,
         borderDash: [6, 4],
         pointRadius: 3,
+        tension: 0.2,
+      },
+      {
+        // temps entre deux touches (la 1re touche n'en a pas) : courbe bleue, attendu en pointille
+        label: 'Flight (ms)',
+        data: rows.map((r, i) => (i === 0 ? null : r.flight)),
+        borderColor: blue,
+        backgroundColor: blue,
+        borderWidth: 2,
+        pointRadius: 3.5,
+        pointStyle: 'rectRot' as const,
+        tension: 0.2,
+      },
+      {
+        label: 'Flight expected (ms)',
+        data: rows.map((r, i) => (i === 0 ? null : r.expectedFlight)),
+        borderColor: blueSoft,
+        backgroundColor: blueSoft,
+        borderDash: [3, 4],
+        borderWidth: 2,
+        pointRadius: 0,
         tension: 0.2,
       },
       {
@@ -104,7 +127,7 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
     animation: { duration: 0 },
     scales: {
       y: {
-        title: { display: true, text: 'Hold time (ms)', font, color: muted },
+        title: { display: true, text: 'Time (ms)', font, color: muted },
         ticks: { font, color: muted, maxTicksLimit: 5 },
         grid: { color: border },
         border: { display: false },
@@ -134,9 +157,11 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
         <thead>
           <tr>
             <th>Position</th>
-            <th>Live</th>
+            <th>Hold</th>
             <th>Expected</th>
             <th>Uncertainty band</th>
+            <th>Flight</th>
+            <th>Expected</th>
           </tr>
         </thead>
         <tbody>
@@ -146,6 +171,8 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
               <td>{ms(r.dwell)}</td>
               <td>{ms(r.expectedDwell)}</td>
               <td>± {ms(r.bandDwell)}</td>
+              <td>{i === 0 ? '–' : ms(r.flight)}</td>
+              <td>{i === 0 ? '–' : ms(r.expectedFlight)}</td>
             </tr>
           ))}
         </tbody>

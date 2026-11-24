@@ -252,7 +252,7 @@ export function Mobile() {
   const deviceSent = useRef(false);
   useEffect(() => {
     if (!connected || lost || level !== 2 || status !== 'pending') {
-      if (level !== 2 || !connected) deviceSent.current = false;
+      if (level !== 2 || !connected || status !== 'pending') deviceSent.current = false;
       return;
     }
     if (deviceSent.current) return;

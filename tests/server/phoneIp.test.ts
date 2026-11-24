@@ -60,3 +60,20 @@ describe('adresse IP du téléphone (relevée par le serveur)', () => {
     expect(snap.secrets?.[2]).toBe(true);
   });
 });
+
+describe('relance d’une seule étape', () => {
+  it('efface les mesures de l’étape 2 sans toucher à celles de l’étape 1', () => {
+    const m = manager();
+    const s = m.create();
+    m.inject(s.id, 'A', 1);
+    m.inject(s.id, 'A', 2);
+    const before = m.snapshot(s.id);
+    expect(before.live.keystroke).toBeUndefined(); // pas de profil de frappe dans ce test
+    expect(before.live.device).toBeDefined();
+    m.handleMessage(s.id, JSON.stringify({ type: 'retry', level: 2 }));
+    const after = m.snapshot(s.id);
+    expect(after.state).toEqual({ status: 'pending', level: 2 });
+    expect(after.live.device).toBeUndefined();
+    expect(after.secrets?.[2]).toBeUndefined();
+  });
+});
