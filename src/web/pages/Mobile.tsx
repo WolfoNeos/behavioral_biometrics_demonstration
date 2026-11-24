@@ -248,6 +248,18 @@ export function Mobile() {
   const level = snapshot?.level;
   const status = snapshot?.state.status;
 
+  // empreinte de l'appareil relevée dès l'ouverture du niveau 2, avant la saisie du PIN
+  const deviceSent = useRef(false);
+  useEffect(() => {
+    if (!connected || lost || level !== 2 || status !== 'pending') {
+      if (level !== 2 || !connected) deviceSent.current = false;
+      return;
+    }
+    if (deviceSent.current) return;
+    deviceSent.current = true;
+    void collectFingerprint().then((fingerprint) => sendRef.current({ type: 'device', fingerprint }));
+  }, [connected, lost, level, status]);
+
   // reflet de l'écran pour le PC (aide à la compréhension de la démo)
   const sendRef = useRef(send);
   sendRef.current = send;

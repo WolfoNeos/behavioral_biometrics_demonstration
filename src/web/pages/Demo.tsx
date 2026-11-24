@@ -80,13 +80,38 @@ function FailBanner({ verdict }: { verdict: LastVerdict }) {
  * Level dont on montre le signal : apres un echec, le niveau echoue reste affiche (avec un
  * bandeau) tant que le nouveau niveau n'a pas de mesure ; l'orientation en direct en est une.
  */
-function shownLevel(snap: Snapshot): { level: Level; failed: LastVerdict | null } {
+function shownLevel(snap: Snapshot, holding: boolean): { level: Level; failed: LastVerdict | null } {
   const v = snap.lastVerdict;
   const measuring = snap.level === 3 && snap.liveOrientation !== null;
-  if (snap.state.status === 'pending' && v && !v.granted && v.level < snap.level && !measuring) {
+  // `holding` : le résultat vient de tomber, on le laisse à l'écran même si le niveau suivant mesure déjà
+  if (snap.state.status === 'pending' && v && !v.granted && v.level < snap.level && (!measuring || holding)) {
     return { level: v.level, failed: v };
   }
   return { level: snap.level, failed: null };
+}
+
+/** Durée pendant laquelle le résultat d'une étape échouée reste affiché (le temps de le commenter). */
+const HOLD_MS = 8000;
+
+/** Vrai pendant HOLD_MS après l'arrivée d'un nouvel échec ; jamais pour un échec déjà présent au chargement. */
+function useHeldFailure(v: LastVerdict | null): boolean {
+  const key = v && !v.granted ? `${v.level}:${v.score}:${v.reason}` : null;
+  const [active, setActive] = useState(false);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    if (key === null) {
+      setActive(false);
+      return;
+    }
+    setActive(true);
+    const t = setTimeout(() => setActive(false), HOLD_MS);
+    return () => clearTimeout(t);
+  }, [key]);
+  return active;
 }
 
 const msText = (v: number | null) => (v === null ? '–' : `${Math.round(v)} ms`);
@@ -197,6 +222,7 @@ function useWelcome(active: boolean): WelcomeContent {
 export function Demo() {
   const { snapshot, send } = useSession();
   const welcome = useWelcome(snapshot?.state.status === 'granted');
+  const holding = useHeldFailure(snapshot?.lastVerdict ?? null);
   useGodMode(send);
   // frappe en cours dans le champ mot de passe (vide hors saisie, et des Entree)
   const [typed, setTyped] = useState<KeyEvent[]>([]);
@@ -238,7 +264,7 @@ export function Demo() {
   }
 
   const { state, level } = snapshot;
-  const shown = shownLevel(snapshot);
+  const shown = shownLevel(snapshot, holding);
   const th = levelThresholds(shown.level, snapshot.thresholds);
   // vue provisoire : niveau 1 en attente et frappe locale en cours ; sinon le serveur fait foi
   const atLevel1 = state.status === 'pending' && level === 1 && shown.level === 1;
@@ -288,7 +314,7 @@ export function Demo() {
       <main className="main-zone" data-testid="main-zone">
         <PortalShell>{main}</PortalShell>
       </main>
-      <aside className="side side-wide" data-state={state.status}>
+      <aside className={shown.level === 2 ? 'side side-wide side-device' : 'side side-wide'} data-state={state.status}>
         <ConsoleHeader state={state} />
         <section className="panel" data-testid="panel-direct" aria-label="Direct">
           <h2>Live — {SIGNAL_NAME[shown.level]}</h2>

@@ -5,6 +5,10 @@ import QRCode from 'qrcode';
 import { attachKeystrokeCapture } from '../capture/keystroke';
 import { DEFAULT_THRESHOLDS } from '../../shared/types';
 import type { KeyEvent, Profile, Thresholds } from '../../shared/types';
+import { CRITERIA, GROUP_LABELS, resolveCriteria } from '../../shared/criteria';
+import type { CriterionDef, CriterionGroup, CriterionSetting } from '../../shared/criteria';
+import type { DeviceLine } from '../../shared/scoring/device';
+import { FINGERPRINT_FIELDS } from '../../shared/fingerprint';
 import { DEFAULT_WELCOME, MAX_TRANSACTIONS, sanitizeWelcome } from '../../shared/welcome';
 import type { WelcomeContent } from '../../shared/welcome';
 
@@ -302,6 +306,13 @@ function PhoneEnrol({ profile, netVersion }: { profile: Profile | null; netVersi
         </p>
       ) : (
         <p className="hint">Phone not enrolled</p>
+      )}
+      {enrolled && profile.fingerprint && FINGERPRINT_FIELDS.some((f) => typeof profile.fingerprint?.[f] !== 'string') && (
+        <p className="cfg-error" role="note" data-testid="reenroll-note">
+          This phone was enrolled with {FINGERPRINT_FIELDS.filter((f) => typeof profile.fingerprint?.[f] === 'string').length} of{' '}
+          {FINGERPRINT_FIELDS.length} criteria. Scan the QR code again to enroll it with all of them (two identical phones are
+          told apart by their personal settings, IP address and stored ID).
+        </p>
       )}
     </section>
   );
@@ -692,6 +703,186 @@ function WelcomeEditor() {
   );
 }
 
+interface CriteriaPayload {
+  criteria: CriterionDef[];
+  overrides: Record<string, Partial<CriterionSetting>>;
+  last: DeviceLine[] | null;
+}
+
+/**
+ * Choix des critères de l'empreinte (niveau 2) : tous sont relevés, on décide ici lesquels
+ * comptent, avec quel poids, et lesquels plafonnent le score (critères d'identité). La colonne
+ * « Last test » montre ce qui a différé entre A et l'appareil mesuré lors du dernier essai.
+ */
+function CriteriaCard() {
+  const [settings, setSettings] = useState<Record<string, CriterionSetting>>(() => resolveCriteria());
+  const [last, setLast] = useState<DeviceLine[] | null>(null);
+  const [filter, setFilter] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const load = useCallback(async (keepSettings: boolean): Promise<void> => {
+    try {
+      const res = await fetch('/api/criteria');
+      if (!res.ok) return;
+      const body = (await res.json()) as CriteriaPayload;
+      setLast(body.last ?? null);
+      if (!keepSettings) setSettings(resolveCriteria(body.overrides ?? {}));
+    } catch {
+      // serveur injoignable : le catalogue par défaut reste affiché
+    }
+  }, []);
+
+  useEffect(() => {
+    void load(false);
+  }, [load]);
+
+  const lastBy = new Map((last ?? []).map((l) => [l.field, l.match]));
+  const set = (key: string, patch: Partial<CriterionSetting>): void =>
+    setSettings((cur) => ({ ...cur, [key]: { ...cur[key], ...patch } }));
+  const setAll = (pick: (d: CriterionDef) => boolean): void =>
+    setSettings((cur) => Object.fromEntries(CRITERIA.map((d) => [d.key, { ...cur[d.key], enabled: pick(d) }])));
+
+  const save = async (value: Record<string, CriterionSetting>): Promise<void> => {
+    setMsg(null);
+    try {
+      const res = await fetch('/api/criteria', jsonInit('PUT', value));
+      if (!res.ok) {
+        setMsg({ ok: false, text: await errorMessage(res) });
+        return;
+      }
+      const body = (await res.json()) as CriteriaPayload;
+      setSettings(resolveCriteria(body.overrides ?? {}));
+      setLast(body.last ?? null);
+      setMsg({ ok: true, text: 'Criteria saved' });
+    } catch {
+      setMsg({ ok: false, text: 'Server unreachable' });
+    }
+  };
+
+  const enabledCount = CRITERIA.filter((d) => settings[d.key]?.enabled).length;
+  const needle = filter.trim().toLowerCase();
+  const visible = CRITERIA.filter((d) => !needle || d.label.toLowerCase().includes(needle) || d.key.toLowerCase().includes(needle));
+  const groups = (Object.keys(GROUP_LABELS) as CriterionGroup[])
+    .map((g) => ({ group: g, items: visible.filter((d) => d.group === g) }))
+    .filter((g) => g.items.length > 0);
+
+  return (
+    <section className="card cfg-section cfg-criteria" aria-label="Device criteria">
+      <div className="cfg-head">
+        <h2>Device criteria (level 2)</h2>
+        <p className="hint">
+          Every criterion is collected from the phone. Choose which ones count in the score, with which weight, and which
+          ones cap the score when they differ (identity). The “Last test” column shows what differed between A and the last
+          measured device.
+        </p>
+      </div>
+      <div className="crit-toolbar">
+        <input
+          type="search"
+          aria-label="Filter criteria"
+          placeholder="Filter criteria…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+        <span className="chip">{`${enabledCount} of ${CRITERIA.length} enabled`}</span>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAll(() => true)}>
+          Select all
+        </button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAll(() => false)}>
+          Select none
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={last === null}
+          onClick={() => setAll((d) => lastBy.get(d.key) === false)}
+        >
+          Only those that differed
+        </button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSettings(resolveCriteria())}>
+          Defaults
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void load(true)}>
+          Refresh last test
+        </button>
+      </div>
+      <div className="crit-groups">
+        {groups.map(({ group, items }) => (
+          <div key={group} className="crit-group">
+            <h3>{GROUP_LABELS[group]}</h3>
+            <table className="crit-table">
+              <thead>
+                <tr>
+                  <th>On</th>
+                  <th>Criterion</th>
+                  <th>Last test</th>
+                  <th>Weight</th>
+                  <th>Identity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((d) => {
+                  const st = settings[d.key];
+                  const result = lastBy.get(d.key);
+                  return (
+                    <tr key={d.key} className={st.enabled ? undefined : 'off'}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`Enable ${d.label}`}
+                          checked={st.enabled}
+                          onChange={(e) => set(d.key, { enabled: e.target.checked })}
+                        />
+                      </td>
+                      <td>
+                        {d.label}
+                        {d.server && <span className="tag">server</span>}
+                        {d.volatile && <span className="tag warn">volatile</span>}
+                      </td>
+                      <td className={result === undefined ? 'last none' : result ? 'last same' : 'last diff'}>
+                        {result === undefined ? '—' : result ? '✓ same' : '✗ differed'}
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min={0}
+                          max={10}
+                          step={0.5}
+                          aria-label={`Weight of ${d.label}`}
+                          value={st.weight}
+                          onChange={(e) => set(d.key, { weight: Math.max(0, Math.min(10, Number(e.target.value) || 0)) })}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`Identity ${d.label}`}
+                          checked={st.identity}
+                          onChange={(e) => set(d.key, { identity: e.target.checked })}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </div>
+      <div className="cfg-actions">
+        <button type="button" className="btn btn-primary" onClick={() => void save(settings)}>
+          Save criteria
+        </button>
+      </div>
+      {msg && (
+        <p className={msg.ok ? 'cfg-ok' : 'cfg-error'} role={msg.ok ? 'status' : 'alert'}>
+          {msg.text}
+        </p>
+      )}
+    </section>
+  );
+}
+
 export function Config() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [thresholds, setThresholds] = useState<Thresholds | null>(null);
@@ -750,6 +941,7 @@ export function Config() {
           <WelcomeEditor />
         </div>
       </div>
+      <CriteriaCard />
     </main>
   );
 }

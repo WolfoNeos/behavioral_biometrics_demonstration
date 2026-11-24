@@ -3,6 +3,7 @@ import type { Fingerprint, KeyEvent, Level, OrientationReading, PhoneView, Snaps
 
 export type PhoneMessage =
   | { type: 'pin'; pin: string; fingerprint: Fingerprint; taps: { down: number; up: number }[] }
+  | { type: 'device'; fingerprint: Fingerprint }
   | { type: 'orientation'; pin: string; readings: OrientationReading[] }
   | ({ type: 'orientationLive' } & OrientationReading)
   | ({ type: 'phoneView' } & PhoneView);

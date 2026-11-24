@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -140,7 +140,7 @@ describe('Demo', () => {
     renderDemo();
     const direct = screen.getByTestId('panel-direct');
     expect(within(direct).queryByTestId('chart')).toBeNull();
-    expect(within(direct).getByText('Criterion')).toBeInTheDocument();
+    expect(within(direct).getByTestId('device-summary')).toBeInTheDocument();
     expect(within(screen.getByTestId('panel-score')).queryByTestId('chart')).toBeNull();
   });
 
@@ -575,5 +575,63 @@ describe('Demo : bilan de fin de session', () => {
   it('en cours : pas de bilan', () => {
     renderDemo();
     expect(screen.queryByTestId('session-recap')).toBeNull();
+  });
+});
+
+describe('Demo : le résultat du niveau 2 reste affiché après la soumission', () => {
+  const rerender = (r: ReturnType<typeof render>) =>
+    r.rerender(
+      <MemoryRouter>
+        <Demo />
+      </MemoryRouter>,
+    );
+
+  it('un échec qui vient de tomber reste à l’écran 8 s, même si le niveau 3 mesure déjà', () => {
+    vi.useFakeTimers();
+    try {
+      snapshot = { ...base, level: 2, state: { status: 'pending', level: 2 } };
+      const r = renderDemo();
+      // le téléphone soumet le PIN : niveau 3, orientation en direct, échec du niveau 2
+      snapshot = {
+        ...base,
+        level: 3,
+        state: { status: 'pending', level: 3 },
+        live: { device: { score: 25, lines: deviceLines } },
+        lastVerdict: { level: 2, score: 25, granted: false, reason: 'signal out of range' },
+        liveOrientation: { alpha: 0, beta: 12, gamma: 0 },
+      };
+      act(() => rerender(r));
+      const direct = () => screen.getByTestId('panel-direct');
+      expect(within(direct()).getByText(/Live — Device fingerprint/)).toBeInTheDocument();
+      expect(within(direct()).getByTestId('fail-banner')).toBeInTheDocument();
+      // le temps de le commenter écoulé, on passe à la posture
+      act(() => {
+        vi.advanceTimersByTime(8100);
+      });
+      expect(within(direct()).getByText(/Live — Phone posture/)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('le présentateur qui saute de niveau reprend la main tout de suite', () => {
+    vi.useFakeTimers();
+    try {
+      snapshot = { ...base, level: 2, state: { status: 'pending', level: 2 } };
+      const r = renderDemo();
+      snapshot = {
+        ...base,
+        level: 3,
+        state: { status: 'pending', level: 3 },
+        lastVerdict: { level: 2, score: 25, granted: false, reason: 'signal out of range' },
+        liveOrientation: { alpha: 0, beta: 12, gamma: 0 },
+      };
+      act(() => rerender(r));
+      snapshot = { ...snapshot, lastVerdict: null }; // jump : lastVerdict effacé
+      act(() => rerender(r));
+      expect(within(screen.getByTestId('panel-direct')).getByText(/Live — Phone posture/)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

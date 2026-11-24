@@ -270,3 +270,43 @@
 .recap-secret { display: inline-flex; justify-content: center; padding: 0.1rem 0.5rem; font-size: 0.9rem; font-weight: 600; white-space: nowrap; color: var(--color-ink-muted); background: var(--color-grey-soft); border-radius: 999px; }
 .recap-secret.ok { color: var(--color-green); background: var(--color-green-soft); }
 .recap-secret.ko { color: var(--color-red); background: var(--color-red-soft); }
+
+/* Niveau 2 : écarts détaillés, critères identiques en pastilles */
+.cmp-summary { margin: 0; padding: 0.4rem 0.9rem; font-size: 1.15rem; font-weight: 700; border-radius: 10px; }
+.cmp-summary.ok { color: var(--color-green); background: var(--color-green-soft); }
+.cmp-summary.ko { color: var(--color-red); background: var(--color-red-soft); }
+.cmp-summary.pending { color: var(--color-ink-muted); background: var(--color-bg); }
+.cmp-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0; padding: 0; }
+.chip-cmp { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.15rem 0.65rem; font-size: 0.95rem; font-weight: 600; border-radius: 999px; white-space: nowrap; }
+.chip-cmp.same { color: var(--color-green); background: var(--color-green-soft); }
+.chip-cmp.pending { color: var(--color-ink-muted); background: var(--color-grey-soft); }
+.device-compare .values-table { table-layout: fixed; }
+.device-compare .values-table td { overflow: hidden; text-overflow: ellipsis; }
+.device-compare .values-table th:nth-child(1), .device-compare .values-table td:nth-child(1) { width: 21%; }
+.device-compare .values-table th:nth-child(2), .device-compare .values-table td:nth-child(2) { width: 27%; }
+.device-compare .values-table th:nth-child(3), .device-compare .values-table td:nth-child(3) { width: 27%; }
+.device-compare .values-table th:nth-child(4), .device-compare .values-table td:nth-child(4) { width: 15%; }
+.device-compare .values-table th:nth-child(5), .device-compare .values-table td:nth-child(5) { width: 10%; }
+
+/* Niveau 2 : tableau complet (toutes les lignes), écarts en tête, défilement interne */
+.device-compare { height: 100%; min-height: 0; }
+.cmp-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-shrink: 0; flex-wrap: wrap; }
+.cmp-bar .cmp-total { margin: 0; font-size: 1.1rem; }
+.cmp-scroll { flex: 1; min-height: 0; overflow-y: auto; margin-right: -0.4rem; padding-right: 0.4rem; }
+.cmp-scroll .values-table { border-spacing: 0 3px; font-size: 1.02rem; }
+.cmp-scroll .values-table td { padding: 4px 10px; }
+.cmp-scroll .values-table thead th { position: sticky; top: 0; z-index: 1; background: var(--color-surface); padding-bottom: 2px; }
+.cmp-scroll .cmp-same td { background: var(--color-green-soft); }
+.cmp-scroll .cmp-diff td { background: var(--color-red-soft); }
+.cmp-scroll .cmp-same .cmp-status, .cmp-scroll .cmp-same .num { color: var(--color-green); }
+.cmp-scroll .cmp-diff .cmp-status, .cmp-scroll .cmp-diff .num { color: var(--color-red); }
+.cmp-scroll .cmp-status .ok, .cmp-scroll .cmp-status .ko { font-size: 1.05rem; margin-right: 0.25em; }
+.device-compare.fills { display: flex; flex-direction: column; gap: 0.4rem; }
+.device-compare { display: flex; flex-direction: column; gap: 0.4rem; }
+.side-wide.side-device { grid-template-rows: auto minmax(0, 3.2fr) minmax(0, 1fr) auto; }
+.side-wide.side-device { grid-template-rows: auto minmax(0, 3fr) minmax(0, 1fr) auto; }
+.side-device .panel-score .gauge { max-width: 170px; }
+.side-device .panel-score .gauge-score { font-size: 2.2rem; margin-top: -1.7rem; }
+.cmp-scroll .cmp-off td { background: var(--color-bg); color: var(--color-ink-muted); opacity: 0.75; }
+.cmp-scroll .cmp-off .cmp-status { font-weight: 500; }
+.cmp-ignored-count { font-weight: 500; opacity: 0.8; }
