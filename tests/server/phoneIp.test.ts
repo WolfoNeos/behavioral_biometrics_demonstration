@@ -274,3 +274,48 @@ describe('plusieurs téléphones à l’étape 3', () => {
     expect(m.snapshot(s.id).postureRuns![0].n).toBe(2); // arrivé en second, quel que soit l'ordre d'envoi
   });
 });
+
+describe('Restart : nouveau QR code, téléphones déconnectés', () => {
+  class ClosableWs extends FakeWs {
+    closed: { code?: number } | null = null;
+    close(code?: number): void {
+      this.closed = { code };
+    }
+  }
+
+  it('la clé du QR change et les anciens QR n’ouvrent plus la session', () => {
+    const m = manager();
+    const s = m.create();
+    const before = m.url(s.id);
+    const key = before.split('.').pop();
+    expect(m.phoneKeyOk(s.id, key)).toBe(true);
+    m.reset(s.id);
+    expect(m.url(s.id)).not.toBe(before);
+    expect(m.phoneKeyOk(s.id, key)).toBe(false);
+    expect(m.phoneKeyOk(s.id, m.url(s.id).split('.').pop())).toBe(true);
+    expect(m.snapshot(s.id).sessionUrl).toBe(m.url(s.id));
+  });
+
+  it('Restart ferme tous les téléphones connectés (code « session inconnue ») et vide leur reflet', () => {
+    const m = manager();
+    const s = m.create();
+    const a = new ClosableWs();
+    const b = new ClosableWs();
+    m.attachPhone(s.id, a as never);
+    m.attachPhone(s.id, b as never);
+    expect(m.snapshot(s.id).phoneConnected).toBe(true);
+    m.reset(s.id);
+    expect(a.closed).toEqual({ code: 1008 });
+    expect(b.closed).toEqual({ code: 1008 });
+    expect(m.snapshot(s.id).phoneConnected).toBe(false);
+  });
+
+  it('un saut de niveau ou Retry ne change pas le QR code', () => {
+    const m = manager();
+    const s = m.create();
+    const before = m.url(s.id);
+    m.jump(s.id, 2);
+    m.handleMessage(s.id, JSON.stringify({ type: 'retry', level: 2 }));
+    expect(m.url(s.id)).toBe(before);
+  });
+});

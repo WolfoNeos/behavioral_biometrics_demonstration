@@ -40,7 +40,7 @@ export interface MessageContext {
 
 export interface WsLike {
   send(data: string): void;
-  close(): void;
+  close(code?: number, reason?: string): void;
   on(event: 'message', cb: (data: unknown) => void): unknown;
   on(event: 'close', cb: () => void): unknown;
   on(event: 'error', cb: (err: unknown) => void): unknown;
@@ -48,6 +48,8 @@ export interface WsLike {
 
 export interface Session {
   id: string;
+  /** Clé du QR code : change à chaque Restart, les téléphones déjà connectés sont alors déconnectés. */
+  key: string;
   state: AuthState;
   live: LiveResults;
   /** Tous les telephones attaches : chacun peut soumettre (B puis A sur le meme QR). */
@@ -92,6 +94,9 @@ export interface SessionManagerOptions {
   }) => void;
 }
 
+/** Clé courte et aléatoire du QR code. */
+const newKey = (): string => randomUUID().replace(/-/g, '').slice(0, 10);
+const CLOSE_UNKNOWN_SESSION = 1008;
 const MAX_ATTEMPTS = 12;
 const MAX_DEVICE_RUNS = 12;
 const KIND_LEVEL: Record<SubmitPayload['kind'], Level> = { keystroke: 1, pin: 2, orientation: 3 };
@@ -206,6 +211,7 @@ export class SessionManager {
   create(): Session {
     const session: Session = {
       id: randomUUID(),
+      key: newKey(),
       state: startState(),
       live: {},
       phones: new Set(),
@@ -241,7 +247,13 @@ export class SessionManager {
   }
 
   url(id: string): string {
-    return `${this.opts.baseUrl}/m/${id}`;
+    return `${this.opts.baseUrl}/m/${id}.${this.get(id).key}`;
+  }
+
+  /** Le téléphone présente-t-il la clé du QR code courant ? (un ancien QR n'ouvre plus la session) */
+  phoneKeyOk(id: string, key: string | undefined): boolean {
+    const s = this.sessions.get(id);
+    return s !== undefined && key === s.key;
   }
 
   private get(id: string): Session {
@@ -455,6 +467,17 @@ export class SessionManager {
 
   reset(id: string): void {
     const s = this.get(id);
+    // nouveau QR code : l'ancien ne marche plus et tous les téléphones connectés sont déconnectés
+    s.key = newKey();
+    for (const ws of [...s.phones]) {
+      try {
+        ws.close(CLOSE_UNKNOWN_SESSION, 'session restarted');
+      } catch (err) {
+        console.error('fermeture ws impossible', err);
+      }
+    }
+    s.phones.clear();
+    s.phoneView = null;
     s.state = startState();
     s.stay = false;
     s.deviceRuns = [];

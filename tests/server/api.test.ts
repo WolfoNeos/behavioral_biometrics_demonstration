@@ -147,10 +147,10 @@ describe('API REST', () => {
     ws.terminate();
   });
 
-  it('POST /api/session renvoie {id, url} avec /m/<id>', async () => {
+  it('POST /api/session renvoie {id, url} avec /m/<id>.<clé>', async () => {
     const { id, url } = (await app.inject({ method: 'POST', url: '/api/session' })).json();
     expect(id).toBeTruthy();
-    expect(url).toBe(`https://demo.test/m/${id}`);
+    expect(url).toMatch(new RegExp(`^https://demo\\.test/m/${id}\\.[0-9a-f]{10}$`));
   });
 });
 

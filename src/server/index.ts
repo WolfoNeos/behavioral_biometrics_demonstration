@@ -199,12 +199,15 @@ export async function buildServer(opts: ServerOptions = {}) {
   });
 
   app.get('/ws', { websocket: true }, (socket, req) => {
-    const { session, role } = req.query as { session?: string; role?: string };
+    const { session: raw, role } = req.query as { session?: string; role?: string };
+    // le téléphone présente « <session>.<clé du QR code> » ; le PC, la session seule
+    const [session, key] = (raw ?? '').split('.');
     if (!session || !sessions.has(session) || (role !== 'pc' && role !== 'phone')) {
       socket.close(1008, 'invalid session or role');
       return;
     }
     if (role === 'pc') sessions.attachPc(session, socket);
+    else if (!sessions.phoneKeyOk(session, key)) socket.close(1008, 'QR code expired');
     else sessions.attachPhone(session, socket, serverFingerprintFields(req.headers, req.socket.remoteAddress));
   });
 

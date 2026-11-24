@@ -677,12 +677,11 @@ describe('Demo : Stay on step à l’étape 2', () => {
     live: { device: { score: 40, lines } },
   });
 
-  it('ni jauge de score ni score dans le tableau', () => {
-    snapshot = stay2();
+  it('ni jauge, ni essais, ni score dans le tableau', () => {
+    snapshot = { ...stay2(), attempts: [{ n: 1, level: 2 as const, score: 40, secret: true, granted: false }] };
     renderDemo();
-    const panel = screen.getByTestId('panel-score');
-    expect(panel).toHaveAttribute('aria-label', 'Attempts');
-    expect(within(panel).queryByRole('img')).toBeNull();
+    expect(screen.queryByTestId('panel-score')).toBeNull();
+    expect(screen.queryByTestId('attempts')).toBeNull();
     expect(screen.queryByTestId('device-total')).toBeNull();
     expect(screen.queryByText('Points')).toBeNull();
   });
@@ -696,7 +695,7 @@ describe('Demo : Stay on step à l’étape 2', () => {
 });
 
 describe('Demo : Stay on step à l’étape 3', () => {
-  it('score de chaque téléphone, pas de jauge unique', () => {
+  it('résultat de chaque téléphone seulement : pas de cadran, de jauge ni d’essais', () => {
     snapshot = {
       ...base,
       state: { status: 'pending', level: 3 },
@@ -709,7 +708,9 @@ describe('Demo : Stay on step à l’étape 3', () => {
     };
     renderDemo();
     expect(screen.getAllByTestId('posture-run')).toHaveLength(2);
-    expect(screen.getByTestId('panel-score')).toHaveAttribute('aria-label', 'Attempts');
+    expect(screen.queryByTestId('panel-score')).toBeNull();
+    expect(screen.queryByTestId('attempts')).toBeNull();
+    expect(screen.queryByRole('img', { name: 'angle dial' })).toBeNull(); // pas de gyroscope en direct
   });
 
   it('sans le mode : le cadran seul et la jauge', () => {
@@ -717,5 +718,6 @@ describe('Demo : Stay on step à l’étape 3', () => {
     renderDemo();
     expect(screen.queryByTestId('posture-runs')).toBeNull();
     expect(screen.getByTestId('panel-score')).toHaveAttribute('aria-label', 'Score');
+    expect(screen.getByRole('img', { name: 'angle dial' })).toBeInTheDocument();
   });
 });

@@ -168,28 +168,24 @@ function DirectSignal({ snap, level, liveRows }: { snap: Snapshot; level: Level;
   }
   // avant « Confirm » : l'aiguille suit le telephone en direct ; apres : la mesure notee
   const beta = snap.liveOrientation?.beta ?? snap.live.orientation?.beta ?? null;
-  const dial = (
+  // mode « Stay on step » : pas de cadran en direct, seulement le résultat de chaque téléphone
+  if (snap.stay === true) {
+    return (
+      <PostureRuns
+        runs={snap.postureRuns ?? []}
+        expectedBeta={snap.expected.beta}
+        accept={snap.thresholds.orientation.accept}
+        warn={snap.thresholds.orientation.warn}
+      />
+    );
+  }
+  return (
     <AngleDial
       expectedBeta={snap.expected.beta ?? 0}
       tolerance={snap.thresholds.orientation.toleranceDeg}
       beta={beta}
     />
   );
-  // mode « Stay on step » : le score de chaque téléphone qui teste la posture
-  if (snap.stay === true) {
-    return (
-      <div className="posture-stay">
-        <div className="posture-dial">{dial}</div>
-        <PostureRuns
-          runs={snap.postureRuns ?? []}
-          expectedBeta={snap.expected.beta}
-          accept={snap.thresholds.orientation.accept}
-          warn={snap.thresholds.orientation.warn}
-        />
-      </div>
-    );
-  }
-  return dial;
 }
 
 /** Résumé du profil de frappe de A (affiché sous la reference signature). */
@@ -332,7 +328,7 @@ export function Demo() {
         : 'Official score'
       : '';
   const recap = buildRecap(snapshot);
-  // mode « Stay on step » aux étapes 2 et 3 : on compare des téléphones, pas de jauge unique
+  // mode « Stay on step » aux étapes 2 et 3 : on compare des téléphones, ni jauge ni essais
   const noScore = snapshot.stay === true && (shown.level === 2 || shown.level === 3);
   const gauge = (
     <div className="gauge-col">
@@ -364,14 +360,10 @@ export function Demo() {
             <SessionRecap recap={recap} />
             <AttemptHistory attempts={snapshot.attempts ?? []} />
           </section>
-        ) : (
-          <section
-            className={noScore ? 'panel panel-score panel-attempts-only' : 'panel panel-score'}
-            data-testid="panel-score"
-            aria-label={noScore ? 'Attempts' : 'Score'}
-          >
-            <h2>{noScore ? 'Attempts' : 'Score'}</h2>
-            {!noScore && gauge}
+        ) : noScore ? null : (
+          <section className="panel panel-score" data-testid="panel-score" aria-label="Score">
+            <h2>Score</h2>
+            {gauge}
             <AttemptHistory attempts={(snapshot.attempts ?? []).filter((a) => a.level === shown.level)} />
           </section>
         )}
