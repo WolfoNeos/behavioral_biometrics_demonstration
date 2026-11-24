@@ -17,6 +17,7 @@ interface Logged {
   at: string;
   score: number;
   secret: boolean;
+  typed?: boolean;
   events: KeyEvent[];
 }
 
@@ -26,7 +27,8 @@ const read = <T>(file: string): T | null => {
 };
 
 const profile = read<Profile>('profile.json');
-const attempts = read<Logged[]>('attempts.json') ?? [];
+// seules les saisies tapées par une personne (pas Play A / Play B) ; les anciennes entrées sont ignorées
+const attempts = (read<Logged[]>('attempts.json') ?? []).filter((a) => a.typed === true);
 if (!profile?.keystroke) {
   console.error('Pas de profil de frappe enrôlé (data/profile.json).');
   process.exit(1);

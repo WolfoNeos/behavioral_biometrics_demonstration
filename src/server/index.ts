@@ -86,7 +86,7 @@ export async function buildServer(opts: ServerOptions = {}) {
       // seules les saisies tapées par une personne servent de référence au rejeu et au banc d'essai
       if (a.payload.kind !== 'keystroke' || a.simulated) return;
       appendAttempt(
-        { at: new Date().toISOString(), score: a.score, secret: a.secret, granted: a.granted, events: a.payload.events },
+        { at: new Date().toISOString(), score: a.score, secret: a.secret, granted: a.granted, typed: true, events: a.payload.events },
         attemptsPath,
       );
     },
@@ -120,7 +120,7 @@ export async function buildServer(opts: ServerOptions = {}) {
   // Screen affiché une fois la sécurité passée (textes, solde, blagues…)
   // dernier essai de frappe refusé (bouton « Play B » : on rejoue l'imitateur réel)
   app.get('/api/attempts/last-failed', async (_req, reply) => {
-    const a = lastFailedAttempt(attemptsPath, loadThresholds(thresholdsPath).keystroke.accept);
+    const a = lastFailedAttempt(attemptsPath);
     return a ? { events: a.events, secret: a.secret, score: a.score } : reply.code(404).send({ error: 'none' });
   });
   app.get('/api/welcome', async () => loadWelcome(welcomePath));

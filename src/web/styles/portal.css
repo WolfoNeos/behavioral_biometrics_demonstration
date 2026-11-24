@@ -323,15 +323,20 @@
 .attempt.ko { background: var(--color-red-soft); color: var(--color-red); }
 .attempt.ok .attempt-n, .attempt.ok .attempt-step, .attempt.warn .attempt-n, .attempt.warn .attempt-step, .attempt.ko .attempt-n, .attempt.ko .attempt-step { color: inherit; opacity: 0.75; }
 
-/* plus de place pour les graphiques ; l'historique des essais est une bande à part */
-.side-wide { grid-template-rows: auto minmax(0, 5fr) minmax(0, 1.2fr) auto auto; }
-.side-wide[data-state='granted'], .side-wide[data-state='blocked'] { grid-template-rows: auto minmax(0, 2.4fr) minmax(0, 1.8fr) auto auto; }
-.panel-score:not(.panel-recap) .gauge { max-width: 190px; }
-.panel-score:not(.panel-recap) .gauge-score { font-size: 2.4rem; margin-top: -1.8rem; }
-.signal .chart-half { min-height: 190px; }
-.signal .threshold-chart { gap: var(--space-2); }
-.attempts { margin: 0; padding: 0 var(--space-2); }
+/* graphiques en priorité : le bilan et l'historique ne prennent que la place de leur contenu */
+.side-wide, .side-wide[data-state='granted'], .side-wide[data-state='blocked'] { grid-template-rows: auto minmax(0, 1fr) auto auto auto; }
+.panel-score:not(.panel-recap) .gauge { max-width: 150px; }
+.panel-score:not(.panel-recap) .gauge-score { font-size: 2rem; margin-top: -1.5rem; }
+.panel-score:not(.panel-recap) .gauge-col { flex: 0 0 auto; }
+.panel-recap { padding-top: var(--space-2); padding-bottom: var(--space-2); }
+.panel-recap .recap-trust .gauge { max-width: 140px; }
+.panel-recap .recap-trust .gauge-score { font-size: 2rem; margin-top: -1.5rem; }
+.panel-recap .recap-trust .gauge-caption { font-size: 0.9rem; }
+/* les deux graphiques gardent toujours leur hauteur : au besoin le panneau défile, rien ne se chevauche */
+.signal .threshold-chart { flex: 1 0 400px; gap: var(--space-2); }
+.signal .chart-half { flex: 1 1 190px; min-height: 190px; }
+.attempts { margin: 0; padding: 0 var(--space-2); display: flex; align-items: center; gap: var(--space-2); overflow: hidden; }
 .attempts h3 { display: inline; margin: 0 var(--space-2) 0 0; }
-.attempts { display: flex; align-items: center; gap: var(--space-2); overflow: hidden; }
 .attempts ol { flex-wrap: nowrap; overflow: hidden; }
-.attempt { white-space: nowrap; flex-shrink: 0; }
+.attempt { white-space: nowrap; flex-shrink: 0; padding: 2px 9px; }
+.panel-recap .recap { grid-template-columns: 170px minmax(0, 1fr); gap: 1rem; flex: 0 0 auto; }
