@@ -106,39 +106,8 @@ describe('historique des essais', () => {
   });
 });
 
-describe('rejeu d’une saisie (Play B)', () => {
-  const ev = [
-    { key: 'a', down: 0, up: 90 },
-    { key: 'b', down: 140, up: 230 },
-  ];
-  const mgr = () =>
-    new SessionManager({
-      getProfile: () => ({ ...profile(), password: 'ab', keystroke: buildKeystrokeProfile([ev, ev]) }),
-      getThresholds: () => DEFAULT_THRESHOLDS,
-      baseUrl: 'https://x',
-    });
-
-  it('soumet les touches rejouées à l’étape 1 avec le secret d’origine', () => {
-    const m = mgr();
-    const s = m.create();
-    m.handleMessage(s.id, JSON.stringify({ type: 'replay', events: ev, secret: false }));
-    const a = m.snapshot(s.id).attempts!;
-    expect(a).toHaveLength(1);
-    expect(a[0].secret).toBe(false);
-    expect(a[0].granted).toBe(false);
-  });
-
-  it('ignoré hors étape 1', () => {
-    const m = mgr();
-    const s = m.create();
-    m.jump(s.id, 2);
-    m.handleMessage(s.id, JSON.stringify({ type: 'replay', events: ev, secret: true }));
-    expect(m.snapshot(s.id).attempts).toHaveLength(0);
-  });
-});
-
 describe('journal : saisies simulées', () => {
-  it('Play A / Play B (inject, replay) sont marquées simulées, une saisie tapée ne l’est pas', () => {
+  it('la saisie injectée (touches A / B) est marquée simulée, une saisie tapée ne l’est pas', () => {
     const flags: boolean[] = [];
     const ev = [{ key: 'a', down: 0, up: 90 }];
     const m = new SessionManager({
@@ -150,9 +119,7 @@ describe('journal : saisies simulées', () => {
     const s = m.create();
     m.inject(s.id, 'B', 1);
     m.reset(s.id);
-    m.handleMessage(s.id, JSON.stringify({ type: 'replay', events: ev, secret: true }));
-    m.reset(s.id);
     m.handleMessage(s.id, JSON.stringify({ type: 'keystroke', events: ev, password: 'a' }));
-    expect(flags).toEqual([true, true, false]);
+    expect(flags).toEqual([true, false]);
   });
 });

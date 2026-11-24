@@ -14,7 +14,6 @@ import type { NetworkSource } from './network';
 import { SessionManager } from './sessions';
 import {
   appendAttempt,
-  lastFailedAttempt,
   loadCriteria,
   loadProfile,
   loadThresholds,
@@ -118,11 +117,6 @@ export async function buildServer(opts: ServerOptions = {}) {
   });
 
   // Screen affiché une fois la sécurité passée (textes, solde, blagues…)
-  // dernier essai de frappe refusé (bouton « Play B » : on rejoue l'imitateur réel)
-  app.get('/api/attempts/last-failed', async (_req, reply) => {
-    const a = lastFailedAttempt(attemptsPath);
-    return a ? { events: a.events, secret: a.secret, score: a.score } : reply.code(404).send({ error: 'none' });
-  });
   app.get('/api/welcome', async () => loadWelcome(welcomePath));
   app.put('/api/welcome', async (req, reply) => {
     const b = req.body as Record<string, unknown> | null;

@@ -514,23 +514,6 @@ export class SessionManager {
         case 'jump':
           if (isLevel(msg.level)) this.jump(id, msg.level);
           return;
-        case 'replay': {
-          // démo : rejoue une saisie déjà vue (celle de A, ou le dernier essai refusé) à l'étape 1
-          if (state.status !== 'pending' || state.level !== 1) return;
-          if (!arrOf(msg.events, (e) => typeof e.key === 'string' && fin(e.down) && fin(e.up))) return;
-          const secret = msg.secret !== false;
-          this.submit(
-            id,
-            1,
-            {
-              kind: 'keystroke',
-              events: msg.events as KeyEvent[],
-              password: secret ? this.opts.getProfile().password : '(replayed wrong password)',
-            },
-            true,
-          );
-          return;
-        }
         case 'retry':
           if (isLevel(msg.level)) this.retry(id, msg.level);
           return;

@@ -104,31 +104,3 @@ export function appendAttempt(record: Record<string, unknown>, path = DEFAULT_AT
   all.push(record);
   writeJson(path, all.slice(-MAX_LOGGED_ATTEMPTS));
 }
-
-export interface LoggedAttempt {
-  at: string;
-  score: number;
-  secret: boolean;
-  granted?: boolean;
-  /** Saisie tapée par une personne (les entrées sans ce marqueur viennent d'anciennes simulations). */
-  typed?: boolean;
-  events: { key: string; down: number; up: number }[];
-}
-
-/** Dernier essai de frappe refusé du journal (pour le rejouer en démo) ; null s'il n'y en a pas. */
-export function lastFailedAttempt(path = DEFAULT_ATTEMPTS_PATH): LoggedAttempt | null {
-  try {
-    if (!existsSync(path)) return null;
-    const v: unknown = JSON.parse(readFileSync(path, 'utf8'));
-    if (!Array.isArray(v)) return null;
-    for (let i = v.length - 1; i >= 0; i--) {
-      const a = v[i] as LoggedAttempt;
-      if (!a || !Array.isArray(a.events) || a.events.length === 0) continue;
-      // seules les saisies réellement tapées comptent (les anciennes entrées simulées sont ignorées)
-      if (a.typed === true && a.granted === false) return a;
-    }
-  } catch {
-    // journal illisible : pas de rejeu
-  }
-  return null;
-}

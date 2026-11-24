@@ -6,10 +6,6 @@ export interface ControlBarProps {
   onReset: () => void;
   /** Relance l'étape affichée seule, sans toucher aux autres résultats. */
   onRetry?: (level: Level) => void;
-  /** Joue une saisie type : A (profil exact) ou B (imitateur), sans rien taper. */
-  onSimulate?: (who: 'A' | 'B') => void;
-  /** Une saisie est en cours de rejeu : les boutons sont inactifs. */
-  simulating?: boolean;
   /** Level affiché (mis en évidence dans le sélecteur). */
   level?: Level;
 }
@@ -17,7 +13,7 @@ export interface ControlBarProps {
 const LEVELS: Level[] = [1, 2, 3];
 
 /** Menu du présentateur : sélecteur de niveau, remise à zéro, accès à la configuration. */
-export function ControlBar({ onJump, onReset, onRetry, onSimulate, simulating, level }: ControlBarProps) {
+export function ControlBar({ onJump, onReset, onRetry, level }: ControlBarProps) {
   return (
     <nav className="control-bar" aria-label="demo controls">
       <div className="seg" role="group" aria-label="Go to level">
@@ -33,16 +29,6 @@ export function ControlBar({ onJump, onReset, onRetry, onSimulate, simulating, l
           </button>
         ))}
       </div>
-      {onSimulate && (
-        <div className="seg" role="group" aria-label="Simulate an entry">
-          <button type="button" className="seg-btn" disabled={simulating} onClick={() => onSimulate('A')} title="Type A's entry key by key (shortcut: A)">
-            Play A
-          </button>
-          <button type="button" className="seg-btn" disabled={simulating} onClick={() => onSimulate('B')} title="Replay the last refused attempt (shortcut: B)">
-            Play B
-          </button>
-        </div>
-      )}
       {onRetry && level !== undefined && (
         <button type="button" className="ctl-btn" onClick={() => onRetry(level)}>
           <svg viewBox="0 0 20 20" aria-hidden="true">

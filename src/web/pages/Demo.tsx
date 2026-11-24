@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FailReason, KeyEvent, LastVerdict, Level, Snapshot, Thresholds } from '../../shared/types';
 import { AngleDial } from '../components/AngleDial';
 import { LoginForm, PortalShell, StepUp, Suspended, Welcome } from '../components/BankPortal';
@@ -17,7 +17,6 @@ import { angleScore } from '../../shared/scoring/orientation';
 import { buildRecap } from '../../shared/trust';
 import { DEFAULT_WELCOME, sanitizeWelcome } from '../../shared/welcome';
 import type { WelcomeContent } from '../../shared/welcome';
-import { eventsFromBars, replayEvents } from '../capture/replay';
 import { useSession } from '../ws';
 import type { ClientMessage } from '../ws';
 
@@ -41,16 +40,16 @@ function isTextTarget(t: EventTarget | null): boolean {
 }
 
 /** Mode "dieu" : A / B hors champ de saisie simulent l'utilisateur legitime / l'imposteur. */
-function useGodMode(play: (who: 'A' | 'B') => void): void {
+function useGodMode(send: Send): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTextTarget(e.target)) return;
       const k = e.key.toLowerCase();
-      if (k === 'a' || k === 'b') play(k === 'a' ? 'A' : 'B');
+      if (k === 'a' || k === 'b') send({ type: 'god', who: k === 'a' ? 'A' : 'B' });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [play]);
+  }, [send]);
 }
 
 function PhoneStatus({ connected }: { connected: boolean }) {
@@ -225,10 +224,7 @@ export function Demo() {
   const { snapshot, send } = useSession();
   const welcome = useWelcome(snapshot?.state.status === 'granted');
   const holding = useHeldFailure(snapshot?.lastVerdict ?? null);
-  // les raccourcis A / B passent par le même rejeu que les boutons (défini plus bas)
-  const playRef = useRef<(who: 'A' | 'B') => void>(() => undefined);
-  const play = useCallback((who: 'A' | 'B') => playRef.current(who), []);
-  useGodMode(play);
+  useGodMode(send);
   // frappe en cours dans le champ mot de passe (vide hors saisie, et des Entree)
   const [typed, setTyped] = useState<KeyEvent[]>([]);
   // frappe envoyee avec Entree, gardee a l'ecran jusqu'a la reponse du serveur
@@ -266,56 +262,6 @@ export function Demo() {
     if (events.length > 0) setSubmitted(null);
   };
   const onSubmit = (events: KeyEvent[]): void => setSubmitted({ events, sig: sigRef.current });
-
-  // Play A / Play B à l'étape 1 : la saisie s'affiche touche après touche, puis est soumise
-  const cancelReplay = useRef<(() => void) | null>(null);
-  const [replaying, setReplaying] = useState(false);
-  useEffect(() => () => cancelReplay.current?.(), []);
-  const onSimulate = async (who: 'A' | 'B'): Promise<void> => {
-    if (replaying) return;
-    if (!snapshot || snapshot.level !== 1 || snapshot.state.status !== 'pending') {
-      send({ type: 'god', who });
-      return;
-    }
-    let events: KeyEvent[] | null = null;
-    let secret = true;
-    if (who === 'A') {
-      events = snapshot.expectedBars ? eventsFromBars(snapshot.expectedBars) : null;
-    } else {
-      // B : on rejoue le dernier essai refusé réellement tapé
-      try {
-        const r = await fetch('/api/attempts/last-failed');
-        if (r.ok) {
-          const j = (await r.json()) as { events: KeyEvent[]; secret: boolean };
-          events = j.events;
-          secret = j.secret;
-        }
-      } catch {
-        events = null;
-      }
-    }
-    // pas d'essai refusé réel à rejouer : on anime l'imitateur type (celui que le serveur joue pour B)
-    let viaGod = who === 'A';
-    if ((!events || events.length === 0) && who === 'B') {
-      events = snapshot.expectedBars ? eventsFromBars(snapshot.expectedBars, 8) : null;
-      viaGod = true;
-    }
-    if (!events || events.length === 0) {
-      send({ type: 'god', who }); // rien à animer : saisie type, instantanée
-      return;
-    }
-    const played = events;
-    setSubmitted(null);
-    setReplaying(true);
-    cancelReplay.current = replayEvents(played, setTyped, () => {
-      setTyped([]);
-      setSubmitted({ events: played, sig: sigRef.current });
-      setReplaying(false);
-      send(viaGod ? { type: 'god', who } : { type: 'replay', events: played, secret });
-    });
-  };
-
-  playRef.current = (who) => void onSimulate(who);
 
   if (!snapshot) {
     return (
@@ -405,7 +351,7 @@ export function Demo() {
         <AttemptHistory attempts={snapshot.attempts ?? []} />
         <div className="control-zone">
           <PhoneStatus connected={snapshot.phoneConnected} />
-          <ControlBar onJump={onJump} onReset={onReset} onRetry={onRetry} onSimulate={(who) => void onSimulate(who)} simulating={replaying} level={level} />
+          <ControlBar onJump={onJump} onReset={onReset} onRetry={onRetry} level={level} />
         </div>
       </aside>
     </div>
