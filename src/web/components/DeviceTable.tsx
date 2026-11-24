@@ -17,6 +17,8 @@ export interface DeviceTableProps {
   lines: DeviceTableLine[];
   /** A’s profile : affiché en attente de mesure, quand `lines` est vide. */
   expected?: Fingerprint | null;
+  /** Masque le score et les points par critère (mode « Stay on step » à l'étape 2). */
+  hideScore?: boolean;
 }
 
 /** Libelles francais des champs d'empreinte (tableau et panneau « A’s profile »). */
@@ -78,7 +80,7 @@ export function display(field: string, value: string): string {
  * Comparaison du profil de A et de l'appareil mesuré : une ligne par critère, les écarts en tête
  * (en rouge), puis les critères identiques (en vert), avec les points gagnés ou perdus.
  */
-export function DeviceTable({ lines, expected = null }: DeviceTableProps) {
+export function DeviceTable({ lines, expected = null, hideScore = false }: DeviceTableProps) {
   const measured = lines.length > 0;
   const active = lines.filter(isOn);
   const total = active.reduce((sum, l) => sum + weightOf(l), 0) || 1;
@@ -115,10 +117,12 @@ export function DeviceTable({ lines, expected = null }: DeviceTableProps) {
           {differing === 0 ? `All ${active.length} criteria identical` : `${active.length - differing} of ${active.length} criteria identical · ${differing} differ`}
           {ignored.length > 0 && <span className="cmp-ignored-count"> · {ignored.length} ignored</span>}
         </p>
-        <p className="cmp-total" data-testid="device-total">
-          {capped ? 'Raw score' : 'Score'}: <strong>{pts(raw)}</strong> / 100
-          {capped && <span className="cmp-cap"> · capped at {IDENTITY_MISMATCH_CAP} (browser, canvas or stored ID differs)</span>}
-        </p>
+        {!hideScore && (
+          <p className="cmp-total" data-testid="device-total">
+            {capped ? 'Raw score' : 'Score'}: <strong>{pts(raw)}</strong> / 100
+            {capped && <span className="cmp-cap"> · capped at {IDENTITY_MISMATCH_CAP} (browser, canvas or stored ID differs)</span>}
+          </p>
+        )}
       </div>
       <div className="cmp-scroll">
         <table className="values-table">
@@ -128,7 +132,7 @@ export function DeviceTable({ lines, expected = null }: DeviceTableProps) {
               <th>A’s profile</th>
               <th>Measured device</th>
               <th>Result</th>
-              <th className="num">Points</th>
+              {!hideScore && <th className="num">Points</th>}
             </tr>
           </thead>
           <tbody>
@@ -166,7 +170,7 @@ export function DeviceTable({ lines, expected = null }: DeviceTableProps) {
                       </>
                     )}
                   </td>
-                  <td className="num">{!on ? '–' : l.match ? `+${pts(w)}` : `−${pts(w)}`}</td>
+                  {!hideScore && <td className="num">{!on ? '–' : l.match ? `+${pts(w)}` : `−${pts(w)}`}</td>}
                 </tr>
               );
             })}

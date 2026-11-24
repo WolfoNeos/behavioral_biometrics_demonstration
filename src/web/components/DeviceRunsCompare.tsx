@@ -121,7 +121,7 @@ export function DeviceRunsCompare({ runs: allRuns }: { runs: DeviceRun[] }) {
           <p className="runs-detail-title">
             {runLabel(detail)} <span>vs A’s profile</span>
           </p>
-          <DeviceTable lines={detail.lines} />
+          <DeviceTable lines={detail.lines} hideScore />
         </div>
       )}
       <div className={compact ? 'cmp-scroll runs-compact' : 'cmp-scroll'} hidden={detail !== null}>
@@ -139,16 +139,6 @@ export function DeviceRunsCompare({ runs: allRuns }: { runs: DeviceRun[] }) {
             </tr>
           </thead>
           <tbody>
-            <tr className="runs-scores">
-              <td>Score</td>
-              <td>–</td>
-              {runs.map((r) => (
-                <td key={r.phone} className={r.score >= 80 ? 'cell-ok' : 'cell-ko'}>
-                  <strong>{Math.round(r.score)}</strong>
-                  {!r.submitted && <span className="run-note">before PIN</span>}
-                </td>
-              ))}
-            </tr>
             {shown.map((row) => (
               <tr key={row.field} className={row.enabled ? undefined : 'cmp-off'}>
                 <td>{row.label}</td>

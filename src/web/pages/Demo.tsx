@@ -163,7 +163,7 @@ function DirectSignal({ snap, level, liveRows }: { snap: Snapshot; level: Level;
   if (level === 2) {
     // plusieurs appareils mesurés (mode « Stay on step ») : on les compare entre eux
     if ((snap.deviceRuns?.length ?? 0) >= 2) return <DeviceRunsCompare runs={snap.deviceRuns!} />;
-    return <DeviceTable lines={snap.live.device?.lines ?? []} expected={snap.expected.fingerprint} />;
+    return <DeviceTable lines={snap.live.device?.lines ?? []} expected={snap.expected.fingerprint} hideScore={snap.stay === true} />;
   }
   // avant « Confirm » : l'aiguille suit le telephone en direct ; apres : la mesure notee
   const beta = snap.liveOrientation?.beta ?? snap.live.orientation?.beta ?? null;
@@ -316,6 +316,8 @@ export function Demo() {
         : 'Official score'
       : '';
   const recap = buildRecap(snapshot);
+  // mode « Stay on step » à l'étape 2 : on compare des appareils, aucun score n'est affiché
+  const noScore = snapshot.stay === true && shown.level === 2;
   const gauge = (
     <div className="gauge-col">
       <Gauge score={provisional ? provisional.score : officialScore} accept={th.accept} warn={th.warn} />
@@ -347,9 +349,13 @@ export function Demo() {
             <AttemptHistory attempts={snapshot.attempts ?? []} />
           </section>
         ) : (
-          <section className="panel panel-score" data-testid="panel-score" aria-label="Score">
-            <h2>Score</h2>
-            {gauge}
+          <section
+            className={noScore ? 'panel panel-score panel-attempts-only' : 'panel panel-score'}
+            data-testid="panel-score"
+            aria-label={noScore ? 'Attempts' : 'Score'}
+          >
+            <h2>{noScore ? 'Attempts' : 'Score'}</h2>
+            {!noScore && gauge}
             <AttemptHistory attempts={(snapshot.attempts ?? []).filter((a) => a.level === shown.level)} />
           </section>
         )}

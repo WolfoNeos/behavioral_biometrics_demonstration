@@ -666,3 +666,31 @@ describe('Demo : essais et appareils par étape', () => {
     expect(screen.getByTestId('device-runs')).toBeInTheDocument();
   });
 });
+
+describe('Demo : Stay on step à l’étape 2', () => {
+  const lines = [{ field: 'cores', expected: '6', actual: '8', match: false }];
+  const stay2 = () => ({
+    ...base,
+    state: { status: 'pending' as const, level: 2 as const },
+    level: 2 as const,
+    stay: true,
+    live: { device: { score: 40, lines } },
+  });
+
+  it('ni jauge de score ni score dans le tableau', () => {
+    snapshot = stay2();
+    renderDemo();
+    const panel = screen.getByTestId('panel-score');
+    expect(panel).toHaveAttribute('aria-label', 'Attempts');
+    expect(within(panel).queryByRole('img')).toBeNull();
+    expect(screen.queryByTestId('device-total')).toBeNull();
+    expect(screen.queryByText('Points')).toBeNull();
+  });
+
+  it('sans le mode, le score reste affiché', () => {
+    snapshot = { ...stay2(), stay: false };
+    renderDemo();
+    expect(screen.getByTestId('panel-score')).toHaveAttribute('aria-label', 'Score');
+    expect(screen.getByTestId('device-total')).toBeInTheDocument();
+  });
+});

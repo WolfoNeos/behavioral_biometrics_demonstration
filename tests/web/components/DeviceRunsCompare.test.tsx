@@ -91,13 +91,17 @@ describe('DeviceRunsCompare', () => {
     expect(detail).toHaveTextContent('Phone 2');
     expect(within(detail).getByTestId('device-summary')).toHaveTextContent('differ');
     expect(within(detail).getByText('CPU cores')).toBeInTheDocument();
+    expect(within(detail).queryByTestId('device-total')).toBeNull(); // pas de score en détail
+    expect(within(detail).queryByText('Points')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'All devices' }));
     expect(screen.queryByTestId('run-detail')).toBeNull();
   });
 
-  it('relevé avant PIN signalé', () => {
+  it('aucun score ni mention « before PIN » dans le tableau', () => {
     render(<DeviceRunsCompare runs={[run(1, 100, {}, false), run(2, 50, {})]} />);
-    expect(screen.getByText(/before PIN/)).toBeInTheDocument();
+    expect(screen.queryByText(/before PIN/)).toBeNull();
+    expect(screen.queryByText('Score')).toBeNull();
+    expect(screen.queryByText('100')).toBeNull();
   });
 });
 
