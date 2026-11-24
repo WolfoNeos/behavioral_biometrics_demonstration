@@ -180,3 +180,41 @@ describe('étape relancée seule : pas de passage à la suivante', () => {
     expect(m.snapshot(s.id).live.device).toBeUndefined(); // seule l'étape visée repart de zéro
   });
 });
+
+describe('plusieurs appareils à l’étape 2', () => {
+  const fp = (id: string, cores: string) => ({ ...core, installId: id, cores });
+  it('un relevé par téléphone, mis à jour à chaque envoi, comparables entre eux', () => {
+    const m = manager();
+    const s = m.create();
+    const p1 = new FakeWs();
+    const p2 = new FakeWs();
+    m.attachPhone(s.id, p1 as never, { ip: '192.168.1.50' });
+    m.attachPhone(s.id, p2 as never, { ip: '192.168.1.77' });
+    m.handleMessage(s.id, JSON.stringify({ type: 'stay', on: true }));
+    m.jump(s.id, 2);
+    p1.emit('message', JSON.stringify({ type: 'device', fingerprint: fp('id-A', '6') }));
+    p2.emit('message', JSON.stringify({ type: 'device', fingerprint: fp('id-B', '8') }));
+    let runs = m.snapshot(s.id).deviceRuns!;
+    expect(runs.map((r) => r.n)).toEqual([1, 2]);
+    expect(runs.every((r) => !r.submitted)).toBe(true);
+    // le téléphone 1 valide son PIN : son relevé est mis à jour, pas dupliqué
+    p1.emit('message', JSON.stringify({ type: 'pin', pin: '1234', taps: [], fingerprint: fp('id-A', '6') }));
+    runs = m.snapshot(s.id).deviceRuns!;
+    expect(runs).toHaveLength(2);
+    expect(runs[0].submitted).toBe(true);
+    expect(runs[1].lines.find((l) => l.field === 'installId')?.actual).toBe('id-B');
+    expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level: 2 }); // on reste à l'étape 2
+  });
+
+  it('Retry de l’étape 2 efface les relevés', () => {
+    const m = manager();
+    const s = m.create();
+    const p1 = new FakeWs();
+    m.attachPhone(s.id, p1 as never);
+    m.jump(s.id, 2);
+    p1.emit('message', JSON.stringify({ type: 'device', fingerprint: fp('id-A', '6') }));
+    expect(m.snapshot(s.id).deviceRuns).toHaveLength(1);
+    m.handleMessage(s.id, JSON.stringify({ type: 'retry', level: 2 }));
+    expect(m.snapshot(s.id).deviceRuns).toHaveLength(0);
+  });
+});

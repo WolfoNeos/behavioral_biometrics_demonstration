@@ -8,6 +8,7 @@ import { ConsoleHeader } from '../components/ConsoleHeader';
 import { SessionRecap } from '../components/SessionRecap';
 import { AttemptHistory } from '../components/AttemptHistory';
 import { ControlBar } from '../components/ControlBar';
+import { DeviceRunsCompare } from '../components/DeviceRunsCompare';
 import { DeviceTable, FIELD_LABELS } from '../components/DeviceTable';
 import { Gauge } from '../components/Gauge';
 import { ThresholdChart } from '../components/ThresholdChart';
@@ -160,6 +161,8 @@ function DirectSignal({ snap, level, liveRows }: { snap: Snapshot; level: Level;
     return <KeystrokeSignal rows={rows} mode={mode} note={profileNote(snap)} />;
   }
   if (level === 2) {
+    // plusieurs appareils mesurés (mode « Stay on step ») : on les compare entre eux
+    if ((snap.deviceRuns?.length ?? 0) >= 2) return <DeviceRunsCompare runs={snap.deviceRuns!} />;
     return <DeviceTable lines={snap.live.device?.lines ?? []} expected={snap.expected.fingerprint} />;
   }
   // avant « Confirm » : l'aiguille suit le telephone en direct ; apres : la mesure notee
@@ -347,7 +350,7 @@ export function Demo() {
           <section className="panel panel-score" data-testid="panel-score" aria-label="Score">
             <h2>Score</h2>
             {gauge}
-            <AttemptHistory attempts={snapshot.attempts ?? []} />
+            <AttemptHistory attempts={(snapshot.attempts ?? []).filter((a) => a.level === shown.level)} />
           </section>
         )}
         <div className="control-zone">

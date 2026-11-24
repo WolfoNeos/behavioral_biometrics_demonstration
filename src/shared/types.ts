@@ -169,6 +169,18 @@ export interface Snapshot {
   attempts?: Attempt[];
   /** Mode « rester sur l'étape » actif : aucun résultat ne fait avancer. */
   stay?: boolean;
+  /** Appareils mesurés à l'étape 2 (un par téléphone connecté), pour les comparer entre eux. */
+  deviceRuns?: DeviceRun[];
+}
+
+/** Relevé d'un téléphone à l'étape 2 : numéro d'arrivée, score, comparaison critère par critère. */
+export interface DeviceRun {
+  n: number;
+  phone: string;
+  score: number;
+  lines: DeviceLine[];
+  /** PIN envoyé (résultat officiel) ; faux = relevé provisoire avant le PIN. */
+  submitted: boolean;
 }
 
 /** Un essai soumis : étape, score mesuré, secret correct, verdict. */

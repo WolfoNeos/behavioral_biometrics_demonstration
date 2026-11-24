@@ -344,3 +344,11 @@
 .attempts h3 { display: block; margin: 0 0 4px; }
 .attempts ol { flex-wrap: wrap; overflow: visible; }
 .attempt { white-space: nowrap; padding: 2px 9px; }
+
+/* comparaison de plusieurs appareils (étape 2) */
+.runs-table td.cell-ok { color: var(--color-green); }
+.runs-table td.cell-ko { color: var(--color-red); background: var(--color-red-soft); font-weight: 700; }
+.runs-table th { white-space: normal; }
+.runs-scores td { border-bottom: 2px solid var(--color-border); font-size: 1.05rem; }
+.chip-toggle { font: inherit; font-size: 0.85rem; font-weight: 600; padding: 0.25rem 0.7rem; border-radius: 999px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-ink-muted); cursor: pointer; }
+.chip-toggle[aria-pressed='true'] { background: #e1ebf6; color: #0b3d6b; }

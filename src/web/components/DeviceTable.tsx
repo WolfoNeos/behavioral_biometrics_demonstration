@@ -58,7 +58,7 @@ export function friendlyUserAgent(ua: string): string {
 const clip = (v: string, n = 30): string => (v.length > n ? `${v.slice(0, n - 1)}…` : v);
 
 /** Valeur affichée : lisible et courte (le détail brut n'aide pas le public). */
-function display(field: string, value: string): string {
+export function display(field: string, value: string): string {
   if (field === 'userAgent') return friendlyUserAgent(value);
   if (field === 'canvasHash') return value.length > 9 ? `${value.slice(0, 8)}…` : value;
   if (field === 'webgl') return clip(value.split('|')[1] ?? value);

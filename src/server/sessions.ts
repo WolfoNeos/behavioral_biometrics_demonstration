@@ -8,6 +8,7 @@ import { summarizeTouch } from '../shared/scoring/tactile';
 import type {
   Attempt,
   AuthState,
+  DeviceRun,
   FailReason,
   Fingerprint,
   KeyEvent,
@@ -30,6 +31,8 @@ import { FINGERPRINT_FIELDS, sanitizeFingerprint, withServerFields } from '../sh
 /** Sous-ensemble de WebSocket utilise ici (facilite les faux dans les tests). */
 /** Contexte d'un message : adresse du client (relevée par le serveur, pas déclarée par lui). */
 export interface MessageContext {
+  /** Identifiant de la connexion du téléphone qui écrit (un par appareil). */
+  phone?: string;
   /** Critères relevés par le serveur (adresse, en-têtes) : le client ne peut pas les déclarer. */
   server?: Record<string, string>;
 }
@@ -59,6 +62,8 @@ export interface Session {
   attempts: Attempt[];
   /** Mode « rester sur l'étape » : un résultat (réussite ou échec) ne fait jamais avancer ; on change d'étape à la main. */
   stay: boolean;
+  /** Relevés de l'étape 2, un par téléphone (le dernier de chaque téléphone). */
+  deviceRuns: DeviceRun[];
   /** Horodatage de la derniere diffusion due a l'orientation en direct. */
   liveSentAt: number;
   liveTimer: ReturnType<typeof setTimeout> | null;
@@ -83,6 +88,7 @@ export interface SessionManagerOptions {
 }
 
 const MAX_ATTEMPTS = 12;
+const MAX_DEVICE_RUNS = 6;
 const KIND_LEVEL: Record<SubmitPayload['kind'], Level> = { keystroke: 1, pin: 2, orientation: 3 };
 
 const currentLevel = (s: AuthState): Level => (s.status === 'blocked' ? s.verdict.level : s.level);
@@ -188,6 +194,7 @@ function otherFingerprint(): Fingerprint {
 
 export class SessionManager {
   private sessions = new Map<string, Session>();
+  private phoneSeq = 0;
 
   constructor(private opts: SessionManagerOptions) {}
 
@@ -204,6 +211,7 @@ export class SessionManager {
       secrets: {},
       attempts: [],
       stay: false,
+      deviceRuns: [],
       liveSentAt: 0,
       liveTimer: null,
     };
@@ -251,6 +259,7 @@ export class SessionManager {
       secrets: s.secrets,
       attempts: s.attempts,
       stay: s.stay,
+      deviceRuns: s.deviceRuns,
       thresholds: this.opts.getThresholds(),
       // reference par position, sans caractere : relue a chaque diffusion (profil modifie)
       expectedBars: buildExpectedBars(p.password, p.keystroke),
@@ -291,7 +300,8 @@ export class SessionManager {
   attachPhone(id: string, ws: WsLike, server: Record<string, string> = {}): void {
     const s = this.get(id);
     s.phones.add(ws);
-    ws.on('message', (data) => this.handleMessage(id, data, { server }));
+    const phone = `p${++this.phoneSeq}`;
+    ws.on('message', (data) => this.handleMessage(id, data, { server, phone }));
     ws.on('close', () => {
       if (!s.phones.delete(ws)) return;
       if (s.phones.size === 0) {
@@ -304,7 +314,7 @@ export class SessionManager {
     this.broadcast(id);
   }
 
-  submit(id: string, level: Level, payload: SubmitPayload, simulated = false): Verdict {
+  submit(id: string, level: Level, payload: SubmitPayload, simulated = false, phone = 'sim'): Verdict {
     const s = this.get(id);
     const profile = this.opts.getProfile();
     const th = this.opts.getThresholds();
@@ -320,7 +330,10 @@ export class SessionManager {
       const result = profile.fingerprint
         ? this.compare(profile.fingerprint, payload.fingerprint)
         : null;
-      if (result) s.live.device = result;
+      if (result) {
+        s.live.device = result;
+        this.recordDeviceRun(s, phone, result, true);
+      }
       s.live.tactile = summarizeTouch(payload.taps);
       score = result?.score ?? 0;
       if (payload.pin !== profile.pin) failed = 'PIN incorrect';
@@ -387,6 +400,7 @@ export class SessionManager {
     if (level <= 2) {
       delete s.live.device;
       delete s.live.tactile;
+      s.deviceRuns = [];
     }
     delete s.live.orientation;
     for (const l of [1, 2, 3] as Level[]) if (l >= level) delete s.secrets[l];
@@ -402,6 +416,7 @@ export class SessionManager {
     if (level === 2) {
       delete s.live.device;
       delete s.live.tactile;
+      s.deviceRuns = [];
     }
     if (level === 3) delete s.live.orientation;
     delete s.secrets[level];
@@ -428,11 +443,23 @@ export class SessionManager {
     const s = this.get(id);
     s.state = startState();
     s.stay = false;
+    s.deviceRuns = [];
     s.live = {};
     s.secrets = {};
     s.lastVerdict = null;
     s.liveOrientation = null;
     this.broadcast(id);
+  }
+
+  /** Un relevé par téléphone (le plus récent) : plusieurs appareils se comparent entre eux à l'étape 2. */
+  private recordDeviceRun(s: Session, phone: string, r: { score: number; lines: DeviceLine[] }, submitted: boolean): void {
+    const run: DeviceRun = { n: 0, phone, score: r.score, lines: r.lines, submitted };
+    const i = s.deviceRuns.findIndex((d) => d.phone === phone);
+    if (i >= 0) s.deviceRuns[i] = { ...run, n: s.deviceRuns[i].n };
+    else {
+      s.deviceRuns.push({ ...run, n: (s.deviceRuns.at(-1)?.n ?? 0) + 1 });
+      if (s.deviceRuns.length > MAX_DEVICE_RUNS) s.deviceRuns.shift();
+    }
   }
 
   /** Dernier relevé de l'appareil, toutes sessions confondues : sert à choisir les critères. */
@@ -449,11 +476,12 @@ export class SessionManager {
   }
 
   /** Empreinte reçue avant le PIN : comparée au profil de A et diffusée, sans rendre de verdict. */
-  private previewDevice(id: string, fingerprint: Fingerprint): void {
+  private previewDevice(id: string, fingerprint: Fingerprint, phone: string): void {
     const s = this.get(id);
     const profile = this.opts.getProfile();
     if (!profile.fingerprint) return;
     s.live.device = this.compare(profile.fingerprint, fingerprint);
+    this.recordDeviceRun(s, phone, s.live.device, false);
     this.broadcast(id);
   }
 
@@ -513,7 +541,7 @@ export class SessionManager {
           if (state.status !== 'pending' || state.level !== level) return;
           const payload = parsePayload(msg);
           if (payload?.kind === 'pin') payload.fingerprint = withServerFields(payload.fingerprint, ctx.server);
-          if (payload) this.submit(id, level, payload);
+          if (payload) this.submit(id, level, payload, false, ctx.phone);
           return;
         }
         case 'orientationLive': {
@@ -526,7 +554,7 @@ export class SessionManager {
           // l'empreinte est relevée dès l'ouverture de la page : les résultats sont visibles
           // avant la saisie du PIN et restent affichés pendant qu'on la commente
           const fp = sanitizeFingerprint(msg.fingerprint);
-          if (fp && state.status === 'pending' && state.level === 2) this.previewDevice(id, withServerFields(fp, ctx.server));
+          if (fp && state.status === 'pending' && state.level === 2) this.previewDevice(id, withServerFields(fp, ctx.server), ctx.phone ?? 'sim');
           return;
         }
         case 'phoneView': {

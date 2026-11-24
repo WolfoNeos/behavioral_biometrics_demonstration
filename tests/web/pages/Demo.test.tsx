@@ -635,3 +635,34 @@ describe('Demo : le résultat du niveau 2 reste affiché après la soumission', 
     }
   });
 });
+
+describe('Demo : essais et appareils par étape', () => {
+  const attempts = [
+    { n: 1, level: 1 as const, score: 92, secret: true, granted: true },
+    { n: 2, level: 2 as const, score: 40, secret: true, granted: false },
+  ];
+
+  it('seuls les essais de l’étape affichée sont visibles', () => {
+    snapshot = { ...base, attempts, state: { status: 'pending', level: 2 }, level: 2 };
+    renderDemo();
+    const items = within(screen.getByTestId('attempts')).getAllByRole('listitem');
+    expect(items).toHaveLength(1);
+    expect(items[0]).toHaveTextContent('#2');
+  });
+
+  it('plusieurs appareils à l’étape 2 : tableau de comparaison entre eux', () => {
+    const lines = (cores: string) => [{ field: 'cores', expected: '6', actual: cores, match: cores === '6' }];
+    snapshot = {
+      ...base,
+      state: { status: 'pending', level: 2 },
+      level: 2,
+      live: { device: { score: 40, lines: lines('8') } },
+      deviceRuns: [
+        { n: 1, phone: 'p1', score: 100, lines: lines('6'), submitted: true },
+        { n: 2, phone: 'p2', score: 40, lines: lines('8'), submitted: true },
+      ],
+    };
+    renderDemo();
+    expect(screen.getByTestId('device-runs')).toBeInTheDocument();
+  });
+});
