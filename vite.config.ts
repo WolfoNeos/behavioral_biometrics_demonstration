@@ -14,8 +14,9 @@ export default defineConfig({
     // Serveur de demo local : accepte tout Host (tunnel *.trycloudflare.com, ngrok).
     allowedHosts: true,
     proxy: {
-      '/api': 'http://localhost:3001',
-      '/ws': { target: 'ws://localhost:3001', ws: true },
+      // xfwd : le serveur voit l'adresse réelle du téléphone (critère « IP »)
+      '/api': { target: 'http://localhost:3001', xfwd: true },
+      '/ws': { target: 'ws://localhost:3001', ws: true, xfwd: true },
     },
   },
 });

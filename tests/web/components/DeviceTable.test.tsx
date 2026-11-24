@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DeviceTable, friendlyUserAgent } from '../../../src/web/components/DeviceTable';
 
 describe('DeviceTable', () => {
-  it('une ligne par champ avec coche ou croix', () => {
+  it('affiche toutes les lignes en tableau, les écarts d’abord', () => {
     render(
       <DeviceTable
         lines={[
@@ -12,9 +12,12 @@ describe('DeviceTable', () => {
         ]}
       />,
     );
+    // toutes les lignes en tableau (en-tête + 2), les écarts d'abord
     expect(screen.getAllByRole('row')).toHaveLength(3);
+    expect(screen.getAllByRole('row')[1]).toHaveClass('cmp-diff');
     expect(screen.getByLabelText('match')).toHaveTextContent('✓');
     expect(screen.getByLabelText('different')).toHaveTextContent('✗');
+    expect(screen.getByTestId('device-summary')).toHaveTextContent('1 of 2 criteria identical');
     expect(screen.getByText('en-US')).toBeInTheDocument();
     expect(screen.getByText('fr-FR')).toBeInTheDocument();
   });
@@ -37,13 +40,14 @@ describe('DeviceTable : comparaison A / mesuré', () => {
     { field: 'canvasHash', expected: 'h1', actual: 'h2', match: false },
   ];
 
-  it('colore identique / différent et affiche l impact sur le score', () => {
+  it('colore les écarts en rouge (en tête) et les identiques en vert, avec l impact sur le score', () => {
     render(<DeviceTable lines={lines} />);
     const rows = screen.getAllByRole('row');
-    expect(rows[1]).toHaveClass('cmp-same');
-    expect(rows[2]).toHaveClass('cmp-diff');
-    expect(rows[1]).toHaveTextContent('+25'); // poids 1 sur 4
-    expect(rows[2]).toHaveTextContent('−75'); // canvas : poids 3 sur 4
+    expect(rows).toHaveLength(3);
+    expect(rows[1]).toHaveClass('cmp-diff');
+    expect(rows[1]).toHaveTextContent('−75'); // canvas : poids 3 sur 4
+    expect(rows[2]).toHaveClass('cmp-same');
+    expect(rows[2]).toHaveTextContent('+25');
   });
 
   it('signale le plafonnement quand l identité diffère', () => {
@@ -52,15 +56,65 @@ describe('DeviceTable : comparaison A / mesuré', () => {
     expect(screen.getByTestId('device-total')).toHaveTextContent(/capped at 40/);
   });
 
-  it('sans mesure : montre le profil de A en attente', () => {
+  it('sans mesure : annonce les critères qui seront comparés', () => {
     render(
       <DeviceTable
         lines={[]}
-        expected={{ userAgent: 'UA-A', platform: 'P', language: 'fr', screen: 's', timezone: 'Z', canvasHash: 'h' }}
+        expected={{ userAgent: 'UA-A', platform: 'P', language: 'fr', screen: 's', timezone: 'Z', canvasHash: 'h', fonts: '3:abc' }}
       />,
     );
-    expect(screen.getByText('UA-A')).toBeInTheDocument();
+    expect(screen.getByTestId('device-summary')).toHaveTextContent('Waiting for the phone… 7 criteria will be compared');
+    expect(screen.getByText('Installed fonts')).toBeInTheDocument();
     expect(screen.queryByTestId('device-total')).toBeNull();
+  });
+
+  it('tous les critères identiques : résumé vert et toutes les lignes vertes', () => {
+    render(
+      <DeviceTable
+        lines={[
+          { field: 'platform', expected: 'P', actual: 'P', match: true },
+          { field: 'languages', expected: 'fr', actual: 'fr', match: true },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('device-summary')).toHaveTextContent('All 2 criteria identical');
+    expect(screen.getAllByRole('row').slice(1).every((r) => r.classList.contains('cmp-same'))).toBe(true);
+  });
+
+  it('IP et identifiant stocké libellés, toutes les lignes présentes', () => {
+    const fields = ['ip', 'installId', 'voices', 'media', 'permissions', 'storage'];
+    render(<DeviceTable lines={fields.map((field) => ({ field, expected: 'a', actual: 'b', match: false }))} />);
+    expect(screen.getAllByRole('row')).toHaveLength(7);
+    for (const label of ['IP address', 'Browser-stored ID', 'Installed voices', 'Media devices', 'Granted permissions', 'Storage quota']) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+  });
+});
+
+describe('DeviceTable : critères ignorés', () => {
+  const lines = [
+    { field: 'cores', expected: '6', actual: '8', match: false, enabled: false, weight: 1 },
+    { field: 'platform', expected: 'P', actual: 'P', match: true, enabled: true, weight: 1 },
+    { field: 'languages', expected: 'fr', actual: 'en', match: false, enabled: true, weight: 2 },
+  ];
+
+  it('un critère désactivé reste dans le tableau, en dernier, sans points ni effet sur le score', () => {
+    render(<DeviceTable lines={lines} />);
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(rows.map((r) => r.className)).toEqual(['cmp-diff', 'cmp-same', 'cmp-off']);
+    expect(rows[2]).toHaveTextContent('Ignored');
+    expect(rows[2]).toHaveTextContent('–');
+    // score sur les deux critères actifs : 1 sur 3 de poids -> 33,3
+    expect(screen.getByTestId('device-total')).toHaveTextContent('33.3');
+    expect(screen.getByTestId('device-summary')).toHaveTextContent('1 ignored');
+  });
+
+  it('un écart sur un critère d’identité actif plafonne ; désactivé, plus', () => {
+    const base = { field: 'installId', expected: 'a', actual: 'b', match: false, weight: 3, identity: true };
+    const { rerender } = render(<DeviceTable lines={[{ ...base, enabled: true }, { field: 'platform', expected: 'P', actual: 'P', match: true }]} />);
+    expect(screen.getByTestId('device-total')).toHaveTextContent('capped at 40');
+    rerender(<DeviceTable lines={[{ ...base, enabled: false }, { field: 'platform', expected: 'P', actual: 'P', match: true }]} />);
+    expect(screen.getByTestId('device-total').textContent).not.toMatch(/capped/);
   });
 });
 

@@ -59,7 +59,8 @@ function ui() {
 }
 
 /** Messages envoyés au serveur, hors reflet d'écran (phoneView) qui accompagne chaque changement. */
-const sent = () => send.mock.calls.map((c) => c[0]).filter((m) => m.type !== 'phoneView');
+const sent = () => send.mock.calls.map((c) => c[0]).filter((m) => m.type !== 'phoneView' && m.type !== 'device');
+const devices = () => send.mock.calls.map((c) => c[0]).filter((m) => m.type === 'device');
 const views = () => send.mock.calls.map((c) => c[0]).filter((m) => m.type === 'phoneView');
 
 const fire = (beta: number | null) => {
@@ -294,5 +295,22 @@ describe('Mobile : reflet de l’écran pour le PC', () => {
     snapshot = level3();
     render(ui());
     await waitFor(() => expect(views().at(-1)).toMatchObject({ screen: 'pin', again: true }));
+  });
+});
+
+describe('Mobile : empreinte envoyée avant le PIN', () => {
+  it('au niveau 2, l’empreinte part dès l’ouverture, une seule fois', async () => {
+    render(ui());
+    await waitFor(() => expect(devices()).toHaveLength(1));
+    expect(devices()[0]).toEqual({ type: 'device', fingerprint: fp });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(devices()).toHaveLength(1);
+  });
+
+  it('pas d’empreinte aux autres niveaux', async () => {
+    snapshot = level3();
+    render(ui());
+    await new Promise((r) => setTimeout(r, 100));
+    expect(devices()).toHaveLength(0);
   });
 });

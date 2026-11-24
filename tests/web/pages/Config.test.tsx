@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { FINGERPRINT_FIELDS } from '../../../src/shared/fingerprint';
 import { DEFAULT_THRESHOLDS } from '../../../src/shared/types';
 import type { KeyEvent, Profile } from '../../../src/shared/types';
 
@@ -27,6 +28,11 @@ const baseProfile: Profile = { password: 'secret', pin: '1234', keystroke: null,
 const events: KeyEvent[] = [{ key: 's', down: 0, up: 50 }];
 
 let profile: Profile;
+let criteriaBody: { criteria: unknown[]; overrides: Record<string, unknown>; last: unknown } = {
+  criteria: [],
+  overrides: {},
+  last: null,
+};
 let network = {
   baseUrl: 'https://192.168.1.20:5173',
   source: 'auto',
@@ -62,6 +68,11 @@ const handler = async (url: string, init?: RequestInit): Promise<Response> => {
   }
   if (url === '/api/enroll/keystroke') return json(profile);
   if (url === '/api/session') return json({ id: 'abc', url: 'http://192.168.1.20:5173/m/abc' });
+  if (url === '/api/criteria' && method === 'GET') return json(criteriaBody);
+  if (url === '/api/criteria' && method === 'PUT') {
+    criteriaBody = { ...criteriaBody, overrides: body };
+    return json(criteriaBody);
+  }
   if (url === '/api/network' && method === 'GET') return json(network);
   if (url === '/api/network' && method === 'PUT') {
     network = { ...network, baseUrl: body.baseUrl, source: 'manual' };
@@ -72,6 +83,7 @@ const handler = async (url: string, init?: RequestInit): Promise<Response> => {
 };
 
 beforeEach(() => {
+  criteriaBody = { criteria: [], overrides: {}, last: null };
   network = { ...network, baseUrl: 'https://192.168.1.20:5173', source: 'auto', covered: true };
   profile = { ...baseProfile };
   putThresholdsStatus = 200;
@@ -441,5 +453,71 @@ describe('Config : écran de réussite', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('Success screen saved')).toBeInTheDocument();
     expect((saved as unknown as { notice: string }).notice).toBe('Blague du jour');
+  });
+});
+
+describe('Config : profil d’empreinte ancien', () => {
+  it('invite à ré-enrôler un téléphone enrôlé avec les six critères d’origine', async () => {
+    profile = { ...baseProfile, fingerprint: fp, beta: 30 };
+    renderPage();
+    expect(await screen.findByTestId('reenroll-note')).toHaveTextContent(new RegExp(`enrolled with 6 of ${FINGERPRINT_FIELDS.length} criteria`));
+  });
+
+  it('pas d’invitation quand le profil contient les nouveaux critères', async () => {
+    const everything = Object.fromEntries(FINGERPRINT_FIELDS.map((f) => [f, 'x'])) as unknown as typeof fp;
+    profile = { ...baseProfile, fingerprint: everything, beta: 30 };
+    renderPage();
+    await screen.findByText(/Phone enrolled/);
+    expect(screen.queryByTestId('reenroll-note')).toBeNull();
+  });
+});
+
+
+describe('Config : choix des critères de l’empreinte', () => {
+  it('liste tous les critères, avec le dernier test, et enregistre les réglages', async () => {
+    criteriaBody = {
+      criteria: [],
+      overrides: {},
+      last: [
+        { field: 'cores', expected: '6', actual: '8', match: false },
+        { field: 'platform', expected: 'P', actual: 'P', match: true },
+      ],
+    };
+    const user = userEvent.setup();
+    renderPage();
+    const card = await screen.findByRole('region', { name: 'Device criteria' });
+    expect(within(card).getByText(/of \d+ enabled/)).toBeInTheDocument();
+    expect(within(card).getAllByText('✗ differed').length).toBe(1);
+    // désactiver un critère et changer un poids
+    await user.click(within(card).getByLabelText('Enable CPU cores'));
+    const weight = within(card).getByLabelText('Weight of Memory');
+    await user.clear(weight);
+    await user.type(weight, '4');
+    await user.click(within(card).getByRole('button', { name: 'Save criteria' }));
+    expect(await within(card).findByText('Criteria saved')).toBeInTheDocument();
+    const put = calls.find((c) => c.method === 'PUT' && c.url === '/api/criteria')!;
+    const sent = put.body as Record<string, { enabled: boolean; weight: number }>;
+    expect(sent.cores.enabled).toBe(false);
+    expect(sent.memory.weight).toBe(4);
+  });
+
+  it('« Only those that differed » ne garde que les critères qui ont différé au dernier test', async () => {
+    criteriaBody = { criteria: [], overrides: {}, last: [{ field: 'cores', expected: '6', actual: '8', match: false }] };
+    const user = userEvent.setup();
+    renderPage();
+    const card = await screen.findByRole('region', { name: 'Device criteria' });
+    await user.click(within(card).getByRole('button', { name: 'Only those that differed' }));
+    expect(within(card).getByText(/1 of \d+ enabled/)).toBeInTheDocument();
+    expect((within(card).getByLabelText('Enable CPU cores') as HTMLInputElement).checked).toBe(true);
+    expect((within(card).getByLabelText('Enable Memory') as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('filtre par nom', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const card = await screen.findByRole('region', { name: 'Device criteria' });
+    await user.type(within(card).getByLabelText('Filter criteria'), 'webgl');
+    expect(within(card).getByLabelText('Enable WebGL rendering')).toBeInTheDocument();
+    expect(within(card).queryByLabelText('Enable CPU cores')).toBeNull();
   });
 });

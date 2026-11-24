@@ -12,7 +12,19 @@ import type { Certs } from './certs';
 import { describeNetwork, normalizeBaseUrl } from './network';
 import type { NetworkSource } from './network';
 import { SessionManager } from './sessions';
-import { loadProfile, loadThresholds, loadWelcome, saveProfile, saveThresholds, saveWelcome } from './store';
+import {
+  loadCriteria,
+  loadProfile,
+  loadThresholds,
+  loadWelcome,
+  saveCriteria,
+  saveProfile,
+  saveThresholds,
+  saveWelcome,
+} from './store';
+import { sanitizeFingerprint, withServerFields } from '../shared/fingerprint';
+import { CRITERIA, sanitizeCriteria } from '../shared/criteria';
+import { serverFingerprintFields } from './clientIp';
 import { sanitizeWelcome } from '../shared/welcome';
 
 export interface ServerOptions {
@@ -52,6 +64,7 @@ export async function buildServer(opts: ServerOptions = {}) {
   const profilePath = join(dataDir, 'profile.json');
   const thresholdsPath = join(dataDir, 'thresholds.json');
   const welcomePath = join(dataDir, 'welcome.json');
+  const criteriaPath = join(dataDir, 'criteria.json');
   const baseUrl = opts.baseUrl ?? 'https://localhost:5173';
   let baseUrlSource: NetworkSource = opts.baseUrlSource ?? 'auto';
   const getInterfaces = opts.getInterfaces ?? (() => networkInterfaces());
@@ -63,6 +76,7 @@ export async function buildServer(opts: ServerOptions = {}) {
   const sessions = new SessionManager({
     getProfile: () => loadProfile(profilePath),
     getThresholds: () => loadThresholds(thresholdsPath),
+    getCriteria: () => loadCriteria(criteriaPath),
     baseUrl,
   });
 
@@ -103,6 +117,23 @@ export async function buildServer(opts: ServerOptions = {}) {
   });
 
 
+  // Critères de l'empreinte : catalogue, réglages (actif, poids, identité) et dernier relevé
+  const criteriaPayload = () => ({
+    criteria: CRITERIA,
+    overrides: loadCriteria(criteriaPath),
+    last: sessions.lastDeviceLines(),
+  });
+  app.get('/api/criteria', async () => criteriaPayload());
+  app.put('/api/criteria', async (req, reply) => {
+    const b = req.body;
+    if (b === null || typeof b !== 'object' || Array.isArray(b)) {
+      return reply.code(400).send({ error: 'invalid content' });
+    }
+    saveCriteria(sanitizeCriteria(b), criteriaPath);
+    sessions.broadcastAll();
+    return criteriaPayload();
+  });
+
   app.post('/api/enroll/keystroke', async (req, reply) => {
     const { samples } = (req.body ?? {}) as { samples?: KeyEvent[][] };
     if (!Array.isArray(samples) || samples.length === 0) {
@@ -115,11 +146,13 @@ export async function buildServer(opts: ServerOptions = {}) {
   });
 
   app.post('/api/enroll/phone', async (req, reply) => {
-    const { fingerprint, beta } = (req.body ?? {}) as { fingerprint?: Fingerprint; beta?: number };
+    const { fingerprint: rawFingerprint, beta } = (req.body ?? {}) as { fingerprint?: unknown; beta?: number };
+    const fingerprint = sanitizeFingerprint(rawFingerprint);
     if (!fingerprint || typeof beta !== 'number') {
       return reply.code(400).send({ error: 'fingerprint and beta required' });
     }
-    const profile = { ...loadProfile(profilePath), fingerprint, beta };
+    const server = serverFingerprintFields(req.headers, req.socket.remoteAddress);
+    const profile = { ...loadProfile(profilePath), fingerprint: withServerFields(fingerprint, server), beta };
     saveProfile(profile, profilePath);
     sessions.broadcastAll();
     return profile;
@@ -161,7 +194,7 @@ export async function buildServer(opts: ServerOptions = {}) {
       return;
     }
     if (role === 'pc') sessions.attachPc(session, socket);
-    else sessions.attachPhone(session, socket);
+    else sessions.attachPhone(session, socket, serverFingerprintFields(req.headers, req.socket.remoteAddress));
   });
 
   return app;
