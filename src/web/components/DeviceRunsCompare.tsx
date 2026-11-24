@@ -41,13 +41,21 @@ export function runLabel(run: DeviceRun): string {
   return `Phone ${run.n}${ua ? ` · ${friendlyUserAgent(ua)}` : ''}`;
 }
 
+/** Garde les `limit` derniers appareils arrivés (null = tous). */
+export function limitRuns(runs: DeviceRun[], limit: number | null): DeviceRun[] {
+  return limit === null || limit < 1 ? runs : runs.slice(-limit);
+}
+
 /**
- * Plusieurs appareils côte à côte (étape 2 en mode « Stay on step ») : A, puis chaque téléphone ;
- * les cellules rouges sont celles qui diffèrent de A, les lignes où les appareils diffèrent entre
- * eux remontent en tête. Par défaut seuls les écarts sont listés.
+ * Plusieurs appareils côte à côte (étape 2 en mode « Stay on step ») : A, puis chaque téléphone.
+ * Une cellule verte (✓) est identique à A ; une cellule rouge (✗) donne la valeur qui diffère.
+ * Les lignes où les appareils diffèrent entre eux remontent en tête ; par défaut seuls les écarts
+ * sont listés. Le nombre d'appareils comparés peut être limité (les plus récents).
  */
-export function DeviceRunsCompare({ runs }: { runs: DeviceRun[] }) {
+export function DeviceRunsCompare({ runs: allRuns }: { runs: DeviceRun[] }) {
   const [all, setAll] = useState(false);
+  const [limit, setLimit] = useState<number | null>(null);
+  const runs = limitRuns(allRuns, limit);
   const rows = buildRows(runs);
   const differs = (r: Row) => r.match.some((m) => m === false) || r.spread > 1;
   const shown = (all ? rows : rows.filter(differs)).sort(
@@ -59,9 +67,28 @@ export function DeviceRunsCompare({ runs }: { runs: DeviceRun[] }) {
         <p className="cmp-summary ko" data-testid="runs-summary">
           {runs.length} devices · {rows.filter(differs).length} of {rows.length} criteria differ
         </p>
-        <button type="button" className="chip-toggle" aria-pressed={all} onClick={() => setAll(!all)}>
-          {all ? 'Only differences' : 'Show all criteria'}
-        </button>
+        <div className="runs-controls">
+          <label className="runs-limit">
+            Compare at most
+            <input
+              type="number"
+              min={2}
+              max={allRuns.length}
+              inputMode="numeric"
+              placeholder="all"
+              aria-label="Maximum number of devices compared"
+              value={limit ?? ''}
+              onChange={(e) => {
+                const n = parseInt(e.target.value, 10);
+                setLimit(Number.isFinite(n) && n >= 1 ? n : null);
+              }}
+            />
+            devices
+          </label>
+          <button type="button" className="chip-toggle" aria-pressed={all} onClick={() => setAll(!all)}>
+            {all ? 'Only differences' : 'Show all criteria'}
+          </button>
+        </div>
       </div>
       <div className="cmp-scroll">
         <table className="values-table runs-table">
@@ -84,7 +111,7 @@ export function DeviceRunsCompare({ runs }: { runs: DeviceRun[] }) {
               {runs.map((r) => (
                 <td key={r.phone} className={r.score >= 80 ? 'cell-ok' : 'cell-ko'}>
                   <strong>{Math.round(r.score)}</strong>
-                  {r.submitted ? '' : ' (before PIN)'}
+                  {!r.submitted && <span className="run-note">before PIN</span>}
                 </td>
               ))}
             </tr>
@@ -94,24 +121,31 @@ export function DeviceRunsCompare({ runs }: { runs: DeviceRun[] }) {
                 <td className={MONO.includes(row.field) ? 'cmp-mono' : undefined} title={row.expected}>
                   {display(row.field, row.expected)}
                 </td>
-                {row.actual.map((a, i) => (
-                  <td
-                    key={runs[i].phone}
-                    className={`${row.match[i] === false ? 'cell-ko' : 'cell-ok'}${MONO.includes(row.field) ? ' cmp-mono' : ''}`}
-                    title={a ?? undefined}
-                  >
-                    {a === null ? (
-                      '–'
-                    ) : (
-                      <>
-                        <span className="mark" aria-label={row.match[i] === false ? 'different' : 'identical'}>
-                          {row.match[i] === false ? '✗' : '✓'}
+                {row.actual.map((a, i) => {
+                  const diff = row.match[i] === false;
+                  return (
+                    <td
+                      key={runs[i].phone}
+                      className={`${diff ? 'cell-ko' : 'cell-ok'}${MONO.includes(row.field) ? ' cmp-mono' : ''}`}
+                      title={a ?? undefined}
+                    >
+                      {a === null ? (
+                        '–'
+                      ) : diff ? (
+                        <>
+                          <span className="mark" aria-label="different">
+                            ✗
+                          </span>
+                          {display(row.field, a)}
+                        </>
+                      ) : (
+                        <span className="mark" aria-label="identical">
+                          ✓
                         </span>
-                        {display(row.field, a)}
-                      </>
-                    )}
-                  </td>
-                ))}
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

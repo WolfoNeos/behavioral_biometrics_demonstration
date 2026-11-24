@@ -88,7 +88,7 @@ export interface SessionManagerOptions {
 }
 
 const MAX_ATTEMPTS = 12;
-const MAX_DEVICE_RUNS = 6;
+const MAX_DEVICE_RUNS = 12;
 const KIND_LEVEL: Record<SubmitPayload['kind'], Level> = { keystroke: 1, pin: 2, orientation: 3 };
 
 const currentLevel = (s: AuthState): Level => (s.status === 'blocked' ? s.verdict.level : s.level);

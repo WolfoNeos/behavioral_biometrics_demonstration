@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import { DeviceRunsCompare, buildRows } from '../../../src/web/components/DeviceRunsCompare';
+import { DeviceRunsCompare, buildRows, limitRuns } from '../../../src/web/components/DeviceRunsCompare';
 import type { DeviceRun } from '../../../src/shared/types';
 
 const line = (field: string, expected: string, actual: string) => ({ field, expected, actual, match: expected === actual });
@@ -44,6 +44,35 @@ describe('DeviceRunsCompare', () => {
     render(<DeviceRunsCompare runs={runs} />);
     await userEvent.click(screen.getByRole('button', { name: 'Show all criteria' }));
     expect(screen.getAllByText('iPhone').length).toBeGreaterThan(0);
+  });
+
+  it('une cellule identique à A n’affiche que ✓, une cellule qui diffère donne sa valeur', () => {
+    render(<DeviceRunsCompare runs={runs} />);
+    const row = screen.getByText('CPU cores').closest('tr')!;
+    const cells = within(row).getAllByRole('cell');
+    expect(within(cells[2]).getByLabelText('identical')).toBeInTheDocument();
+    expect(cells[2]).not.toHaveTextContent('6');
+    expect(cells[3]).toHaveTextContent('8');
+    expect(within(cells[3]).getByLabelText('different')).toBeInTheDocument();
+  });
+
+  it('limitRuns : les N derniers appareils, ou tous', () => {
+    const three = [run(1, 100, {}), run(2, 50, {}), run(3, 40, {})];
+    expect(limitRuns(three, null)).toHaveLength(3);
+    expect(limitRuns(three, 2).map((r) => r.n)).toEqual([2, 3]);
+    expect(limitRuns(three, 10)).toHaveLength(3);
+  });
+
+  it('le champ « Compare at most » limite les appareils comparés (vide = tous)', async () => {
+    const three = [run(1, 100, {}), run(2, 50, { cores: '8' }), run(3, 40, { cores: '4' })];
+    render(<DeviceRunsCompare runs={three} />);
+    expect(screen.getByTestId('runs-summary')).toHaveTextContent('3 devices');
+    const input = screen.getByLabelText('Maximum number of devices compared');
+    await userEvent.type(input, '2');
+    expect(screen.getByTestId('runs-summary')).toHaveTextContent('2 devices');
+    expect(screen.queryByRole('columnheader', { name: /Phone 1/ })).toBeNull();
+    await userEvent.clear(input);
+    expect(screen.getByTestId('runs-summary')).toHaveTextContent('3 devices');
   });
 
   it('relevé avant PIN signalé', () => {
