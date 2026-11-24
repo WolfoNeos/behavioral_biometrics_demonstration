@@ -3,6 +3,7 @@ import type { FailReason, KeyEvent, LastVerdict, Level, Snapshot, Thresholds } f
 import { AngleDial } from '../components/AngleDial';
 import { LoginForm, PortalShell, StepUp, Suspended, Welcome } from '../components/BankPortal';
 import { PhoneMirror } from '../components/PhoneMirror';
+import { PostureRuns } from '../components/PostureRuns';
 import { Barcode } from '../components/Barcode';
 import { ConsoleHeader } from '../components/ConsoleHeader';
 import { SessionRecap } from '../components/SessionRecap';
@@ -167,13 +168,28 @@ function DirectSignal({ snap, level, liveRows }: { snap: Snapshot; level: Level;
   }
   // avant « Confirm » : l'aiguille suit le telephone en direct ; apres : la mesure notee
   const beta = snap.liveOrientation?.beta ?? snap.live.orientation?.beta ?? null;
-  return (
+  const dial = (
     <AngleDial
       expectedBeta={snap.expected.beta ?? 0}
       tolerance={snap.thresholds.orientation.toleranceDeg}
       beta={beta}
     />
   );
+  // mode « Stay on step » : le score de chaque téléphone qui teste la posture
+  if (snap.stay === true) {
+    return (
+      <div className="posture-stay">
+        <div className="posture-dial">{dial}</div>
+        <PostureRuns
+          runs={snap.postureRuns ?? []}
+          expectedBeta={snap.expected.beta}
+          accept={snap.thresholds.orientation.accept}
+          warn={snap.thresholds.orientation.warn}
+        />
+      </div>
+    );
+  }
+  return dial;
 }
 
 /** Résumé du profil de frappe de A (affiché sous la reference signature). */
@@ -316,8 +332,8 @@ export function Demo() {
         : 'Official score'
       : '';
   const recap = buildRecap(snapshot);
-  // mode « Stay on step » à l'étape 2 : on compare des appareils, aucun score n'est affiché
-  const noScore = snapshot.stay === true && shown.level === 2;
+  // mode « Stay on step » aux étapes 2 et 3 : on compare des téléphones, pas de jauge unique
+  const noScore = snapshot.stay === true && (shown.level === 2 || shown.level === 3);
   const gauge = (
     <div className="gauge-col">
       <Gauge score={provisional ? provisional.score : officialScore} accept={th.accept} warn={th.warn} />

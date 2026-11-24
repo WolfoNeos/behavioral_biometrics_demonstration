@@ -380,3 +380,22 @@
 .runs-compact td { text-align: center; }
 .panel .runs-compact table.runs-table.values-table td:nth-child(-n+2) { text-align: left; }
 .panel-score.panel-attempts-only:not(.panel-recap) { display: flex; flex-direction: column; align-items: stretch; }
+
+/* posture de plusieurs téléphones (étape 3, Stay on step) */
+.posture-stay { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: var(--space-4); align-items: start; width: 100%; }
+.posture-runs ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.posture-run { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) 14rem 5.5rem; align-items: center; gap: 0.9rem; padding: 10px 14px; border-radius: 12px; background: var(--color-bg); font-size: 1.15rem; font-weight: 600; }
+.posture-run.ok { background: var(--color-green-soft); color: var(--color-green); }
+.posture-run.mid { background: var(--color-orange-soft); color: var(--color-orange); }
+.posture-run.ko { background: var(--color-red-soft); color: var(--color-red); }
+.pr-name { font-size: 1.25rem; font-weight: 800; color: var(--color-ink); }
+.pr-score { display: flex; align-items: center; gap: 0.8rem; min-width: 0; }
+.pr-score strong { font-size: 2rem; line-height: 1; min-width: 2.6ch; text-align: right; }
+.pr-bar { position: relative; flex: 1; height: 12px; border-radius: 6px; background: rgb(0 0 0 / 8%); }
+.pr-fill { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: currentColor; }
+.pr-mark { position: absolute; top: -4px; bottom: -4px; width: 3px; background: var(--color-ink); border-radius: 2px; }
+.pr-angle { font-size: 1rem; color: var(--color-ink-muted); font-weight: 600; }
+.pr-angle span { font-weight: 500; }
+.pr-pin { font-weight: 800; text-align: right; }
+.pr-pin.ok { color: var(--color-green); }
+.pr-pin.ko { color: var(--color-red); }

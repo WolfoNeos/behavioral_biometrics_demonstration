@@ -218,3 +218,59 @@ describe('plusieurs appareils à l’étape 2', () => {
     expect(m.snapshot(s.id).deviceRuns).toHaveLength(0);
   });
 });
+
+describe('plusieurs téléphones à l’étape 3', () => {
+  const reading = (beta: number) => [{ alpha: 0, beta, gamma: 0 }];
+  const mgr = () =>
+    new SessionManager({
+      getProfile: () => ({ ...profile(), beta: 45 }),
+      getThresholds: () => DEFAULT_THRESHOLDS,
+      baseUrl: 'https://x',
+    });
+
+  it('un relevé de posture par téléphone, le dernier remplace le précédent, on reste à l’étape 3', () => {
+    const m = mgr();
+    const s = m.create();
+    const p1 = new FakeWs();
+    const p2 = new FakeWs();
+    m.attachPhone(s.id, p1 as never);
+    m.attachPhone(s.id, p2 as never);
+    m.handleMessage(s.id, JSON.stringify({ type: 'stay', on: true }));
+    m.jump(s.id, 3);
+    p1.emit('message', JSON.stringify({ type: 'orientation', pin: '1234', readings: reading(45) }));
+    p2.emit('message', JSON.stringify({ type: 'orientation', pin: '9999', readings: reading(80) }));
+    let runs = m.snapshot(s.id).postureRuns!;
+    expect(runs.map((r) => [r.n, r.secret])).toEqual([[1, true], [2, false]]);
+    expect(runs[0].score).toBeGreaterThan(runs[1].score);
+    p1.emit('message', JSON.stringify({ type: 'orientation', pin: '1234', readings: reading(60) }));
+    runs = m.snapshot(s.id).postureRuns!;
+    expect(runs).toHaveLength(2);
+    expect(runs[0].beta).toBe(60);
+    expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level: 3 });
+  });
+
+  it('Retry de l’étape 3 efface les relevés', () => {
+    const m = mgr();
+    const s = m.create();
+    const p1 = new FakeWs();
+    m.attachPhone(s.id, p1 as never);
+    m.jump(s.id, 3);
+    p1.emit('message', JSON.stringify({ type: 'orientation', pin: '1234', readings: reading(45) }));
+    expect(m.snapshot(s.id).postureRuns).toHaveLength(1);
+    m.handleMessage(s.id, JSON.stringify({ type: 'retry', level: 3 }));
+    expect(m.snapshot(s.id).postureRuns).toHaveLength(0);
+  });
+
+  it('le numéro d’un téléphone est le même aux étapes 2 et 3', () => {
+    const m = mgr();
+    const s = m.create();
+    const p1 = new FakeWs();
+    const p2 = new FakeWs();
+    m.attachPhone(s.id, p1 as never);
+    m.attachPhone(s.id, p2 as never);
+    m.handleMessage(s.id, JSON.stringify({ type: 'stay', on: true }));
+    m.jump(s.id, 3);
+    p2.emit('message', JSON.stringify({ type: 'orientation', pin: '1234', readings: reading(45) }));
+    expect(m.snapshot(s.id).postureRuns![0].n).toBe(2); // arrivé en second, quel que soit l'ordre d'envoi
+  });
+});

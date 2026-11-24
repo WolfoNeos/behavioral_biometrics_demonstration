@@ -9,6 +9,7 @@ import type {
   Attempt,
   AuthState,
   DeviceRun,
+  PostureRun,
   FailReason,
   Fingerprint,
   KeyEvent,
@@ -64,6 +65,10 @@ export interface Session {
   stay: boolean;
   /** Relevés de l'étape 2, un par téléphone (le dernier de chaque téléphone). */
   deviceRuns: DeviceRun[];
+  /** Relevés de l'étape 3, un par téléphone (le dernier de chaque téléphone). */
+  postureRuns: PostureRun[];
+  /** Numéro d'arrivée de chaque téléphone de la session (le même à toutes les étapes). */
+  phoneNo: Record<string, number>;
   /** Horodatage de la derniere diffusion due a l'orientation en direct. */
   liveSentAt: number;
   liveTimer: ReturnType<typeof setTimeout> | null;
@@ -212,6 +217,8 @@ export class SessionManager {
       attempts: [],
       stay: false,
       deviceRuns: [],
+      postureRuns: [],
+      phoneNo: {},
       liveSentAt: 0,
       liveTimer: null,
     };
@@ -260,6 +267,7 @@ export class SessionManager {
       attempts: s.attempts,
       stay: s.stay,
       deviceRuns: s.deviceRuns,
+      postureRuns: s.postureRuns,
       thresholds: this.opts.getThresholds(),
       // reference par position, sans caractere : relue a chaque diffusion (profil modifie)
       expectedBars: buildExpectedBars(p.password, p.keystroke),
@@ -301,6 +309,7 @@ export class SessionManager {
     const s = this.get(id);
     s.phones.add(ws);
     const phone = `p${++this.phoneSeq}`;
+    this.phoneNumber(s, phone);
     ws.on('message', (data) => this.handleMessage(id, data, { server, phone }));
     ws.on('close', () => {
       if (!s.phones.delete(ws)) return;
@@ -346,6 +355,7 @@ export class SessionManager {
       score = result?.score ?? 0;
       // le PIN est redemandé à cette étape : faux, même avec une bonne posture, on refuse
       if (payload.pin !== undefined && payload.pin !== profile.pin) failed = 'PIN incorrect';
+      if (result) this.recordPostureRun(s, phone, result, failed === null);
     }
     s.secrets[level] = failed === null;
 
@@ -403,6 +413,7 @@ export class SessionManager {
       s.deviceRuns = [];
     }
     delete s.live.orientation;
+    s.postureRuns = [];
     for (const l of [1, 2, 3] as Level[]) if (l >= level) delete s.secrets[l];
     s.lastVerdict = null;
     s.liveOrientation = null;
@@ -418,7 +429,10 @@ export class SessionManager {
       delete s.live.tactile;
       s.deviceRuns = [];
     }
-    if (level === 3) delete s.live.orientation;
+    if (level === 3) {
+      delete s.live.orientation;
+      s.postureRuns = [];
+    }
     delete s.secrets[level];
     s.lastVerdict = null;
     s.liveOrientation = null;
@@ -444,6 +458,7 @@ export class SessionManager {
     s.state = startState();
     s.stay = false;
     s.deviceRuns = [];
+    s.postureRuns = [];
     s.live = {};
     s.secrets = {};
     s.lastVerdict = null;
@@ -451,13 +466,37 @@ export class SessionManager {
     this.broadcast(id);
   }
 
+  /** Numéro d'un téléphone dans la session : celui de son arrivée, identique à chaque étape. */
+  private phoneNumber(s: Session, phone: string): number {
+    s.phoneNo[phone] ??= Math.max(0, ...Object.values(s.phoneNo)) + 1;
+    return s.phoneNo[phone];
+  }
+
+  /** Relevé de posture d'un téléphone (le plus récent), pour les comparer à l'étape 3. */
+  private recordPostureRun(
+    s: Session,
+    phone: string,
+    r: { score: number; beta: number; deviation: number },
+    secret: boolean,
+  ): void {
+    const run: PostureRun = { n: this.phoneNumber(s, phone), phone, score: r.score, beta: r.beta, deviation: r.deviation, secret };
+    const i = s.postureRuns.findIndex((d) => d.phone === phone);
+    if (i >= 0) s.postureRuns[i] = run;
+    else {
+      s.postureRuns.push(run);
+      s.postureRuns.sort((a, b) => a.n - b.n);
+      if (s.postureRuns.length > MAX_DEVICE_RUNS) s.postureRuns.shift();
+    }
+  }
+
   /** Un relevé par téléphone (le plus récent) : plusieurs appareils se comparent entre eux à l'étape 2. */
   private recordDeviceRun(s: Session, phone: string, r: { score: number; lines: DeviceLine[] }, submitted: boolean): void {
-    const run: DeviceRun = { n: 0, phone, score: r.score, lines: r.lines, submitted };
+    const run: DeviceRun = { n: this.phoneNumber(s, phone), phone, score: r.score, lines: r.lines, submitted };
     const i = s.deviceRuns.findIndex((d) => d.phone === phone);
-    if (i >= 0) s.deviceRuns[i] = { ...run, n: s.deviceRuns[i].n };
+    if (i >= 0) s.deviceRuns[i] = run;
     else {
-      s.deviceRuns.push({ ...run, n: (s.deviceRuns.at(-1)?.n ?? 0) + 1 });
+      s.deviceRuns.push(run);
+      s.deviceRuns.sort((a, b) => a.n - b.n);
       if (s.deviceRuns.length > MAX_DEVICE_RUNS) s.deviceRuns.shift();
     }
   }

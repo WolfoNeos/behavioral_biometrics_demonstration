@@ -171,6 +171,18 @@ export interface Snapshot {
   stay?: boolean;
   /** Appareils mesurés à l'étape 2 (un par téléphone connecté), pour les comparer entre eux. */
   deviceRuns?: DeviceRun[];
+  /** Postures mesurées à l'étape 3 (un relevé par téléphone), pour comparer plusieurs téléphones. */
+  postureRuns?: PostureRun[];
+}
+
+/** Relevé d'un téléphone à l'étape 3 : numéro, score, angle mesuré, écart à A, PIN correct ou non. */
+export interface PostureRun {
+  n: number;
+  phone: string;
+  score: number;
+  beta: number;
+  deviation: number;
+  secret: boolean;
 }
 
 /** Relevé d'un téléphone à l'étape 2 : numéro d'arrivée, score, comparaison critère par critère. */

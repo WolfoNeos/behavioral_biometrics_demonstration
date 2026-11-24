@@ -694,3 +694,28 @@ describe('Demo : Stay on step à l’étape 2', () => {
     expect(screen.getByTestId('device-total')).toBeInTheDocument();
   });
 });
+
+describe('Demo : Stay on step à l’étape 3', () => {
+  it('score de chaque téléphone, pas de jauge unique', () => {
+    snapshot = {
+      ...base,
+      state: { status: 'pending', level: 3 },
+      level: 3,
+      stay: true,
+      postureRuns: [
+        { n: 1, phone: 'p1', score: 95, beta: 46, deviation: 1, secret: true },
+        { n: 2, phone: 'p2', score: 30, beta: 80, deviation: 35, secret: true },
+      ],
+    };
+    renderDemo();
+    expect(screen.getAllByTestId('posture-run')).toHaveLength(2);
+    expect(screen.getByTestId('panel-score')).toHaveAttribute('aria-label', 'Attempts');
+  });
+
+  it('sans le mode : le cadran seul et la jauge', () => {
+    snapshot = { ...base, state: { status: 'pending', level: 3 }, level: 3, stay: false };
+    renderDemo();
+    expect(screen.queryByTestId('posture-runs')).toBeNull();
+    expect(screen.getByTestId('panel-score')).toHaveAttribute('aria-label', 'Score');
+  });
+});
