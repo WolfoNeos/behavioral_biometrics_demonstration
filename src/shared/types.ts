@@ -16,6 +16,10 @@ export interface KeystrokeProfile {
   samples: number;
 }
 
+/**
+ * Empreinte de l'appareil : les six critères historiques sont toujours présents, les autres
+ * (catalogue dans `criteria.ts`) le sont selon le client. Valeurs en texte.
+ */
 export interface Fingerprint {
   userAgent: string;
   platform: string;
@@ -23,6 +27,7 @@ export interface Fingerprint {
   screen: string;
   timezone: string;
   canvasHash: string;
+  [criterion: string]: string | undefined;
 }
 
 export interface OrientationReading {

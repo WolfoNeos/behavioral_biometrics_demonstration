@@ -94,8 +94,20 @@ describe('API REST', () => {
     };
     await app.inject({ method: 'POST', url: '/api/enroll/phone', payload: { fingerprint, beta: 33 } });
     const profile = (await app.inject({ url: '/api/profile' })).json();
-    expect(profile.fingerprint).toEqual(fingerprint);
+    // l'adresse IP est ajoutée par le serveur (jamais fournie par le client)
+    expect(profile.fingerprint).toMatchObject({ ...fingerprint, ip: '127.0.0.1', ipVersion: '4' });
     expect(profile.beta).toBe(33);
+  });
+
+  it('POST /api/enroll/phone ignore l IP déclarée par le client et retient celle du proxy', async () => {
+    const fingerprint = { userAgent: 'u', platform: 'p', language: 'fr', screen: '1x1', timezone: 'UTC', canvasHash: 'h', ip: '6.6.6.6' };
+    await app.inject({
+      method: 'POST',
+      url: '/api/enroll/phone',
+      headers: { 'x-forwarded-for': '9.9.9.9, 192.168.1.50' },
+      payload: { fingerprint, beta: 10 },
+    });
+    expect((await app.inject({ url: '/api/profile' })).json().fingerprint.ip).toBe('192.168.1.50');
   });
 
   it('PUT /api/profile avec un nouveau mot de passe rafraichit expectedBars du PC', async () => {
@@ -212,6 +224,31 @@ describe('API écran de réussite', () => {
 
   it('PUT invalide -> 400', async () => {
     const r = await app.inject({ method: 'PUT', url: '/api/welcome', payload: '[]', headers: { 'content-type': 'application/json' } });
+    expect(r.statusCode).toBe(400);
+  });
+});
+
+
+describe('API critères de l’empreinte', () => {
+  it('GET : catalogue, réglages (vides par défaut) et dernier relevé', async () => {
+    const body = (await app.inject({ url: '/api/criteria' })).json();
+    expect(body.criteria.length).toBeGreaterThan(80);
+    expect(body.overrides).toEqual({});
+    expect(body.last).toBeNull();
+  });
+
+  it('PUT enregistre les réglages valides et écarte le reste', async () => {
+    const put = await app.inject({
+      method: 'PUT',
+      url: '/api/criteria',
+      payload: { cores: { enabled: false, weight: 4 }, inconnu: { enabled: true }, memory: { weight: -2, identity: 'oui' } },
+    });
+    expect(put.json().overrides).toEqual({ cores: { enabled: false, weight: 4 } });
+    expect((await app.inject({ url: '/api/criteria' })).json().overrides.cores.weight).toBe(4);
+  });
+
+  it('PUT invalide -> 400', async () => {
+    const r = await app.inject({ method: 'PUT', url: '/api/criteria', payload: '[]', headers: { 'content-type': 'application/json' } });
     expect(r.statusCode).toBe(400);
   });
 });

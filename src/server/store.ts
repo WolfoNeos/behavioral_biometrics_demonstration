@@ -2,12 +2,15 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { DEFAULT_THRESHOLDS } from '../shared/types';
 import type { Profile, Thresholds } from '../shared/types';
+import { sanitizeCriteria } from '../shared/criteria';
+import type { CriteriaOverrides } from '../shared/criteria';
 import { sanitizeWelcome } from '../shared/welcome';
 import type { WelcomeContent } from '../shared/welcome';
 
 export const DEFAULT_PROFILE_PATH = resolve('data', 'profile.json');
 export const DEFAULT_THRESHOLDS_PATH = resolve('data', 'thresholds.json');
 export const DEFAULT_WELCOME_PATH = resolve('data', 'welcome.json');
+export const DEFAULT_CRITERIA_PATH = resolve('data', 'criteria.json');
 
 export function emptyProfile(): Profile {
   return { password: '', pin: '', keystroke: null, fingerprint: null, beta: null };
@@ -73,4 +76,13 @@ export function loadWelcome(path = DEFAULT_WELCOME_PATH): WelcomeContent {
 
 export function saveWelcome(w: WelcomeContent, path = DEFAULT_WELCOME_PATH): void {
   writeJson(path, w);
+}
+
+/** Réglages des critères de l'empreinte (actif, poids, identité) ; absent -> catalogue par défaut. */
+export function loadCriteria(path = DEFAULT_CRITERIA_PATH): CriteriaOverrides {
+  return sanitizeCriteria(readObject(path));
+}
+
+export function saveCriteria(c: CriteriaOverrides, path = DEFAULT_CRITERIA_PATH): void {
+  writeJson(path, c);
 }

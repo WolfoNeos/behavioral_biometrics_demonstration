@@ -22,8 +22,17 @@ import type {
   Verdict,
 } from '../shared/types';
 import { LIVE_ORIENTATION_INTERVAL_MS } from '../shared/types';
+import type { CriteriaOverrides } from '../shared/criteria';
+import type { DeviceLine } from '../shared/scoring/device';
+import { FINGERPRINT_FIELDS, sanitizeFingerprint, withServerFields } from '../shared/fingerprint';
 
 /** Sous-ensemble de WebSocket utilise ici (facilite les faux dans les tests). */
+/** Contexte d'un message : adresse du client (relevée par le serveur, pas déclarée par lui). */
+export interface MessageContext {
+  /** Critères relevés par le serveur (adresse, en-têtes) : le client ne peut pas les déclarer. */
+  server?: Record<string, string>;
+}
+
 export interface WsLike {
   send(data: string): void;
   close(): void;
@@ -53,6 +62,8 @@ export interface Session {
 export interface SessionManagerOptions {
   getProfile: () => Profile;
   getThresholds: () => Thresholds;
+  /** Réglages des critères d'empreinte (actif, poids, identité) ; absent = catalogue par défaut. */
+  getCriteria?: () => CriteriaOverrides;
   baseUrl: string;
 }
 
@@ -65,7 +76,6 @@ const isObj = (v: unknown): v is Record<string, unknown> =>
 const fin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const arrOf = (v: unknown, ok: (x: Record<string, unknown>) => boolean): boolean =>
   Array.isArray(v) && v.every((x) => isObj(x) && ok(x));
-const FP_FIELDS = ['userAgent', 'platform', 'language', 'screen', 'timezone', 'canvasHash'];
 
 /** Valide la forme d'un message entrant ; null si invalide. */
 function parsePayload(msg: Record<string, unknown>): SubmitPayload | null {
@@ -78,17 +88,13 @@ function parsePayload(msg: Record<string, unknown>): SubmitPayload | null {
       : null;
   }
   if (msg.type === 'pin') {
-    const fp = msg.fingerprint;
-    const ok =
-      typeof msg.pin === 'string' &&
-      isObj(fp) &&
-      FP_FIELDS.every((f) => typeof fp[f] === 'string') &&
-      arrOf(msg.taps, (t) => fin(t.down) && fin(t.up));
+    const fp = sanitizeFingerprint(msg.fingerprint);
+    const ok = typeof msg.pin === 'string' && fp !== null && arrOf(msg.taps, (t) => fin(t.down) && fin(t.up));
     return ok
       ? {
           kind: 'pin',
           pin: msg.pin as string,
-          fingerprint: fp as unknown as Fingerprint,
+          fingerprint: fp as Fingerprint,
           taps: msg.taps as { down: number; up: number }[],
         }
       : null;
@@ -157,14 +163,9 @@ function syntheticKeystroke(profile: Profile, offset: number): KeyEvent[] {
 }
 
 function otherFingerprint(): Fingerprint {
-  return {
-    userAgent: 'intrus',
-    platform: 'intrus',
-    language: 'xx',
-    screen: '0x0',
-    timezone: 'UTC',
-    canvasHash: 'intrus',
-  };
+  const fp: Record<string, string> = {};
+  for (const f of FINGERPRINT_FIELDS) fp[f] = 'intrus';
+  return { ...fp, language: 'xx', screen: '0x0', timezone: 'UTC' } as unknown as Fingerprint;
 }
 
 export class SessionManager {
@@ -265,10 +266,10 @@ export class SessionManager {
   }
 
   /** Plusieurs telephones possibles (B puis A sur le meme QR) : aucun n'en ferme un autre. */
-  attachPhone(id: string, ws: WsLike): void {
+  attachPhone(id: string, ws: WsLike, server: Record<string, string> = {}): void {
     const s = this.get(id);
     s.phones.add(ws);
-    ws.on('message', (data) => this.handleMessage(id, data));
+    ws.on('message', (data) => this.handleMessage(id, data, { server }));
     ws.on('close', () => {
       if (!s.phones.delete(ws)) return;
       if (s.phones.size === 0) {
@@ -295,7 +296,7 @@ export class SessionManager {
       if (payload.password !== profile.password) failed = 'password incorrect';
     } else if (payload.kind === 'pin') {
       const result = profile.fingerprint
-        ? compareFingerprint(profile.fingerprint, payload.fingerprint)
+        ? this.compare(profile.fingerprint, payload.fingerprint)
         : null;
       if (result) s.live.device = result;
       s.live.tactile = summarizeTouch(payload.taps);
@@ -366,6 +367,28 @@ export class SessionManager {
     this.broadcast(id);
   }
 
+  /** Dernier relevé de l'appareil, toutes sessions confondues : sert à choisir les critères. */
+  private lastDevice: DeviceLine[] | null = null;
+
+  lastDeviceLines(): DeviceLine[] | null {
+    return this.lastDevice;
+  }
+
+  private compare(expected: Fingerprint, actual: Fingerprint): { score: number; lines: DeviceLine[] } {
+    const result = compareFingerprint(expected, actual, this.opts.getCriteria?.() ?? {});
+    this.lastDevice = result.lines;
+    return result;
+  }
+
+  /** Empreinte reçue avant le PIN : comparée au profil de A et diffusée, sans rendre de verdict. */
+  private previewDevice(id: string, fingerprint: Fingerprint): void {
+    const s = this.get(id);
+    const profile = this.opts.getProfile();
+    if (!profile.fingerprint) return;
+    s.live.device = this.compare(profile.fingerprint, fingerprint);
+    this.broadcast(id);
+  }
+
   /** Orientation en direct (niveau 3 en attente) ; diffusion limitee a une par intervalle. */
   private liveOrientationUpdate(id: string, reading: OrientationReading): void {
     const s = this.get(id);
@@ -407,7 +430,7 @@ export class SessionManager {
   }
 
   /** Ne lance jamais : tout message invalide ou en erreur est journalise puis ignore. */
-  handleMessage(id: string, raw: unknown): void {
+  handleMessage(id: string, raw: unknown, ctx: MessageContext = {}): void {
     try {
       if (!this.sessions.has(id)) return;
       const msg: unknown = JSON.parse(String(raw));
@@ -420,6 +443,7 @@ export class SessionManager {
           const level = KIND_LEVEL[msg.type];
           if (state.status !== 'pending' || state.level !== level) return;
           const payload = parsePayload(msg);
+          if (payload?.kind === 'pin') payload.fingerprint = withServerFields(payload.fingerprint, ctx.server);
           if (payload) this.submit(id, level, payload);
           return;
         }
@@ -427,6 +451,13 @@ export class SessionManager {
           if (state.status !== 'pending' || state.level !== 3) return;
           const reading = parseLiveOrientation(msg);
           if (reading) this.liveOrientationUpdate(id, reading);
+          return;
+        }
+        case 'device': {
+          // l'empreinte est relevée dès l'ouverture de la page : les résultats sont visibles
+          // avant la saisie du PIN et restent affichés pendant qu'on la commente
+          const fp = sanitizeFingerprint(msg.fingerprint);
+          if (fp && state.status === 'pending' && state.level === 2) this.previewDevice(id, withServerFields(fp, ctx.server));
           return;
         }
         case 'phoneView': {

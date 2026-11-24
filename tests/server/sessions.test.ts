@@ -655,3 +655,54 @@ describe('PIN redemandé à l’étape 3 et secrets par étape', () => {
     expect(m.snapshot(s.id).secrets).toEqual({});
   });
 });
+
+describe('empreinte reçue avant le PIN (message device)', () => {
+  const profileWithFp = (): Profile => ({
+    password: 'pw',
+    pin: '1234',
+    keystroke: null,
+    fingerprint: { userAgent: 'u', platform: 'p', language: 'fr', screen: 's', timezone: 'z', canvasHash: 'c', languages: 'fr' },
+    beta: null,
+  });
+  const setupFp = () =>
+    new SessionManager({ getProfile: profileWithFp, getThresholds: () => DEFAULT_THRESHOLDS, baseUrl: 'https://x' });
+  const deviceMsg = (over: Record<string, string> = {}) =>
+    JSON.stringify({ type: 'device', fingerprint: { userAgent: 'u', platform: 'p', language: 'fr', screen: 's', timezone: 'z', canvasHash: 'c', languages: 'fr', ...over } });
+
+  it('niveau 2 : le résultat est diffusé sans verdict, avant la saisie du PIN', () => {
+    const m = setupFp();
+    const s = m.create();
+    const pc = new FakeWs();
+    m.attachPc(s.id, pc);
+    m.jump(s.id, 2);
+    pc.emit('message', deviceMsg({ languages: 'en' }));
+    const snap = m.snapshot(s.id);
+    expect(snap.state).toEqual({ status: 'pending', level: 2 });
+    expect(snap.live.device?.lines.find((l) => l.field === 'languages')?.match).toBe(false);
+    expect(snap.lastVerdict).toBeNull();
+    expect(snap.secrets).toEqual({});
+  });
+
+  it('ignorée hors du niveau 2 et si invalide', () => {
+    const m = setupFp();
+    const s = m.create();
+    const pc = new FakeWs();
+    m.attachPc(s.id, pc);
+    pc.emit('message', deviceMsg());
+    expect(m.snapshot(s.id).live.device).toBeUndefined();
+    m.jump(s.id, 2);
+    pc.emit('message', JSON.stringify({ type: 'device', fingerprint: { userAgent: 'u' } }));
+    expect(m.snapshot(s.id).live.device).toBeUndefined();
+  });
+
+  it('le PIN ensuite tranche avec la même empreinte', () => {
+    const m = setupFp();
+    const s = m.create();
+    const pc = new FakeWs();
+    m.attachPc(s.id, pc);
+    m.jump(s.id, 2);
+    pc.emit('message', deviceMsg());
+    pc.emit('message', JSON.stringify({ type: 'pin', pin: '1234', taps: [], fingerprint: JSON.parse(deviceMsg()).fingerprint }));
+    expect(m.snapshot(s.id).state.status).toBe('granted');
+  });
+});
