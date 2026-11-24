@@ -310,3 +310,15 @@
 .cmp-scroll .cmp-off td { background: var(--color-bg); color: var(--color-ink-muted); opacity: 0.75; }
 .cmp-scroll .cmp-off .cmp-status { font-weight: 500; }
 .cmp-ignored-count { font-weight: 500; opacity: 0.8; }
+
+/* historique des essais */
+.attempts { margin-top: var(--space-3); width: 100%; }
+.attempts h3 { margin: 0 0 var(--space-2); font-size: var(--text-sm); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-ink-muted); }
+.attempts ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.attempt { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: var(--text-sm); font-variant-numeric: tabular-nums; background: var(--color-grey-soft); }
+.attempt strong { font-size: 1rem; }
+.attempt-n, .attempt-step { color: var(--color-ink-muted); }
+.attempt.ok { background: var(--color-green-soft); color: var(--color-green); }
+.attempt.warn { background: var(--color-orange-soft); color: var(--color-orange); }
+.attempt.ko { background: var(--color-red-soft); color: var(--color-red); }
+.attempt.ok .attempt-n, .attempt.ok .attempt-step, .attempt.warn .attempt-n, .attempt.warn .attempt-step, .attempt.ko .attempt-n, .attempt.ko .attempt-step { color: inherit; opacity: 0.75; }

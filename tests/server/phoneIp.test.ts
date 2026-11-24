@@ -77,3 +77,30 @@ describe('relance d’une seule étape', () => {
     expect(after.secrets?.[2]).toBeUndefined();
   });
 });
+
+describe('historique des essais', () => {
+  it('chaque soumission est notée, et Restart ne l’efface pas', () => {
+    const m = manager();
+    const s = m.create();
+    m.inject(s.id, 'A', 1);
+    m.reset(s.id);
+    m.inject(s.id, 'B', 1);
+    const attempts = m.snapshot(s.id).attempts!;
+    expect(attempts.map((a) => a.n)).toEqual([1, 2]);
+    expect(attempts.every((a) => a.level === 1)).toBe(true);
+  });
+
+  it('journal : onAttempt reçoit la frappe brute et le score', () => {
+    const seen: { level: number; score: number }[] = [];
+    const m = new SessionManager({
+      getProfile: profile,
+      getThresholds: () => DEFAULT_THRESHOLDS,
+      baseUrl: 'https://x',
+      onAttempt: (a) => seen.push({ level: a.level, score: a.score }),
+    });
+    const s = m.create();
+    m.inject(s.id, 'A', 1);
+    expect(seen).toHaveLength(1);
+    expect(seen[0].level).toBe(1);
+  });
+});

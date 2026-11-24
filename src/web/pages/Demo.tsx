@@ -6,6 +6,7 @@ import { PhoneMirror } from '../components/PhoneMirror';
 import { Barcode } from '../components/Barcode';
 import { ConsoleHeader } from '../components/ConsoleHeader';
 import { SessionRecap } from '../components/SessionRecap';
+import { AttemptHistory } from '../components/AttemptHistory';
 import { ControlBar } from '../components/ControlBar';
 import { DeviceTable, FIELD_LABELS } from '../components/DeviceTable';
 import { Gauge } from '../components/Gauge';
@@ -340,16 +341,18 @@ export function Demo() {
           <section className="panel panel-score panel-recap" data-testid="panel-score" aria-label="Session summary">
             <h2>Session summary</h2>
             <SessionRecap recap={recap} />
+            <AttemptHistory attempts={snapshot.attempts ?? []} />
           </section>
         ) : (
           <section className="panel panel-score" data-testid="panel-score" aria-label="Score">
             <h2>Score</h2>
             {gauge}
+            <AttemptHistory attempts={snapshot.attempts ?? []} />
           </section>
         )}
         <div className="control-zone">
           <PhoneStatus connected={snapshot.phoneConnected} />
-          <ControlBar onJump={onJump} onReset={onReset} onRetry={onRetry} level={level} />
+          <ControlBar onJump={onJump} onReset={onReset} onRetry={onRetry} onSimulate={(who) => send({ type: 'god', who })} level={level} />
         </div>
       </aside>
     </div>

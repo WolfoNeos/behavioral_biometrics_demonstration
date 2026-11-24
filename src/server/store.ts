@@ -86,3 +86,21 @@ export function loadCriteria(path = DEFAULT_CRITERIA_PATH): CriteriaOverrides {
 export function saveCriteria(c: CriteriaOverrides, path = DEFAULT_CRITERIA_PATH): void {
   writeJson(path, c);
 }
+
+export const DEFAULT_ATTEMPTS_PATH = resolve('data', 'attempts.json');
+const MAX_LOGGED_ATTEMPTS = 500;
+
+/** Journal des essais (frappes brutes et scores) pour le banc d'essai ; borné aux plus récents. */
+export function appendAttempt(record: Record<string, unknown>, path = DEFAULT_ATTEMPTS_PATH): void {
+  let all: unknown[] = [];
+  try {
+    if (existsSync(path)) {
+      const v: unknown = JSON.parse(readFileSync(path, 'utf8'));
+      if (Array.isArray(v)) all = v;
+    }
+  } catch {
+    all = [];
+  }
+  all.push(record);
+  writeJson(path, all.slice(-MAX_LOGGED_ATTEMPTS));
+}

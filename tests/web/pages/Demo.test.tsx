@@ -133,7 +133,7 @@ describe('Demo', () => {
 
   it('le panneau Direct ne montre que le signal du niveau courant', () => {
     const { unmount } = renderDemo();
-    expect(within(screen.getByTestId('panel-direct')).getByTestId('chart')).toBeInTheDocument();
+    expect(within(screen.getByTestId('panel-direct')).getAllByTestId('chart')[0]).toBeInTheDocument();
     unmount();
 
     snapshot = { ...base, level: 2, state: { status: 'pending', level: 2 } };
@@ -211,7 +211,7 @@ describe('Demo', () => {
     renderDemo();
     const direct = screen.getByTestId('panel-direct');
     expect(within(direct).getByText(/Live — Keystroke dynamics/)).toBeInTheDocument();
-    expect(within(direct).getByTestId('chart')).toBeInTheDocument();
+    expect(within(direct).getAllByTestId('chart')[0]).toBeInTheDocument();
     const banner = within(direct).getByTestId('fail-banner');
     expect(banner).toHaveTextContent('Level 1 failed — moving to the next level');
     expect(banner).toHaveTextContent('Signal out of range (score 23 / 100)');

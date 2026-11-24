@@ -12,7 +12,8 @@
     "test": "vitest run",
     "server": "tsx src/server/index.ts",
     "start": "node scripts/start.mjs",
-    "cert": "tsx scripts/make-cert.mjs"
+    "cert": "tsx scripts/make-cert.mjs",
+    "bench": "tsx scripts/bench-keystroke.ts"
   },
   "dependencies": {
     "@fastify/websocket": "^11.3.7",

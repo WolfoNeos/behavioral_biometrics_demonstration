@@ -8,6 +8,7 @@ import {
   normalizeKey,
   referenceAt,
   scoreFromPenalties,
+  tempoPenalty,
   zScore,
 } from './keystroke';
 
@@ -84,5 +85,7 @@ export function scoreKeystrokeLive(
     penalties.push(...keyPenalties(i, zDwell, zFlight));
     return { dwell: t.dwell, flight: t.flight, zDwell, zFlight, status: statusOf(Math.max(zDwell, zFlight)) };
   });
-  return { score: scoreFromPenalties(penalties), bars };
+  const timings = extractTimings(events);
+  const refs = timings.map((_, i) => (expected[i]?.known ? expected[i] : null));
+  return { score: scoreFromPenalties(penalties, tempoPenalty(refs, timings)), bars };
 }

@@ -165,4 +165,16 @@ export interface Snapshot {
   phoneView?: PhoneView | null;
   /** Secret (mot de passe ou PIN) correct à chaque étape soumise : true = attendu, false = incorrect. */
   secrets?: Partial<Record<Level, boolean>>;
+  /** Historique des essais de la session (conservé à travers Restart et les sauts de niveau). */
+  attempts?: Attempt[];
+}
+
+/** Un essai soumis : étape, score mesuré, secret correct, verdict. */
+export interface Attempt {
+  n: number;
+  level: Level;
+  score: number;
+  /** Mot de passe / PIN correct. */
+  secret: boolean;
+  granted: boolean;
 }

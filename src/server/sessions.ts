@@ -6,6 +6,7 @@ import { buildExpectedBars } from '../shared/scoring/keystrokeLive';
 import { scoreOrientation } from '../shared/scoring/orientation';
 import { summarizeTouch } from '../shared/scoring/tactile';
 import type {
+  Attempt,
   AuthState,
   FailReason,
   Fingerprint,
@@ -54,6 +55,8 @@ export interface Session {
   phoneView: PhoneView | null;
   /** Secret correct ou non, par étape soumise (affiché dans le bilan). */
   secrets: Partial<Record<Level, boolean>>;
+  /** Essais soumis, du plus ancien au plus récent (bornés) ; jamais effacés par Restart. */
+  attempts: Attempt[];
   /** Horodatage de la derniere diffusion due a l'orientation en direct. */
   liveSentAt: number;
   liveTimer: ReturnType<typeof setTimeout> | null;
@@ -65,8 +68,11 @@ export interface SessionManagerOptions {
   /** Réglages des critères d'empreinte (actif, poids, identité) ; absent = catalogue par défaut. */
   getCriteria?: () => CriteriaOverrides;
   baseUrl: string;
+  /** Appelé à chaque essai soumis (journal pour le banc d'essai) ; erreurs ignorées. */
+  onAttempt?: (a: { level: Level; payload: SubmitPayload; score: number; secret: boolean; granted: boolean }) => void;
 }
 
+const MAX_ATTEMPTS = 12;
 const KIND_LEVEL: Record<SubmitPayload['kind'], Level> = { keystroke: 1, pin: 2, orientation: 3 };
 
 const currentLevel = (s: AuthState): Level => (s.status === 'blocked' ? s.verdict.level : s.level);
@@ -184,6 +190,7 @@ export class SessionManager {
       liveOrientation: null,
       phoneView: null,
       secrets: {},
+      attempts: [],
       liveSentAt: 0,
       liveTimer: null,
     };
@@ -229,6 +236,7 @@ export class SessionManager {
       liveOrientation: s.liveOrientation,
       phoneView: s.phoneView,
       secrets: s.secrets,
+      attempts: s.attempts,
       thresholds: this.opts.getThresholds(),
       // reference par position, sans caractere : relue a chaque diffusion (profil modifie)
       expectedBars: buildExpectedBars(p.password, p.keystroke),
@@ -334,6 +342,14 @@ export class SessionManager {
         granted: verdict.granted,
         reason: verdict.granted ? null : (failed ?? 'signal out of range'),
       };
+    }
+    const granted = verdict.granted && failed === null;
+    s.attempts.push({ n: (s.attempts.at(-1)?.n ?? 0) + 1, level, score: Math.round(score), secret: failed === null, granted });
+    if (s.attempts.length > MAX_ATTEMPTS) s.attempts.splice(0, s.attempts.length - MAX_ATTEMPTS);
+    try {
+      this.opts.onAttempt?.({ level, payload, score, secret: failed === null, granted });
+    } catch (err) {
+      console.error('journal des essais impossible', err);
     }
     // une soumission quitte toujours l'etape en cours : l'orientation en direct n'a plus cours
     s.liveOrientation = null;

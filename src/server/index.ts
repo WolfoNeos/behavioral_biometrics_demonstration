@@ -13,6 +13,7 @@ import { describeNetwork, normalizeBaseUrl } from './network';
 import type { NetworkSource } from './network';
 import { SessionManager } from './sessions';
 import {
+  appendAttempt,
   loadCriteria,
   loadProfile,
   loadThresholds,
@@ -65,6 +66,7 @@ export async function buildServer(opts: ServerOptions = {}) {
   const thresholdsPath = join(dataDir, 'thresholds.json');
   const welcomePath = join(dataDir, 'welcome.json');
   const criteriaPath = join(dataDir, 'criteria.json');
+  const attemptsPath = join(dataDir, 'attempts.json');
   const baseUrl = opts.baseUrl ?? 'https://localhost:5173';
   let baseUrlSource: NetworkSource = opts.baseUrlSource ?? 'auto';
   const getInterfaces = opts.getInterfaces ?? (() => networkInterfaces());
@@ -78,6 +80,11 @@ export async function buildServer(opts: ServerOptions = {}) {
     getThresholds: () => loadThresholds(thresholdsPath),
     getCriteria: () => loadCriteria(criteriaPath),
     baseUrl,
+    // seules les frappes sont journalisées : elles servent au banc d'essai (npm run bench)
+    onAttempt: (a) => {
+      if (a.payload.kind !== 'keystroke') return;
+      appendAttempt({ at: new Date().toISOString(), score: a.score, secret: a.secret, events: a.payload.events }, attemptsPath);
+    },
   });
 
   app.get('/api/profile', async () => loadProfile(profilePath));
