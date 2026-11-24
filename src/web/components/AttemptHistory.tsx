@@ -1,6 +1,6 @@
 import type { Attempt } from '../../shared/types';
 
-const SHOWN = 8;
+const SHOWN = 6;
 
 /**
  * Essais de la session, du plus ancien au plus récent : étape, score, verdict. Conservés à

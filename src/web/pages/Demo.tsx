@@ -294,8 +294,14 @@ export function Demo() {
         events = null;
       }
     }
+    // pas d'essai refusé réel à rejouer : on anime l'imitateur type (celui que le serveur joue pour B)
+    let viaGod = who === 'A';
+    if ((!events || events.length === 0) && who === 'B') {
+      events = snapshot.expectedBars ? eventsFromBars(snapshot.expectedBars, 8) : null;
+      viaGod = true;
+    }
     if (!events || events.length === 0) {
-      send({ type: 'god', who }); // rien à rejouer : saisie type, instantanée
+      send({ type: 'god', who }); // rien à animer : saisie type, instantanée
       return;
     }
     const played = events;
@@ -305,7 +311,7 @@ export function Demo() {
       setTyped([]);
       setSubmitted({ events: played, sig: sigRef.current });
       setReplaying(false);
-      send(who === 'A' ? { type: 'god', who: 'A' } : { type: 'replay', events: played, secret });
+      send(viaGod ? { type: 'god', who } : { type: 'replay', events: played, secret });
     });
   };
 
@@ -389,15 +395,14 @@ export function Demo() {
           <section className="panel panel-score panel-recap" data-testid="panel-score" aria-label="Session summary">
             <h2>Session summary</h2>
             <SessionRecap recap={recap} />
-            <AttemptHistory attempts={snapshot.attempts ?? []} />
           </section>
         ) : (
           <section className="panel panel-score" data-testid="panel-score" aria-label="Score">
             <h2>Score</h2>
             {gauge}
-            <AttemptHistory attempts={snapshot.attempts ?? []} />
           </section>
         )}
+        <AttemptHistory attempts={snapshot.attempts ?? []} />
         <div className="control-zone">
           <PhoneStatus connected={snapshot.phoneConnected} />
           <ControlBar onJump={onJump} onReset={onReset} onRetry={onRetry} onSimulate={(who) => void onSimulate(who)} simulating={replaying} level={level} />

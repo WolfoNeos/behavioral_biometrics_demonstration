@@ -69,7 +69,15 @@ export interface SessionManagerOptions {
   getCriteria?: () => CriteriaOverrides;
   baseUrl: string;
   /** Appelé à chaque essai soumis (journal pour le banc d'essai) ; erreurs ignorées. */
-  onAttempt?: (a: { level: Level; payload: SubmitPayload; score: number; secret: boolean; granted: boolean }) => void;
+  onAttempt?: (a: {
+    level: Level;
+    payload: SubmitPayload;
+    score: number;
+    secret: boolean;
+    granted: boolean;
+    /** Saisie jouée par la démo (Play A / Play B) et non tapée par une personne. */
+    simulated: boolean;
+  }) => void;
 }
 
 const MAX_ATTEMPTS = 12;
@@ -292,7 +300,7 @@ export class SessionManager {
     this.broadcast(id);
   }
 
-  submit(id: string, level: Level, payload: SubmitPayload): Verdict {
+  submit(id: string, level: Level, payload: SubmitPayload, simulated = false): Verdict {
     const s = this.get(id);
     const profile = this.opts.getProfile();
     const th = this.opts.getThresholds();
@@ -349,7 +357,7 @@ export class SessionManager {
     s.attempts.push({ n: (s.attempts.at(-1)?.n ?? 0) + 1, level, score: Math.round(score), secret: failed === null, granted });
     if (s.attempts.length > MAX_ATTEMPTS) s.attempts.splice(0, s.attempts.length - MAX_ATTEMPTS);
     try {
-      this.opts.onAttempt?.({ level, payload, score, secret: failed === null, granted });
+      this.opts.onAttempt?.({ level, payload, score, secret: failed === null, granted, simulated });
     } catch (err) {
       console.error('journal des essais impossible', err);
     }
@@ -448,19 +456,20 @@ export class SessionManager {
     const a = who === 'A';
     if (level === 1) {
       const events = syntheticKeystroke(profile, a ? 0 : 8);
-      return this.submit(id, 1, { kind: 'keystroke', events, password: profile.password });
+      return this.submit(id, 1, { kind: 'keystroke', events, password: profile.password }, true);
     }
     if (level === 2) {
       const fingerprint = a && profile.fingerprint ? profile.fingerprint : otherFingerprint();
       const taps = [...profile.pin].map((_, i) => ({ down: i * 300, up: i * 300 + 90 }));
-      return this.submit(id, 2, { kind: 'pin', pin: profile.pin, fingerprint, taps });
+      return this.submit(id, 2, { kind: 'pin', pin: profile.pin, fingerprint, taps }, true);
     }
     const beta = (profile.beta ?? 0) + (a ? 0 : 4 * tol);
-    return this.submit(id, 3, {
-      kind: 'orientation',
-      pin: profile.pin,
-      readings: [{ alpha: 0, beta, gamma: 0 }],
-    });
+    return this.submit(
+      id,
+      3,
+      { kind: 'orientation', pin: profile.pin, readings: [{ alpha: 0, beta, gamma: 0 }] },
+      true,
+    );
   }
 
   /** Ne lance jamais : tout message invalide ou en erreur est journalise puis ignore. */
@@ -510,11 +519,16 @@ export class SessionManager {
           if (state.status !== 'pending' || state.level !== 1) return;
           if (!arrOf(msg.events, (e) => typeof e.key === 'string' && fin(e.down) && fin(e.up))) return;
           const secret = msg.secret !== false;
-          this.submit(id, 1, {
-            kind: 'keystroke',
-            events: msg.events as KeyEvent[],
-            password: secret ? this.opts.getProfile().password : ' ',
-          });
+          this.submit(
+            id,
+            1,
+            {
+              kind: 'keystroke',
+              events: msg.events as KeyEvent[],
+              password: secret ? this.opts.getProfile().password : '(replayed wrong password)',
+            },
+            true,
+          );
           return;
         }
         case 'retry':

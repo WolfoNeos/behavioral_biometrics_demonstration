@@ -83,7 +83,8 @@ export async function buildServer(opts: ServerOptions = {}) {
     baseUrl,
     // seules les frappes sont journalisées : elles servent au banc d'essai (npm run bench)
     onAttempt: (a) => {
-      if (a.payload.kind !== 'keystroke') return;
+      // seules les saisies tapées par une personne servent de référence au rejeu et au banc d'essai
+      if (a.payload.kind !== 'keystroke' || a.simulated) return;
       appendAttempt(
         { at: new Date().toISOString(), score: a.score, secret: a.secret, granted: a.granted, events: a.payload.events },
         attemptsPath,

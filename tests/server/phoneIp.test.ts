@@ -136,3 +136,23 @@ describe('rejeu d’une saisie (Play B)', () => {
     expect(m.snapshot(s.id).attempts).toHaveLength(0);
   });
 });
+
+describe('journal : saisies simulées', () => {
+  it('Play A / Play B (inject, replay) sont marquées simulées, une saisie tapée ne l’est pas', () => {
+    const flags: boolean[] = [];
+    const ev = [{ key: 'a', down: 0, up: 90 }];
+    const m = new SessionManager({
+      getProfile: () => ({ ...profile(), password: 'a', keystroke: buildKeystrokeProfile([ev, ev]) }),
+      getThresholds: () => DEFAULT_THRESHOLDS,
+      baseUrl: 'https://x',
+      onAttempt: (a) => flags.push(a.simulated),
+    });
+    const s = m.create();
+    m.inject(s.id, 'B', 1);
+    m.reset(s.id);
+    m.handleMessage(s.id, JSON.stringify({ type: 'replay', events: ev, secret: true }));
+    m.reset(s.id);
+    m.handleMessage(s.id, JSON.stringify({ type: 'keystroke', events: ev, password: 'a' }));
+    expect(flags).toEqual([true, true, false]);
+  });
+});

@@ -1,13 +1,18 @@
 import type { ExpectedBar, KeyEvent } from '../../shared/types';
 
-/** Saisie « parfaite » de A reconstruite depuis sa référence : maintien et délai moyens par position. */
-export function eventsFromBars(bars: ExpectedBar[]): KeyEvent[] {
+/**
+ * Saisie reconstruite depuis la référence de A : maintien et délai moyens par position, décalés de
+ * `shift` écarts-types (0 = A à l'identique ; 8 = l'imitateur type de la démo).
+ */
+export function eventsFromBars(bars: ExpectedBar[], shift = 0): KeyEvent[] {
   const events: KeyEvent[] = [];
   let t = 0;
   bars.forEach((b, i) => {
     if (!b.known) return;
-    const down = i === 0 || events.length === 0 ? t : Math.max(t + b.flight, t - b.dwell + 1);
-    const up = down + Math.max(b.dwell, 20);
+    const dwell = Math.max(20, b.dwell + shift * b.stdDwell);
+    const flight = b.flight + shift * b.stdFlight;
+    const down = i === 0 || events.length === 0 ? t : Math.max(t + flight, t - dwell + 1);
+    const up = down + dwell;
     events.push({ key: `k${i}`, down, up });
     t = up;
   });
