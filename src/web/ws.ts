@@ -13,7 +13,8 @@ export type ClientMessage =
   | { type: 'jump'; level: Level }
   | { type: 'reset' }
   | { type: 'retry'; level: 1 | 2 | 3 }
-  | { type: 'god'; who: 'A' | 'B' };
+  | { type: 'god'; who: 'A' | 'B' }
+  | { type: 'replay'; events: KeyEvent[]; secret: boolean };
 
 const STORAGE_KEY = 'demo-session-id';
 /** Code de fermeture du serveur pour une session ou un role inconnus. */

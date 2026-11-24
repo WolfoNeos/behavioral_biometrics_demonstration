@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { applyVerdict, hardFail, jumpTo, startState } from '../shared/auth/machine';
 import { compareFingerprint } from '../shared/scoring/device';
-import { normalizeKey, scoreKeystroke } from '../shared/scoring/keystroke';
+import { normalizeKey, referenceAt, scoreKeystroke } from '../shared/scoring/keystroke';
 import { buildExpectedBars } from '../shared/scoring/keystrokeLive';
 import { scoreOrientation } from '../shared/scoring/orientation';
 import { summarizeTouch } from '../shared/scoring/tactile';
@@ -157,8 +157,10 @@ function syntheticKeystroke(profile: Profile, offset: number): KeyEvent[] {
   [...profile.password].forEach((ch, i) => {
     // meme normalisation que la capture : les majuscules ont une touche comme les autres
     const key = normalizeKey(ch);
-    const m = ks.mean[key];
-    const s = ks.std[key];
+    // référence par position si le profil en a une (même source que le score), sinon par caractère
+    const ref = referenceAt(ks, key, i);
+    const m = ref?.mean;
+    const s = ref?.std;
     if (!m || !s) return;
     const down = t + (i === 0 ? 0 : m.flight + offset * s.flight);
     const up = down + m.dwell + offset * s.dwell;
@@ -503,6 +505,18 @@ export class SessionManager {
         case 'jump':
           if (isLevel(msg.level)) this.jump(id, msg.level);
           return;
+        case 'replay': {
+          // démo : rejoue une saisie déjà vue (celle de A, ou le dernier essai refusé) à l'étape 1
+          if (state.status !== 'pending' || state.level !== 1) return;
+          if (!arrOf(msg.events, (e) => typeof e.key === 'string' && fin(e.down) && fin(e.up))) return;
+          const secret = msg.secret !== false;
+          this.submit(id, 1, {
+            kind: 'keystroke',
+            events: msg.events as KeyEvent[],
+            password: secret ? this.opts.getProfile().password : ' ',
+          });
+          return;
+        }
         case 'retry':
           if (isLevel(msg.level)) this.retry(id, msg.level);
           return;

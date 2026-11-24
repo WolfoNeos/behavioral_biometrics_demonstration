@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { SessionManager } from '../../src/server/sessions';
 import { DEFAULT_THRESHOLDS } from '../../src/shared/types';
+import { buildKeystrokeProfile } from '../../src/shared/scoring/keystroke';
 import type { Profile } from '../../src/shared/types';
 
 class FakeWs extends EventEmitter {
@@ -102,5 +103,36 @@ describe('historique des essais', () => {
     m.inject(s.id, 'A', 1);
     expect(seen).toHaveLength(1);
     expect(seen[0].level).toBe(1);
+  });
+});
+
+describe('rejeu d’une saisie (Play B)', () => {
+  const ev = [
+    { key: 'a', down: 0, up: 90 },
+    { key: 'b', down: 140, up: 230 },
+  ];
+  const mgr = () =>
+    new SessionManager({
+      getProfile: () => ({ ...profile(), password: 'ab', keystroke: buildKeystrokeProfile([ev, ev]) }),
+      getThresholds: () => DEFAULT_THRESHOLDS,
+      baseUrl: 'https://x',
+    });
+
+  it('soumet les touches rejouées à l’étape 1 avec le secret d’origine', () => {
+    const m = mgr();
+    const s = m.create();
+    m.handleMessage(s.id, JSON.stringify({ type: 'replay', events: ev, secret: false }));
+    const a = m.snapshot(s.id).attempts!;
+    expect(a).toHaveLength(1);
+    expect(a[0].secret).toBe(false);
+    expect(a[0].granted).toBe(false);
+  });
+
+  it('ignoré hors étape 1', () => {
+    const m = mgr();
+    const s = m.create();
+    m.jump(s.id, 2);
+    m.handleMessage(s.id, JSON.stringify({ type: 'replay', events: ev, secret: true }));
+    expect(m.snapshot(s.id).attempts).toHaveLength(0);
   });
 });

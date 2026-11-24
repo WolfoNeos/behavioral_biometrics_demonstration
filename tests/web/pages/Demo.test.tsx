@@ -144,12 +144,59 @@ describe('Demo', () => {
     expect(within(screen.getByTestId('panel-score')).queryByTestId('chart')).toBeNull();
   });
 
-  it('B hors champ envoie god B', () => {
+  it('B sans essai refusé à rejouer : saisie type instantanée (god B)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
     renderDemo();
     fireEvent.keyDown(document.body, { key: 'B' });
-    expect(send).toHaveBeenCalledWith({ type: 'god', who: 'B' });
-    fireEvent.keyDown(document.body, { key: 'a' });
-    expect(send).toHaveBeenCalledWith({ type: 'god', who: 'A' });
+    await waitFor(() => expect(send).toHaveBeenCalledWith({ type: 'god', who: 'B' }));
+    vi.unstubAllGlobals();
+  });
+
+  it('A : la saisie s’affiche touche après touche, puis god A est envoyé', async () => {
+    vi.useFakeTimers();
+    try {
+      renderDemo();
+      fireEvent.keyDown(document.body, { key: 'a' });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100); // 1re touche relâchée (90 ms)
+      });
+      expect(screen.getByText('1 / 3')).toBeInTheDocument();
+      expect(send).not.toHaveBeenCalled();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(screen.getByText('3 / 3')).toBeInTheDocument();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(600);
+      });
+      expect(send).toHaveBeenCalledWith({ type: 'god', who: 'A' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('B : rejoue le dernier essai refusé, touche après touche, puis le soumet', async () => {
+    const events = [
+      { key: 'a', down: 0, up: 100 },
+      { key: 'a', down: 160, up: 260 },
+    ];
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ events, secret: true, score: 54 }) }));
+    vi.useFakeTimers();
+    try {
+      renderDemo();
+      fireEvent.keyDown(document.body, { key: 'b' });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(150);
+      });
+      expect(screen.getByText('1 / 3')).toBeInTheDocument();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(send).toHaveBeenCalledWith({ type: 'replay', events, secret: true });
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 
   it('B dans le champ mot de passe n’envoie rien', () => {

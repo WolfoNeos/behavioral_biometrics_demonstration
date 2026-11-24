@@ -104,3 +104,30 @@ export function appendAttempt(record: Record<string, unknown>, path = DEFAULT_AT
   all.push(record);
   writeJson(path, all.slice(-MAX_LOGGED_ATTEMPTS));
 }
+
+export interface LoggedAttempt {
+  at: string;
+  score: number;
+  secret: boolean;
+  granted?: boolean;
+  events: { key: string; down: number; up: number }[];
+}
+
+/** Dernier essai de frappe refusé du journal (pour le rejouer en démo) ; null s'il n'y en a pas. */
+export function lastFailedAttempt(path = DEFAULT_ATTEMPTS_PATH, accept = 80): LoggedAttempt | null {
+  try {
+    if (!existsSync(path)) return null;
+    const v: unknown = JSON.parse(readFileSync(path, 'utf8'));
+    if (!Array.isArray(v)) return null;
+    for (let i = v.length - 1; i >= 0; i--) {
+      const a = v[i] as LoggedAttempt;
+      if (!a || !Array.isArray(a.events) || a.events.length === 0) continue;
+      // anciennes entrées sans verdict : refusées si le secret est faux ou le score sous le seuil
+      const failed = a.granted === undefined ? !a.secret || a.score < accept : a.granted === false;
+      if (failed) return a;
+    }
+  } catch {
+    // journal illisible : pas de rejeu
+  }
+  return null;
+}

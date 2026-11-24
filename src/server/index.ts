@@ -14,6 +14,7 @@ import type { NetworkSource } from './network';
 import { SessionManager } from './sessions';
 import {
   appendAttempt,
+  lastFailedAttempt,
   loadCriteria,
   loadProfile,
   loadThresholds,
@@ -83,7 +84,10 @@ export async function buildServer(opts: ServerOptions = {}) {
     // seules les frappes sont journalisées : elles servent au banc d'essai (npm run bench)
     onAttempt: (a) => {
       if (a.payload.kind !== 'keystroke') return;
-      appendAttempt({ at: new Date().toISOString(), score: a.score, secret: a.secret, events: a.payload.events }, attemptsPath);
+      appendAttempt(
+        { at: new Date().toISOString(), score: a.score, secret: a.secret, granted: a.granted, events: a.payload.events },
+        attemptsPath,
+      );
     },
   });
 
@@ -113,6 +117,11 @@ export async function buildServer(opts: ServerOptions = {}) {
   });
 
   // Screen affiché une fois la sécurité passée (textes, solde, blagues…)
+  // dernier essai de frappe refusé (bouton « Play B » : on rejoue l'imitateur réel)
+  app.get('/api/attempts/last-failed', async (_req, reply) => {
+    const a = lastFailedAttempt(attemptsPath, loadThresholds(thresholdsPath).keystroke.accept);
+    return a ? { events: a.events, secret: a.secret, score: a.score } : reply.code(404).send({ error: 'none' });
+  });
   app.get('/api/welcome', async () => loadWelcome(welcomePath));
   app.put('/api/welcome', async (req, reply) => {
     const b = req.body as Record<string, unknown> | null;

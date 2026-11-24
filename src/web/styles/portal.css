@@ -322,3 +322,15 @@
 .attempt.warn { background: var(--color-orange-soft); color: var(--color-orange); }
 .attempt.ko { background: var(--color-red-soft); color: var(--color-red); }
 .attempt.ok .attempt-n, .attempt.ok .attempt-step, .attempt.warn .attempt-n, .attempt.warn .attempt-step, .attempt.ko .attempt-n, .attempt.ko .attempt-step { color: inherit; opacity: 0.75; }
+
+/* plus de place pour les graphiques : le score tient dans une bande basse (jauge + essais côte à côte) */
+.side-wide { grid-template-rows: auto minmax(0, 5fr) minmax(0, 1fr) auto; }
+.panel-score:not(.panel-recap) { display: grid; grid-template-columns: minmax(0, 230px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); column-gap: var(--space-4); align-items: center; }
+.panel-score:not(.panel-recap) h2 { grid-column: 1 / -1; }
+.panel-score:not(.panel-recap) .gauge-col { min-height: 0; }
+.panel-score:not(.panel-recap) .gauge { max-width: 190px; }
+.panel-score:not(.panel-recap) .gauge-score { font-size: 2.4rem; margin-top: -1.8rem; }
+.panel-score:not(.panel-recap) .gauge-caption { margin-top: 2px; }
+.panel-score:not(.panel-recap) .attempts { margin-top: 0; align-self: center; }
+.signal .chart-half { min-height: 190px; }
+.signal .threshold-chart { gap: var(--space-2); }
