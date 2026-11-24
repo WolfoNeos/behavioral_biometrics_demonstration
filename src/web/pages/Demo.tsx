@@ -352,7 +352,7 @@ export function Demo() {
         )}
         <div className="control-zone">
           <PhoneStatus connected={snapshot.phoneConnected} />
-          <ControlBar onJump={onJump} onReset={onReset} onRetry={onRetry} level={level} />
+          <ControlBar onJump={onJump} onReset={onReset} onRetry={onRetry} stay={snapshot.stay} onStay={(on) => send({ type: 'stay', on })} level={level} />
         </div>
       </aside>
     </div>

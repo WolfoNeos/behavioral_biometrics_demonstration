@@ -141,13 +141,42 @@ describe('étape relancée seule : pas de passage à la suivante', () => {
     expect(snap.attempts?.at(-1)).toMatchObject({ level: 2, granted: false });
   });
 
-  it('un saut de niveau ou Restart rend le comportement normal', () => {
+  it('Restart rend le déroulement normal', () => {
     const m = manager();
     const s = m.create();
-    m.jump(s.id, 2);
     m.handleMessage(s.id, JSON.stringify({ type: 'retry', level: 2 }));
+    m.reset(s.id);
     m.jump(s.id, 2);
     m.inject(s.id, 'B', 2);
     expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level: 3 });
+  });
+
+  it('bascule « rester sur l’étape » : à l’étape 1, un mot de passe validé n’avance pas', () => {
+    const m = manager();
+    const s = m.create();
+    m.handleMessage(s.id, JSON.stringify({ type: 'stay', on: true }));
+    expect(m.snapshot(s.id).stay).toBe(true);
+    m.inject(s.id, 'B', 1);
+    m.inject(s.id, 'A', 1);
+    expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level: 1 });
+    expect(m.snapshot(s.id).attempts).toHaveLength(2);
+    m.handleMessage(s.id, JSON.stringify({ type: 'stay', on: false }));
+    m.inject(s.id, 'B', 1);
+    expect(m.snapshot(s.id).state.status === 'pending' && m.snapshot(s.id).level).toBe(2);
+  });
+
+  it('en mode « rester », changer d’étape à la main garde les résultats des autres', () => {
+    const m = manager();
+    const s = m.create();
+    m.handleMessage(s.id, JSON.stringify({ type: 'stay', on: true }));
+    m.jump(s.id, 2);
+    m.inject(s.id, 'A', 2);
+    expect(m.snapshot(s.id).live.device).toBeDefined();
+    m.jump(s.id, 1);
+    m.jump(s.id, 3);
+    expect(m.snapshot(s.id).live.device).toBeDefined(); // étape 2 conservée
+    expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level: 3 });
+    m.jump(s.id, 2);
+    expect(m.snapshot(s.id).live.device).toBeUndefined(); // seule l'étape visée repart de zéro
   });
 });

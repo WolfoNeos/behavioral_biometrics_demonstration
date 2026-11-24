@@ -167,6 +167,8 @@ export interface Snapshot {
   secrets?: Partial<Record<Level, boolean>>;
   /** Historique des essais de la session (conservé à travers Restart et les sauts de niveau). */
   attempts?: Attempt[];
+  /** Mode « rester sur l'étape » actif : aucun résultat ne fait avancer. */
+  stay?: boolean;
 }
 
 /** Un essai soumis : étape, score mesuré, secret correct, verdict. */
