@@ -13,6 +13,7 @@ import { describeNetwork, normalizeBaseUrl } from './network';
 import type { NetworkSource } from './network';
 import { SessionManager } from './sessions';
 import {
+  appendAttempt,
   loadCriteria,
   loadProfile,
   loadThresholds,
@@ -65,6 +66,7 @@ export async function buildServer(opts: ServerOptions = {}) {
   const thresholdsPath = join(dataDir, 'thresholds.json');
   const welcomePath = join(dataDir, 'welcome.json');
   const criteriaPath = join(dataDir, 'criteria.json');
+  const attemptsPath = join(dataDir, 'attempts.json');
   const baseUrl = opts.baseUrl ?? 'https://localhost:5173';
   let baseUrlSource: NetworkSource = opts.baseUrlSource ?? 'auto';
   const getInterfaces = opts.getInterfaces ?? (() => networkInterfaces());
@@ -78,6 +80,15 @@ export async function buildServer(opts: ServerOptions = {}) {
     getThresholds: () => loadThresholds(thresholdsPath),
     getCriteria: () => loadCriteria(criteriaPath),
     baseUrl,
+    // seules les frappes sont journalisées : elles servent au banc d'essai (npm run bench)
+    onAttempt: (a) => {
+      // seules les saisies tapées par une personne servent de référence au rejeu et au banc d'essai
+      if (a.payload.kind !== 'keystroke' || a.simulated) return;
+      appendAttempt(
+        { at: new Date().toISOString(), score: a.score, secret: a.secret, granted: a.granted, typed: true, events: a.payload.events },
+        attemptsPath,
+      );
+    },
   });
 
   app.get('/api/profile', async () => loadProfile(profilePath));
@@ -188,12 +199,15 @@ export async function buildServer(opts: ServerOptions = {}) {
   });
 
   app.get('/ws', { websocket: true }, (socket, req) => {
-    const { session, role } = req.query as { session?: string; role?: string };
+    const { session: raw, role } = req.query as { session?: string; role?: string };
+    // le téléphone présente « <session>.<clé du QR code> » ; le PC, la session seule
+    const [session, key] = (raw ?? '').split('.');
     if (!session || !sessions.has(session) || (role !== 'pc' && role !== 'phone')) {
       socket.close(1008, 'invalid session or role');
       return;
     }
     if (role === 'pc') sessions.attachPc(session, socket);
+    else if (!sessions.phoneKeyOk(session, key)) socket.close(1008, 'QR code expired');
     else sessions.attachPhone(session, socket, serverFingerprintFields(req.headers, req.socket.remoteAddress));
   });
 

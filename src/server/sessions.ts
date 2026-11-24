@@ -1,12 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { applyVerdict, hardFail, jumpTo, startState } from '../shared/auth/machine';
 import { compareFingerprint } from '../shared/scoring/device';
-import { normalizeKey, scoreKeystroke } from '../shared/scoring/keystroke';
+import { normalizeKey, referenceAt, scoreKeystroke } from '../shared/scoring/keystroke';
 import { buildExpectedBars } from '../shared/scoring/keystrokeLive';
 import { scoreOrientation } from '../shared/scoring/orientation';
 import { summarizeTouch } from '../shared/scoring/tactile';
 import type {
+  Attempt,
   AuthState,
+  DeviceRun,
+  PostureRun,
   FailReason,
   Fingerprint,
   KeyEvent,
@@ -29,13 +32,15 @@ import { FINGERPRINT_FIELDS, sanitizeFingerprint, withServerFields } from '../sh
 /** Sous-ensemble de WebSocket utilise ici (facilite les faux dans les tests). */
 /** Contexte d'un message : adresse du client (relevée par le serveur, pas déclarée par lui). */
 export interface MessageContext {
+  /** Identifiant de la connexion du téléphone qui écrit (un par appareil). */
+  phone?: string;
   /** Critères relevés par le serveur (adresse, en-têtes) : le client ne peut pas les déclarer. */
   server?: Record<string, string>;
 }
 
 export interface WsLike {
   send(data: string): void;
-  close(): void;
+  close(code?: number, reason?: string): void;
   on(event: 'message', cb: (data: unknown) => void): unknown;
   on(event: 'close', cb: () => void): unknown;
   on(event: 'error', cb: (err: unknown) => void): unknown;
@@ -43,6 +48,8 @@ export interface WsLike {
 
 export interface Session {
   id: string;
+  /** Clé du QR code : change à chaque Restart, les téléphones déjà connectés sont alors déconnectés. */
+  key: string;
   state: AuthState;
   live: LiveResults;
   /** Tous les telephones attaches : chacun peut soumettre (B puis A sur le meme QR). */
@@ -54,6 +61,16 @@ export interface Session {
   phoneView: PhoneView | null;
   /** Secret correct ou non, par étape soumise (affiché dans le bilan). */
   secrets: Partial<Record<Level, boolean>>;
+  /** Essais soumis, du plus ancien au plus récent (bornés) ; jamais effacés par Restart. */
+  attempts: Attempt[];
+  /** Mode « rester sur l'étape » : un résultat (réussite ou échec) ne fait jamais avancer ; on change d'étape à la main. */
+  stay: boolean;
+  /** Relevés de l'étape 2, un par téléphone (le dernier de chaque téléphone). */
+  deviceRuns: DeviceRun[];
+  /** Relevés de l'étape 3, un par téléphone (le dernier de chaque téléphone). */
+  postureRuns: PostureRun[];
+  /** Numéro d'arrivée de chaque téléphone de la session (le même à toutes les étapes). */
+  phoneNo: Record<string, number>;
   /** Horodatage de la derniere diffusion due a l'orientation en direct. */
   liveSentAt: number;
   liveTimer: ReturnType<typeof setTimeout> | null;
@@ -65,8 +82,23 @@ export interface SessionManagerOptions {
   /** Réglages des critères d'empreinte (actif, poids, identité) ; absent = catalogue par défaut. */
   getCriteria?: () => CriteriaOverrides;
   baseUrl: string;
+  /** Appelé à chaque essai soumis (journal pour le banc d'essai) ; erreurs ignorées. */
+  onAttempt?: (a: {
+    level: Level;
+    payload: SubmitPayload;
+    score: number;
+    secret: boolean;
+    granted: boolean;
+    /** Saisie jouée par la démo (Play A / Play B) et non tapée par une personne. */
+    simulated: boolean;
+  }) => void;
 }
 
+/** Clé courte et aléatoire du QR code. */
+const newKey = (): string => randomUUID().replace(/-/g, '').slice(0, 10);
+const CLOSE_UNKNOWN_SESSION = 1008;
+const MAX_ATTEMPTS = 12;
+const MAX_DEVICE_RUNS = 12;
 const KIND_LEVEL: Record<SubmitPayload['kind'], Level> = { keystroke: 1, pin: 2, orientation: 3 };
 
 const currentLevel = (s: AuthState): Level => (s.status === 'blocked' ? s.verdict.level : s.level);
@@ -151,8 +183,10 @@ function syntheticKeystroke(profile: Profile, offset: number): KeyEvent[] {
   [...profile.password].forEach((ch, i) => {
     // meme normalisation que la capture : les majuscules ont une touche comme les autres
     const key = normalizeKey(ch);
-    const m = ks.mean[key];
-    const s = ks.std[key];
+    // référence par position si le profil en a une (même source que le score), sinon par caractère
+    const ref = referenceAt(ks, key, i);
+    const m = ref?.mean;
+    const s = ref?.std;
     if (!m || !s) return;
     const down = t + (i === 0 ? 0 : m.flight + offset * s.flight);
     const up = down + m.dwell + offset * s.dwell;
@@ -170,12 +204,14 @@ function otherFingerprint(): Fingerprint {
 
 export class SessionManager {
   private sessions = new Map<string, Session>();
+  private phoneSeq = 0;
 
   constructor(private opts: SessionManagerOptions) {}
 
   create(): Session {
     const session: Session = {
       id: randomUUID(),
+      key: newKey(),
       state: startState(),
       live: {},
       phones: new Set(),
@@ -184,6 +220,11 @@ export class SessionManager {
       liveOrientation: null,
       phoneView: null,
       secrets: {},
+      attempts: [],
+      stay: false,
+      deviceRuns: [],
+      postureRuns: [],
+      phoneNo: {},
       liveSentAt: 0,
       liveTimer: null,
     };
@@ -206,7 +247,13 @@ export class SessionManager {
   }
 
   url(id: string): string {
-    return `${this.opts.baseUrl}/m/${id}`;
+    return `${this.opts.baseUrl}/m/${id}.${this.get(id).key}`;
+  }
+
+  /** Le téléphone présente-t-il la clé du QR code courant ? (un ancien QR n'ouvre plus la session) */
+  phoneKeyOk(id: string, key: string | undefined): boolean {
+    const s = this.sessions.get(id);
+    return s !== undefined && key === s.key;
   }
 
   private get(id: string): Session {
@@ -229,6 +276,10 @@ export class SessionManager {
       liveOrientation: s.liveOrientation,
       phoneView: s.phoneView,
       secrets: s.secrets,
+      attempts: s.attempts,
+      stay: s.stay,
+      deviceRuns: s.deviceRuns,
+      postureRuns: s.postureRuns,
       thresholds: this.opts.getThresholds(),
       // reference par position, sans caractere : relue a chaque diffusion (profil modifie)
       expectedBars: buildExpectedBars(p.password, p.keystroke),
@@ -269,7 +320,9 @@ export class SessionManager {
   attachPhone(id: string, ws: WsLike, server: Record<string, string> = {}): void {
     const s = this.get(id);
     s.phones.add(ws);
-    ws.on('message', (data) => this.handleMessage(id, data, { server }));
+    const phone = `p${++this.phoneSeq}`;
+    this.phoneNumber(s, phone);
+    ws.on('message', (data) => this.handleMessage(id, data, { server, phone }));
     ws.on('close', () => {
       if (!s.phones.delete(ws)) return;
       if (s.phones.size === 0) {
@@ -282,7 +335,7 @@ export class SessionManager {
     this.broadcast(id);
   }
 
-  submit(id: string, level: Level, payload: SubmitPayload): Verdict {
+  submit(id: string, level: Level, payload: SubmitPayload, simulated = false, phone = 'sim'): Verdict {
     const s = this.get(id);
     const profile = this.opts.getProfile();
     const th = this.opts.getThresholds();
@@ -298,7 +351,10 @@ export class SessionManager {
       const result = profile.fingerprint
         ? this.compare(profile.fingerprint, payload.fingerprint)
         : null;
-      if (result) s.live.device = result;
+      if (result) {
+        s.live.device = result;
+        this.recordDeviceRun(s, phone, result, true);
+      }
       s.live.tactile = summarizeTouch(payload.taps);
       score = result?.score ?? 0;
       if (payload.pin !== profile.pin) failed = 'PIN incorrect';
@@ -311,6 +367,7 @@ export class SessionManager {
       score = result?.score ?? 0;
       // le PIN est redemandé à cette étape : faux, même avec une bonne posture, on refuse
       if (payload.pin !== undefined && payload.pin !== profile.pin) failed = 'PIN incorrect';
+      if (result) this.recordPostureRun(s, phone, result, failed === null);
     }
     s.secrets[level] = failed === null;
 
@@ -335,6 +392,16 @@ export class SessionManager {
         reason: verdict.granted ? null : (failed ?? 'signal out of range'),
       };
     }
+    const granted = verdict.granted && failed === null;
+    s.attempts.push({ n: (s.attempts.at(-1)?.n ?? 0) + 1, level, score: Math.round(score), secret: failed === null, granted });
+    if (s.attempts.length > MAX_ATTEMPTS) s.attempts.splice(0, s.attempts.length - MAX_ATTEMPTS);
+    try {
+      this.opts.onAttempt?.({ level, payload, score, secret: failed === null, granted, simulated });
+    } catch (err) {
+      console.error('journal des essais impossible', err);
+    }
+    // mode « rester sur l'étape » : le résultat est noté mais on reste sur cette étape
+    if (s.stay) s.state = jumpTo(level);
     // une soumission quitte toujours l'etape en cours : l'orientation en direct n'a plus cours
     s.liveOrientation = null;
     this.broadcast(id);
@@ -344,27 +411,117 @@ export class SessionManager {
   /** Saut direct : le niveau cible et les suivants repartent sans mesure. */
   jump(id: string, level: Level): void {
     const s = this.get(id);
+    // mode « rester sur l'étape » : on change d'étape sans toucher aux résultats des autres
+    if (s.stay) {
+      this.clearStep(s, level);
+      this.broadcast(id);
+      return;
+    }
     s.state = jumpTo(level);
     if (level <= 1) delete s.live.keystroke;
     if (level <= 2) {
       delete s.live.device;
       delete s.live.tactile;
+      s.deviceRuns = [];
     }
     delete s.live.orientation;
+    s.postureRuns = [];
     for (const l of [1, 2, 3] as Level[]) if (l >= level) delete s.secrets[l];
     s.lastVerdict = null;
     s.liveOrientation = null;
     this.broadcast(id);
   }
 
+  /** Se place sur une étape dont les mesures repartent de zéro ; celles des autres sont conservées. */
+  private clearStep(s: Session, level: Level): void {
+    s.state = jumpTo(level);
+    if (level === 1) delete s.live.keystroke;
+    if (level === 2) {
+      delete s.live.device;
+      delete s.live.tactile;
+      s.deviceRuns = [];
+    }
+    if (level === 3) {
+      delete s.live.orientation;
+      s.postureRuns = [];
+    }
+    delete s.secrets[level];
+    s.lastVerdict = null;
+    s.liveOrientation = null;
+  }
+
+  /** Relance une seule étape et passe en mode « rester sur l'étape ». */
+  retry(id: string, level: Level): void {
+    const s = this.get(id);
+    s.stay = true;
+    this.clearStep(s, level);
+    this.broadcast(id);
+  }
+
+  /** Active ou coupe le mode « rester sur l'étape » (désactivé : le déroulement normal reprend). */
+  setStay(id: string, on: boolean): void {
+    const s = this.get(id);
+    s.stay = on;
+    this.broadcast(id);
+  }
+
   reset(id: string): void {
     const s = this.get(id);
+    // nouveau QR code : l'ancien ne marche plus et tous les téléphones connectés sont déconnectés
+    s.key = newKey();
+    for (const ws of [...s.phones]) {
+      try {
+        ws.close(CLOSE_UNKNOWN_SESSION, 'session restarted');
+      } catch (err) {
+        console.error('fermeture ws impossible', err);
+      }
+    }
+    s.phones.clear();
+    s.phoneView = null;
     s.state = startState();
+    s.stay = false;
+    s.deviceRuns = [];
+    s.postureRuns = [];
     s.live = {};
     s.secrets = {};
     s.lastVerdict = null;
     s.liveOrientation = null;
     this.broadcast(id);
+  }
+
+  /** Numéro d'un téléphone dans la session : celui de son arrivée, identique à chaque étape. */
+  private phoneNumber(s: Session, phone: string): number {
+    s.phoneNo[phone] ??= Math.max(0, ...Object.values(s.phoneNo)) + 1;
+    return s.phoneNo[phone];
+  }
+
+  /** Relevé de posture d'un téléphone (le plus récent), pour les comparer à l'étape 3. */
+  private recordPostureRun(
+    s: Session,
+    phone: string,
+    r: { score: number; beta: number; deviation: number },
+    secret: boolean,
+  ): void {
+    const run: PostureRun = { n: this.phoneNumber(s, phone), phone, score: r.score, beta: r.beta, deviation: r.deviation, secret };
+    const i = s.postureRuns.findIndex((d) => d.phone === phone);
+    if (i >= 0) s.postureRuns[i] = run;
+    else {
+      s.postureRuns.push(run);
+      s.postureRuns.sort((a, b) => a.n - b.n);
+      if (s.postureRuns.length > MAX_DEVICE_RUNS) s.postureRuns.shift();
+    }
+  }
+
+  /** Un relevé par téléphone (le plus récent) : plusieurs appareils se comparent entre eux à l'étape 2. */
+  private recordDeviceRun(s: Session, phone: string, r: { score: number; lines: DeviceLine[] }, submitted: boolean): void {
+    const run: DeviceRun = { n: this.phoneNumber(s, phone), phone, score: r.score, lines: r.lines, submitted };
+    const i = s.deviceRuns.findIndex((d) => d.phone === phone);
+    if (i >= 0) s.deviceRuns[i] = run;
+    else {
+      s.deviceRuns.push(run);
+      s.deviceRuns.sort((a, b) => a.n - b.n);
+      if (s.deviceRuns.length > MAX_DEVICE_RUNS) s.deviceRuns.shift();
+    }
   }
 
   /** Dernier relevé de l'appareil, toutes sessions confondues : sert à choisir les critères. */
@@ -381,11 +538,12 @@ export class SessionManager {
   }
 
   /** Empreinte reçue avant le PIN : comparée au profil de A et diffusée, sans rendre de verdict. */
-  private previewDevice(id: string, fingerprint: Fingerprint): void {
+  private previewDevice(id: string, fingerprint: Fingerprint, phone: string): void {
     const s = this.get(id);
     const profile = this.opts.getProfile();
     if (!profile.fingerprint) return;
     s.live.device = this.compare(profile.fingerprint, fingerprint);
+    this.recordDeviceRun(s, phone, s.live.device, false);
     this.broadcast(id);
   }
 
@@ -414,19 +572,20 @@ export class SessionManager {
     const a = who === 'A';
     if (level === 1) {
       const events = syntheticKeystroke(profile, a ? 0 : 8);
-      return this.submit(id, 1, { kind: 'keystroke', events, password: profile.password });
+      return this.submit(id, 1, { kind: 'keystroke', events, password: profile.password }, true);
     }
     if (level === 2) {
       const fingerprint = a && profile.fingerprint ? profile.fingerprint : otherFingerprint();
       const taps = [...profile.pin].map((_, i) => ({ down: i * 300, up: i * 300 + 90 }));
-      return this.submit(id, 2, { kind: 'pin', pin: profile.pin, fingerprint, taps });
+      return this.submit(id, 2, { kind: 'pin', pin: profile.pin, fingerprint, taps }, true);
     }
     const beta = (profile.beta ?? 0) + (a ? 0 : 4 * tol);
-    return this.submit(id, 3, {
-      kind: 'orientation',
-      pin: profile.pin,
-      readings: [{ alpha: 0, beta, gamma: 0 }],
-    });
+    return this.submit(
+      id,
+      3,
+      { kind: 'orientation', pin: profile.pin, readings: [{ alpha: 0, beta, gamma: 0 }] },
+      true,
+    );
   }
 
   /** Ne lance jamais : tout message invalide ou en erreur est journalise puis ignore. */
@@ -444,7 +603,7 @@ export class SessionManager {
           if (state.status !== 'pending' || state.level !== level) return;
           const payload = parsePayload(msg);
           if (payload?.kind === 'pin') payload.fingerprint = withServerFields(payload.fingerprint, ctx.server);
-          if (payload) this.submit(id, level, payload);
+          if (payload) this.submit(id, level, payload, false, ctx.phone);
           return;
         }
         case 'orientationLive': {
@@ -457,7 +616,7 @@ export class SessionManager {
           // l'empreinte est relevée dès l'ouverture de la page : les résultats sont visibles
           // avant la saisie du PIN et restent affichés pendant qu'on la commente
           const fp = sanitizeFingerprint(msg.fingerprint);
-          if (fp && state.status === 'pending' && state.level === 2) this.previewDevice(id, withServerFields(fp, ctx.server));
+          if (fp && state.status === 'pending' && state.level === 2) this.previewDevice(id, withServerFields(fp, ctx.server), ctx.phone ?? 'sim');
           return;
         }
         case 'phoneView': {
@@ -470,6 +629,12 @@ export class SessionManager {
         }
         case 'jump':
           if (isLevel(msg.level)) this.jump(id, msg.level);
+          return;
+        case 'stay':
+          if (typeof msg.on === 'boolean') this.setStay(id, msg.on);
+          return;
+        case 'retry':
+          if (isLevel(msg.level)) this.retry(id, msg.level);
           return;
         case 'reset':
           this.reset(id);

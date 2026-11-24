@@ -6,7 +6,9 @@ import {
   extractTimings,
   keyPenalties,
   normalizeKey,
+  referenceAt,
   scoreFromPenalties,
+  tempoPenalty,
   zScore,
 } from './keystroke';
 
@@ -39,8 +41,9 @@ export function buildExpectedBars(
   if (!password || !profile) return null;
   return [...password].map((ch, i) => {
     const key = normalizeKey(ch);
-    const m = profile.mean[key];
-    const s = profile.std[key];
+    const ref = referenceAt(profile, key, i);
+    const m = ref?.mean;
+    const s = ref?.std;
     if (!m || !s) return { dwell: 0, flight: 0, stdDwell: STD_FLOOR, stdFlight: STD_FLOOR, known: false };
     return {
       dwell: m.dwell,
@@ -82,5 +85,7 @@ export function scoreKeystrokeLive(
     penalties.push(...keyPenalties(i, zDwell, zFlight));
     return { dwell: t.dwell, flight: t.flight, zDwell, zFlight, status: statusOf(Math.max(zDwell, zFlight)) };
   });
-  return { score: scoreFromPenalties(penalties), bars };
+  const timings = extractTimings(events);
+  const refs = timings.map((_, i) => (expected[i]?.known ? expected[i] : null));
+  return { score: scoreFromPenalties(penalties, tempoPenalty(refs, timings)), bars };
 }

@@ -418,11 +418,13 @@ describe('SessionManager telephone et WebSocket', () => {
       expect(ws.lastState()).toMatchObject({
         type: 'state',
         level: 2,
-        sessionUrl: `https://localhost:5173/m/${s.id}`,
+        sessionUrl: m.url(s.id),
       });
     }
     pc.emit('message', JSON.stringify({ type: 'reset' }));
-    expect(phone.lastState().level).toBe(1);
+    expect(pc.lastState().level).toBe(1);
+    // Restart déconnecte les téléphones : le leur ne reçoit plus rien
+    expect(phone.lastState().level).toBe(2);
   });
 
   it('message god utilise le niveau courant ; invalide ou hors niveau ignore', () => {

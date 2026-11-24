@@ -47,13 +47,23 @@ export function attachKeystrokeCapture(
 
   const onPaste = (e: Event): void => e.preventDefault();
 
+  // champ vidé (tout sélectionné puis supprimé, couper, vidage programmatique) : on repart de zéro
+  const onInput = (): void => {
+    if (input.value !== '' || (events.length === 0 && pending.size === 0)) return;
+    events.length = 0;
+    pending.clear();
+    progress();
+  };
+
   input.addEventListener('keydown', onKeyDown);
   input.addEventListener('keyup', onKeyUp);
   input.addEventListener('paste', onPaste);
+  input.addEventListener('input', onInput);
 
   return () => {
     input.removeEventListener('keydown', onKeyDown);
     input.removeEventListener('keyup', onKeyUp);
     input.removeEventListener('paste', onPaste);
+    input.removeEventListener('input', onInput);
   };
 }

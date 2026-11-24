@@ -52,25 +52,38 @@ function Interstitial({ step }: { step: boolean }) {
  * personne qui tient le téléphone. Reprend exactement ce que le téléphone affiche (donc rien
  * sur la posture ni sur le résultat).
  */
-export function PhoneMirror({ view, connected }: { view: PhoneView | null; connected: boolean }) {
-  const live = connected && view !== null;
+/** Écran affiché par le reflet « figé » : pavé PIN vide, sans aucune touche allumée. */
+const IDLE_VIEW: PhoneView = { screen: 'pin', digits: 0, pressed: null, again: false };
+
+export function PhoneMirror({
+  view,
+  connected,
+  idle = false,
+}: {
+  view: PhoneView | null;
+  connected: boolean;
+  /** Reflet figé (mode « Stay on step ») : toujours visible, ne suit aucun téléphone. */
+  idle?: boolean;
+}) {
+  const shown = idle ? IDLE_VIEW : view;
+  const live = idle || (connected && view !== null);
   return (
-    <figure className="phone-mirror" aria-label="Phone screen">
+    <figure className={idle ? 'phone-mirror idle' : 'phone-mirror'} aria-label="Phone screen">
       <div className="phone-frame">
         <div className="phone-viewport">
           <div className={live ? 'phone-screen' : 'phone-screen off'}>
-            {live ? (
+            {live && shown ? (
               <MobileShell>
-                {view.screen === 'pin' && <PinReplica view={view} />}
-                {view.screen === 'checking' && <Interstitial step={false} />}
-                {view.screen === 'step' && <Interstitial step />}
-                {view.screen === 'done' && (
+                {shown.screen === 'pin' && <PinReplica view={shown} />}
+                {shown.screen === 'checking' && <Interstitial step={false} />}
+                {shown.screen === 'step' && <Interstitial step />}
+                {shown.screen === 'done' && (
                   <div className="m-done">
                     <Lock />
                     <p className="m-note">Look at the screen</p>
                   </div>
                 )}
-                {view.screen === 'connecting' && (
+                {shown.screen === 'connecting' && (
                   <p className="m-note">
                     <span className="spinner dark" aria-hidden="true" /> Connecting…
                   </p>
@@ -85,7 +98,7 @@ export function PhoneMirror({ view, connected }: { view: PhoneView | null; conne
           </div>
         </div>
       </div>
-      <figcaption>Phone screen</figcaption>
+      <figcaption>{idle ? 'Phone screen (not following a phone)' : 'Phone screen'}</figcaption>
     </figure>
   );
 }

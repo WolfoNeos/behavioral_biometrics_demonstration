@@ -127,3 +127,4 @@ body:has(.config), body:has(.m-app), body:has(.mobile) { overflow-y: auto; }
 .tag { margin-left: 0.4rem; padding: 0.05rem 0.4rem; font-size: 0.7rem; font-weight: 600; color: var(--color-ink-muted); background: var(--color-grey-soft); border-radius: 999px; }
 .tag.warn { color: var(--color-orange); background: var(--color-orange-soft); }
 @media (max-width: 900px) { .crit-groups { grid-template-columns: minmax(0, 1fr); } }
+.ctl-toggle.on { color: #0b3d6b; background: #e1ebf6; }

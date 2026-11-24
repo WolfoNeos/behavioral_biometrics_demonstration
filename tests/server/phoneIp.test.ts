@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { SessionManager } from '../../src/server/sessions';
 import { DEFAULT_THRESHOLDS } from '../../src/shared/types';
+import { buildKeystrokeProfile } from '../../src/shared/scoring/keystroke';
 import type { Profile } from '../../src/shared/types';
 
 class FakeWs extends EventEmitter {
@@ -58,5 +59,263 @@ describe('adresse IP du téléphone (relevée par le serveur)', () => {
     expect(snap.state).toEqual({ status: 'pending', level: 3 });
     expect(snap.live.device?.score).toBeLessThanOrEqual(40);
     expect(snap.secrets?.[2]).toBe(true);
+  });
+});
+
+describe('relance d’une seule étape', () => {
+  it('efface les mesures de l’étape 2 sans toucher à celles de l’étape 1', () => {
+    const m = manager();
+    const s = m.create();
+    m.inject(s.id, 'A', 1);
+    m.inject(s.id, 'A', 2);
+    const before = m.snapshot(s.id);
+    expect(before.live.keystroke).toBeUndefined(); // pas de profil de frappe dans ce test
+    expect(before.live.device).toBeDefined();
+    m.handleMessage(s.id, JSON.stringify({ type: 'retry', level: 2 }));
+    const after = m.snapshot(s.id);
+    expect(after.state).toEqual({ status: 'pending', level: 2 });
+    expect(after.live.device).toBeUndefined();
+    expect(after.secrets?.[2]).toBeUndefined();
+  });
+});
+
+describe('historique des essais', () => {
+  it('chaque soumission est notée, et Restart ne l’efface pas', () => {
+    const m = manager();
+    const s = m.create();
+    m.inject(s.id, 'A', 1);
+    m.reset(s.id);
+    m.inject(s.id, 'B', 1);
+    const attempts = m.snapshot(s.id).attempts!;
+    expect(attempts.map((a) => a.n)).toEqual([1, 2]);
+    expect(attempts.every((a) => a.level === 1)).toBe(true);
+  });
+
+  it('journal : onAttempt reçoit la frappe brute et le score', () => {
+    const seen: { level: number; score: number }[] = [];
+    const m = new SessionManager({
+      getProfile: profile,
+      getThresholds: () => DEFAULT_THRESHOLDS,
+      baseUrl: 'https://x',
+      onAttempt: (a) => seen.push({ level: a.level, score: a.score }),
+    });
+    const s = m.create();
+    m.inject(s.id, 'A', 1);
+    expect(seen).toHaveLength(1);
+    expect(seen[0].level).toBe(1);
+  });
+});
+
+describe('journal : saisies simulées', () => {
+  it('la saisie injectée (touches A / B) est marquée simulée, une saisie tapée ne l’est pas', () => {
+    const flags: boolean[] = [];
+    const ev = [{ key: 'a', down: 0, up: 90 }];
+    const m = new SessionManager({
+      getProfile: () => ({ ...profile(), password: 'a', keystroke: buildKeystrokeProfile([ev, ev]) }),
+      getThresholds: () => DEFAULT_THRESHOLDS,
+      baseUrl: 'https://x',
+      onAttempt: (a) => flags.push(a.simulated),
+    });
+    const s = m.create();
+    m.inject(s.id, 'B', 1);
+    m.reset(s.id);
+    m.handleMessage(s.id, JSON.stringify({ type: 'keystroke', events: ev, password: 'a' }));
+    expect(flags).toEqual([true, false]);
+  });
+});
+
+describe('étape relancée seule : pas de passage à la suivante', () => {
+  it('réussite ou échec : on reste sur l’étape, le résultat est noté', () => {
+    const m = manager();
+    const s = m.create();
+    m.jump(s.id, 2);
+    m.handleMessage(s.id, JSON.stringify({ type: 'retry', level: 2 }));
+    m.inject(s.id, 'A', 2); // réussite
+    let snap = m.snapshot(s.id);
+    expect(snap.state).toEqual({ status: 'pending', level: 2 });
+    expect(snap.live.device).toBeDefined();
+    expect(snap.attempts?.at(-1)).toMatchObject({ level: 2, granted: true });
+    m.inject(s.id, 'B', 2); // échec
+    snap = m.snapshot(s.id);
+    expect(snap.state).toEqual({ status: 'pending', level: 2 });
+    expect(snap.attempts?.at(-1)).toMatchObject({ level: 2, granted: false });
+  });
+
+  it('Restart rend le déroulement normal', () => {
+    const m = manager();
+    const s = m.create();
+    m.handleMessage(s.id, JSON.stringify({ type: 'retry', level: 2 }));
+    m.reset(s.id);
+    m.jump(s.id, 2);
+    m.inject(s.id, 'B', 2);
+    expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level: 3 });
+  });
+
+  it('bascule « rester sur l’étape » : à l’étape 1, un mot de passe validé n’avance pas', () => {
+    const m = manager();
+    const s = m.create();
+    m.handleMessage(s.id, JSON.stringify({ type: 'stay', on: true }));
+    expect(m.snapshot(s.id).stay).toBe(true);
+    m.inject(s.id, 'B', 1);
+    m.inject(s.id, 'A', 1);
+    expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level: 1 });
+    expect(m.snapshot(s.id).attempts).toHaveLength(2);
+    m.handleMessage(s.id, JSON.stringify({ type: 'stay', on: false }));
+    m.inject(s.id, 'B', 1);
+    expect(m.snapshot(s.id).state.status === 'pending' && m.snapshot(s.id).level).toBe(2);
+  });
+
+  it('en mode « rester », changer d’étape à la main garde les résultats des autres', () => {
+    const m = manager();
+    const s = m.create();
+    m.handleMessage(s.id, JSON.stringify({ type: 'stay', on: true }));
+    m.jump(s.id, 2);
+    m.inject(s.id, 'A', 2);
+    expect(m.snapshot(s.id).live.device).toBeDefined();
+    m.jump(s.id, 1);
+    m.jump(s.id, 3);
+    expect(m.snapshot(s.id).live.device).toBeDefined(); // étape 2 conservée
+    expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level: 3 });
+    m.jump(s.id, 2);
+    expect(m.snapshot(s.id).live.device).toBeUndefined(); // seule l'étape visée repart de zéro
+  });
+});
+
+describe('plusieurs appareils à l’étape 2', () => {
+  const fp = (id: string, cores: string) => ({ ...core, installId: id, cores });
+  it('un relevé par téléphone, mis à jour à chaque envoi, comparables entre eux', () => {
+    const m = manager();
+    const s = m.create();
+    const p1 = new FakeWs();
+    const p2 = new FakeWs();
+    m.attachPhone(s.id, p1 as never, { ip: '192.168.1.50' });
+    m.attachPhone(s.id, p2 as never, { ip: '192.168.1.77' });
+    m.handleMessage(s.id, JSON.stringify({ type: 'stay', on: true }));
+    m.jump(s.id, 2);
+    p1.emit('message', JSON.stringify({ type: 'device', fingerprint: fp('id-A', '6') }));
+    p2.emit('message', JSON.stringify({ type: 'device', fingerprint: fp('id-B', '8') }));
+    let runs = m.snapshot(s.id).deviceRuns!;
+    expect(runs.map((r) => r.n)).toEqual([1, 2]);
+    expect(runs.every((r) => !r.submitted)).toBe(true);
+    // le téléphone 1 valide son PIN : son relevé est mis à jour, pas dupliqué
+    p1.emit('message', JSON.stringify({ type: 'pin', pin: '1234', taps: [], fingerprint: fp('id-A', '6') }));
+    runs = m.snapshot(s.id).deviceRuns!;
+    expect(runs).toHaveLength(2);
+    expect(runs[0].submitted).toBe(true);
+    expect(runs[1].lines.find((l) => l.field === 'installId')?.actual).toBe('id-B');
+    expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level: 2 }); // on reste à l'étape 2
+  });
+
+  it('Retry de l’étape 2 efface les relevés', () => {
+    const m = manager();
+    const s = m.create();
+    const p1 = new FakeWs();
+    m.attachPhone(s.id, p1 as never);
+    m.jump(s.id, 2);
+    p1.emit('message', JSON.stringify({ type: 'device', fingerprint: fp('id-A', '6') }));
+    expect(m.snapshot(s.id).deviceRuns).toHaveLength(1);
+    m.handleMessage(s.id, JSON.stringify({ type: 'retry', level: 2 }));
+    expect(m.snapshot(s.id).deviceRuns).toHaveLength(0);
+  });
+});
+
+describe('plusieurs téléphones à l’étape 3', () => {
+  const reading = (beta: number) => [{ alpha: 0, beta, gamma: 0 }];
+  const mgr = () =>
+    new SessionManager({
+      getProfile: () => ({ ...profile(), beta: 45 }),
+      getThresholds: () => DEFAULT_THRESHOLDS,
+      baseUrl: 'https://x',
+    });
+
+  it('un relevé de posture par téléphone, le dernier remplace le précédent, on reste à l’étape 3', () => {
+    const m = mgr();
+    const s = m.create();
+    const p1 = new FakeWs();
+    const p2 = new FakeWs();
+    m.attachPhone(s.id, p1 as never);
+    m.attachPhone(s.id, p2 as never);
+    m.handleMessage(s.id, JSON.stringify({ type: 'stay', on: true }));
+    m.jump(s.id, 3);
+    p1.emit('message', JSON.stringify({ type: 'orientation', pin: '1234', readings: reading(45) }));
+    p2.emit('message', JSON.stringify({ type: 'orientation', pin: '9999', readings: reading(80) }));
+    let runs = m.snapshot(s.id).postureRuns!;
+    expect(runs.map((r) => [r.n, r.secret])).toEqual([[1, true], [2, false]]);
+    expect(runs[0].score).toBeGreaterThan(runs[1].score);
+    p1.emit('message', JSON.stringify({ type: 'orientation', pin: '1234', readings: reading(60) }));
+    runs = m.snapshot(s.id).postureRuns!;
+    expect(runs).toHaveLength(2);
+    expect(runs[0].beta).toBe(60);
+    expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level: 3 });
+  });
+
+  it('Retry de l’étape 3 efface les relevés', () => {
+    const m = mgr();
+    const s = m.create();
+    const p1 = new FakeWs();
+    m.attachPhone(s.id, p1 as never);
+    m.jump(s.id, 3);
+    p1.emit('message', JSON.stringify({ type: 'orientation', pin: '1234', readings: reading(45) }));
+    expect(m.snapshot(s.id).postureRuns).toHaveLength(1);
+    m.handleMessage(s.id, JSON.stringify({ type: 'retry', level: 3 }));
+    expect(m.snapshot(s.id).postureRuns).toHaveLength(0);
+  });
+
+  it('le numéro d’un téléphone est le même aux étapes 2 et 3', () => {
+    const m = mgr();
+    const s = m.create();
+    const p1 = new FakeWs();
+    const p2 = new FakeWs();
+    m.attachPhone(s.id, p1 as never);
+    m.attachPhone(s.id, p2 as never);
+    m.handleMessage(s.id, JSON.stringify({ type: 'stay', on: true }));
+    m.jump(s.id, 3);
+    p2.emit('message', JSON.stringify({ type: 'orientation', pin: '1234', readings: reading(45) }));
+    expect(m.snapshot(s.id).postureRuns![0].n).toBe(2); // arrivé en second, quel que soit l'ordre d'envoi
+  });
+});
+
+describe('Restart : nouveau QR code, téléphones déconnectés', () => {
+  class ClosableWs extends FakeWs {
+    closed: { code?: number } | null = null;
+    close(code?: number): void {
+      this.closed = { code };
+    }
+  }
+
+  it('la clé du QR change et les anciens QR n’ouvrent plus la session', () => {
+    const m = manager();
+    const s = m.create();
+    const before = m.url(s.id);
+    const key = before.split('.').pop();
+    expect(m.phoneKeyOk(s.id, key)).toBe(true);
+    m.reset(s.id);
+    expect(m.url(s.id)).not.toBe(before);
+    expect(m.phoneKeyOk(s.id, key)).toBe(false);
+    expect(m.phoneKeyOk(s.id, m.url(s.id).split('.').pop())).toBe(true);
+    expect(m.snapshot(s.id).sessionUrl).toBe(m.url(s.id));
+  });
+
+  it('Restart ferme tous les téléphones connectés (code « session inconnue ») et vide leur reflet', () => {
+    const m = manager();
+    const s = m.create();
+    const a = new ClosableWs();
+    const b = new ClosableWs();
+    m.attachPhone(s.id, a as never);
+    m.attachPhone(s.id, b as never);
+    expect(m.snapshot(s.id).phoneConnected).toBe(true);
+    m.reset(s.id);
+    expect(a.closed).toEqual({ code: 1008 });
+    expect(b.closed).toEqual({ code: 1008 });
+    expect(m.snapshot(s.id).phoneConnected).toBe(false);
+  });
+
+  it('un saut de niveau ou Retry ne change pas le QR code', () => {
+    const m = manager();
+    const s = m.create();
+    const before = m.url(s.id);
+    m.jump(s.id, 2);
+    m.handleMessage(s.id, JSON.stringify({ type: 'retry', level: 2 }));
+    expect(m.url(s.id)).toBe(before);
   });
 });

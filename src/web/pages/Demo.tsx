@@ -3,10 +3,13 @@ import type { FailReason, KeyEvent, LastVerdict, Level, Snapshot, Thresholds } f
 import { AngleDial } from '../components/AngleDial';
 import { LoginForm, PortalShell, StepUp, Suspended, Welcome } from '../components/BankPortal';
 import { PhoneMirror } from '../components/PhoneMirror';
+import { PostureRuns } from '../components/PostureRuns';
 import { Barcode } from '../components/Barcode';
 import { ConsoleHeader } from '../components/ConsoleHeader';
 import { SessionRecap } from '../components/SessionRecap';
+import { AttemptHistory } from '../components/AttemptHistory';
 import { ControlBar } from '../components/ControlBar';
+import { DeviceRunsCompare } from '../components/DeviceRunsCompare';
 import { DeviceTable, FIELD_LABELS } from '../components/DeviceTable';
 import { Gauge } from '../components/Gauge';
 import { ThresholdChart } from '../components/ThresholdChart';
@@ -159,10 +162,23 @@ function DirectSignal({ snap, level, liveRows }: { snap: Snapshot; level: Level;
     return <KeystrokeSignal rows={rows} mode={mode} note={profileNote(snap)} />;
   }
   if (level === 2) {
-    return <DeviceTable lines={snap.live.device?.lines ?? []} expected={snap.expected.fingerprint} />;
+    // plusieurs appareils mesurés (mode « Stay on step ») : on les compare entre eux
+    if ((snap.deviceRuns?.length ?? 0) >= 2) return <DeviceRunsCompare runs={snap.deviceRuns!} />;
+    return <DeviceTable lines={snap.live.device?.lines ?? []} expected={snap.expected.fingerprint} hideScore={snap.stay === true} />;
   }
   // avant « Confirm » : l'aiguille suit le telephone en direct ; apres : la mesure notee
   const beta = snap.liveOrientation?.beta ?? snap.live.orientation?.beta ?? null;
+  // mode « Stay on step » : pas de cadran en direct, seulement le résultat de chaque téléphone
+  if (snap.stay === true) {
+    return (
+      <PostureRuns
+        runs={snap.postureRuns ?? []}
+        expectedBeta={snap.expected.beta}
+        accept={snap.thresholds.orientation.accept}
+        warn={snap.thresholds.orientation.warn}
+      />
+    );
+  }
   return (
     <AngleDial
       expectedBeta={snap.expected.beta ?? 0}
@@ -236,12 +252,23 @@ export function Demo() {
     setSubmitted((s) => (s && s.sig !== sig ? null : s));
   }, [sig]);
 
+  // change à chaque Restart / saut : le formulaire est recréé (champs et frappe capturée vides)
+  const [formKey, setFormKey] = useState(0);
   const onJump = (level: Level): void => {
     setSubmitted(null);
+    setFormKey((k) => k + 1);
     send({ type: 'jump', level });
+  };
+  const onRetry = (lvl: Level): void => {
+    if (lvl === 1) {
+      setSubmitted(null);
+      setFormKey((k) => k + 1);
+    }
+    send({ type: 'retry', level: lvl });
   };
   const onReset = (): void => {
     setSubmitted(null);
+    setFormKey((k) => k + 1);
     send({ type: 'reset' });
   };
   const onProgress = (events: KeyEvent[]): void => {
@@ -279,12 +306,12 @@ export function Demo() {
   } else if (state.status === 'blocked') {
     main = <Suspended />;
   } else if (level === 1) {
-    main = <LoginForm send={send} onProgress={onProgress} onSubmit={onSubmit} busy={awaiting} />;
+    main = <LoginForm key={formKey} send={send} onProgress={onProgress} onSubmit={onSubmit} busy={awaiting} />;
   } else {
     main = (
       <div className="stepup-row">
         <StepUp url={snapshot.sessionUrl} level={level} phoneConnected={snapshot.phoneConnected} />
-        <PhoneMirror view={snapshot.phoneView ?? null} connected={snapshot.phoneConnected} />
+        <PhoneMirror view={snapshot.phoneView ?? null} connected={snapshot.phoneConnected} idle={snapshot.stay === true} />
       </div>
     );
   }
@@ -301,6 +328,8 @@ export function Demo() {
         : 'Official score'
       : '';
   const recap = buildRecap(snapshot);
+  // mode « Stay on step » aux étapes 2 et 3 : on compare des téléphones, ni jauge ni essais
+  const noScore = snapshot.stay === true && (shown.level === 2 || shown.level === 3);
   const gauge = (
     <div className="gauge-col">
       <Gauge score={provisional ? provisional.score : officialScore} accept={th.accept} warn={th.warn} />
@@ -329,16 +358,18 @@ export function Demo() {
           <section className="panel panel-score panel-recap" data-testid="panel-score" aria-label="Session summary">
             <h2>Session summary</h2>
             <SessionRecap recap={recap} />
+            <AttemptHistory attempts={snapshot.attempts ?? []} />
           </section>
-        ) : (
+        ) : noScore ? null : (
           <section className="panel panel-score" data-testid="panel-score" aria-label="Score">
             <h2>Score</h2>
             {gauge}
+            <AttemptHistory attempts={(snapshot.attempts ?? []).filter((a) => a.level === shown.level)} />
           </section>
         )}
         <div className="control-zone">
           <PhoneStatus connected={snapshot.phoneConnected} />
-          <ControlBar onJump={onJump} onReset={onReset} level={level} />
+          <ControlBar onJump={onJump} onReset={onReset} onRetry={onRetry} stay={snapshot.stay} onStay={(on) => send({ type: 'stay', on })} level={level} />
         </div>
       </aside>
     </div>

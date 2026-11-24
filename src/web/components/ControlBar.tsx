@@ -4,6 +4,11 @@ import type { Level } from '../../shared/types';
 export interface ControlBarProps {
   onJump: (level: Level) => void;
   onReset: () => void;
+  /** Relance l'étape affichée seule, sans toucher aux autres résultats. */
+  onRetry?: (level: Level) => void;
+  /** Mode « rester sur l'étape » : état et bascule. */
+  stay?: boolean;
+  onStay?: (on: boolean) => void;
   /** Level affiché (mis en évidence dans le sélecteur). */
   level?: Level;
 }
@@ -11,7 +16,7 @@ export interface ControlBarProps {
 const LEVELS: Level[] = [1, 2, 3];
 
 /** Menu du présentateur : sélecteur de niveau, remise à zéro, accès à la configuration. */
-export function ControlBar({ onJump, onReset, level }: ControlBarProps) {
+export function ControlBar({ onJump, onReset, onRetry, stay, onStay, level }: ControlBarProps) {
   return (
     <nav className="control-bar" aria-label="demo controls">
       <div className="seg" role="group" aria-label="Go to level">
@@ -27,6 +32,29 @@ export function ControlBar({ onJump, onReset, level }: ControlBarProps) {
           </button>
         ))}
       </div>
+      {onStay && (
+        <button
+          type="button"
+          className={stay ? 'ctl-btn ctl-toggle on' : 'ctl-btn ctl-toggle'}
+          aria-pressed={!!stay}
+          onClick={() => onStay(!stay)}
+          title="Stay on the current step: results never move on to the next one"
+        >
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <rect x="5" y="9" width="10" height="7" rx="1.6" />
+            <path d="M7 9V6.5a3 3 0 0 1 6 0V9" />
+          </svg>
+          Stay on step
+        </button>
+      )}
+      {onRetry && level !== undefined && (
+        <button type="button" className="ctl-btn" onClick={() => onRetry(level)}>
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M4 10a6 6 0 1 0 2-4.5M4 3v3.5H7.5" />
+          </svg>
+          Retry step {level}
+        </button>
+      )}
       <button type="button" className="ctl-btn" onClick={onReset}>
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="M4 10a6 6 0 1 0 2-4.5M4 3v3.5H7.5" />

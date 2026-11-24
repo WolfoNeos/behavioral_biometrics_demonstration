@@ -12,7 +12,10 @@ export type ClientMessage =
   | { type: 'keystroke'; events: KeyEvent[]; password: string }
   | { type: 'jump'; level: Level }
   | { type: 'reset' }
-  | { type: 'god'; who: 'A' | 'B' };
+  | { type: 'stay'; on: boolean }
+  | { type: 'retry'; level: 1 | 2 | 3 }
+  | { type: 'god'; who: 'A' | 'B' }
+  | { type: 'replay'; events: KeyEvent[]; secret: boolean };
 
 const STORAGE_KEY = 'demo-session-id';
 /** Code de fermeture du serveur pour une session ou un role inconnus. */

@@ -14,6 +14,12 @@ export interface KeystrokeProfile {
   mean: Record<string, { dwell: number; flight: number }>;
   std: Record<string, { dwell: number; flight: number }>;
   samples: number;
+  /**
+   * Référence par position du mot de passe (présente si les saisies d'enrôlement ont toutes la
+   * même longueur). Plus fine que la référence par caractère : une lettre répétée ou un
+   * enchaînement différent ne brouille plus la bande.
+   */
+  positions?: { key: string; mean: { dwell: number; flight: number }; std: { dwell: number; flight: number } }[];
 }
 
 /**
@@ -159,4 +165,42 @@ export interface Snapshot {
   phoneView?: PhoneView | null;
   /** Secret (mot de passe ou PIN) correct à chaque étape soumise : true = attendu, false = incorrect. */
   secrets?: Partial<Record<Level, boolean>>;
+  /** Historique des essais de la session (conservé à travers Restart et les sauts de niveau). */
+  attempts?: Attempt[];
+  /** Mode « rester sur l'étape » actif : aucun résultat ne fait avancer. */
+  stay?: boolean;
+  /** Appareils mesurés à l'étape 2 (un par téléphone connecté), pour les comparer entre eux. */
+  deviceRuns?: DeviceRun[];
+  /** Postures mesurées à l'étape 3 (un relevé par téléphone), pour comparer plusieurs téléphones. */
+  postureRuns?: PostureRun[];
+}
+
+/** Relevé d'un téléphone à l'étape 3 : numéro, score, angle mesuré, écart à A, PIN correct ou non. */
+export interface PostureRun {
+  n: number;
+  phone: string;
+  score: number;
+  beta: number;
+  deviation: number;
+  secret: boolean;
+}
+
+/** Relevé d'un téléphone à l'étape 2 : numéro d'arrivée, score, comparaison critère par critère. */
+export interface DeviceRun {
+  n: number;
+  phone: string;
+  score: number;
+  lines: DeviceLine[];
+  /** PIN envoyé (résultat officiel) ; faux = relevé provisoire avant le PIN. */
+  submitted: boolean;
+}
+
+/** Un essai soumis : étape, score mesuré, secret correct, verdict. */
+export interface Attempt {
+  n: number;
+  level: Level;
+  score: number;
+  /** Mot de passe / PIN correct. */
+  secret: boolean;
+  granted: boolean;
 }

@@ -133,7 +133,7 @@ describe('Demo', () => {
 
   it('le panneau Direct ne montre que le signal du niveau courant', () => {
     const { unmount } = renderDemo();
-    expect(within(screen.getByTestId('panel-direct')).getByTestId('chart')).toBeInTheDocument();
+    expect(within(screen.getByTestId('panel-direct')).getAllByTestId('chart')[0]).toBeInTheDocument();
     unmount();
 
     snapshot = { ...base, level: 2, state: { status: 'pending', level: 2 } };
@@ -144,7 +144,7 @@ describe('Demo', () => {
     expect(within(screen.getByTestId('panel-score')).queryByTestId('chart')).toBeNull();
   });
 
-  it('B hors champ envoie god B', () => {
+  it('B hors champ envoie god B, A envoie god A', () => {
     renderDemo();
     fireEvent.keyDown(document.body, { key: 'B' });
     expect(send).toHaveBeenCalledWith({ type: 'god', who: 'B' });
@@ -211,7 +211,7 @@ describe('Demo', () => {
     renderDemo();
     const direct = screen.getByTestId('panel-direct');
     expect(within(direct).getByText(/Live — Keystroke dynamics/)).toBeInTheDocument();
-    expect(within(direct).getByTestId('chart')).toBeInTheDocument();
+    expect(within(direct).getAllByTestId('chart')[0]).toBeInTheDocument();
     const banner = within(direct).getByTestId('fail-banner');
     expect(banner).toHaveTextContent('Level 1 failed — moving to the next level');
     expect(banner).toHaveTextContent('Signal out of range (score 23 / 100)');
@@ -633,5 +633,91 @@ describe('Demo : le résultat du niveau 2 reste affiché après la soumission', 
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('Demo : essais et appareils par étape', () => {
+  const attempts = [
+    { n: 1, level: 1 as const, score: 92, secret: true, granted: true },
+    { n: 2, level: 2 as const, score: 40, secret: true, granted: false },
+  ];
+
+  it('seuls les essais de l’étape affichée sont visibles', () => {
+    snapshot = { ...base, attempts, state: { status: 'pending', level: 2 }, level: 2 };
+    renderDemo();
+    const items = within(screen.getByTestId('attempts')).getAllByRole('listitem');
+    expect(items).toHaveLength(1);
+    expect(items[0]).toHaveTextContent('#2');
+  });
+
+  it('plusieurs appareils à l’étape 2 : tableau de comparaison entre eux', () => {
+    const lines = (cores: string) => [{ field: 'cores', expected: '6', actual: cores, match: cores === '6' }];
+    snapshot = {
+      ...base,
+      state: { status: 'pending', level: 2 },
+      level: 2,
+      live: { device: { score: 40, lines: lines('8') } },
+      deviceRuns: [
+        { n: 1, phone: 'p1', score: 100, lines: lines('6'), submitted: true },
+        { n: 2, phone: 'p2', score: 40, lines: lines('8'), submitted: true },
+      ],
+    };
+    renderDemo();
+    expect(screen.getByTestId('device-runs')).toBeInTheDocument();
+  });
+});
+
+describe('Demo : Stay on step à l’étape 2', () => {
+  const lines = [{ field: 'cores', expected: '6', actual: '8', match: false }];
+  const stay2 = () => ({
+    ...base,
+    state: { status: 'pending' as const, level: 2 as const },
+    level: 2 as const,
+    stay: true,
+    live: { device: { score: 40, lines } },
+  });
+
+  it('ni jauge, ni essais, ni score dans le tableau', () => {
+    snapshot = { ...stay2(), attempts: [{ n: 1, level: 2 as const, score: 40, secret: true, granted: false }] };
+    renderDemo();
+    expect(screen.queryByTestId('panel-score')).toBeNull();
+    expect(screen.queryByTestId('attempts')).toBeNull();
+    expect(screen.queryByTestId('device-total')).toBeNull();
+    expect(screen.queryByText('Points')).toBeNull();
+  });
+
+  it('sans le mode, le score reste affiché', () => {
+    snapshot = { ...stay2(), stay: false };
+    renderDemo();
+    expect(screen.getByTestId('panel-score')).toHaveAttribute('aria-label', 'Score');
+    expect(screen.getByTestId('device-total')).toBeInTheDocument();
+  });
+});
+
+describe('Demo : Stay on step à l’étape 3', () => {
+  it('résultat de chaque téléphone seulement : pas de cadran, de jauge ni d’essais', () => {
+    snapshot = {
+      ...base,
+      state: { status: 'pending', level: 3 },
+      level: 3,
+      stay: true,
+      postureRuns: [
+        { n: 1, phone: 'p1', score: 95, beta: 46, deviation: 1, secret: true },
+        { n: 2, phone: 'p2', score: 30, beta: 80, deviation: 35, secret: true },
+      ],
+    };
+    renderDemo();
+    expect(screen.getAllByTestId('posture-run')).toHaveLength(2);
+    expect(screen.queryByTestId('panel-score')).toBeNull();
+    expect(screen.queryByTestId('attempts')).toBeNull();
+    expect(screen.queryByRole('img', { name: 'angle dial' })).toBeNull(); // pas de gyroscope en direct
+  });
+
+  it('sans le mode : le cadran seul et la jauge', () => {
+    snapshot = { ...base, state: { status: 'pending', level: 3 }, level: 3, stay: false };
+    renderDemo();
+    expect(screen.queryByTestId('posture-runs')).toBeNull();
+    expect(screen.getByTestId('panel-score')).toHaveAttribute('aria-label', 'Score');
+    expect(screen.getByRole('img', { name: 'angle dial' })).toBeInTheDocument();
   });
 });

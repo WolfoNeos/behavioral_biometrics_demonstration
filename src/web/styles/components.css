@@ -50,6 +50,8 @@
 /* Graphique et tableaux de valeurs */
 .threshold-chart { font-family: var(--font-sans); }
 .chart-canvas { position: relative; height: 320px; }
+.chart-half { height: 190px; }
+.chart-note { margin: 2px 0 0; font-size: var(--text-sm); color: var(--color-ink-muted); }
 .threshold-chart { display: flex; flex-direction: column; min-height: 0; }
 .values-table { width: 100%; border-collapse: collapse; font-size: var(--text-md); font-variant-numeric: tabular-nums; }
 .values-table th, .values-table td { padding: var(--space-2) var(--space-3); text-align: left; border-bottom: 1px solid var(--color-border); }
@@ -223,3 +225,4 @@ button.primary { font-size: var(--text-md); font-weight: 600; padding: var(--spa
 .device-compare .values-table td { padding: 10px 12px; }
 .device-compare .cmp-mono { font-size: 1.1rem; }
 .hint { color: var(--color-ink-muted); font-size: 1rem; margin: 0; }
+.signal .chart-half { min-height: 150px; }
