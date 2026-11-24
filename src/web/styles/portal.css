@@ -371,3 +371,11 @@
 .runs-scores .run-note { display: block; margin-top: 2px; font-size: 0.78rem; font-weight: 600; opacity: 0.85; }
 .chip-toggle { font: inherit; font-size: 0.95rem; font-weight: 600; padding: 0.35rem 0.9rem; border-radius: 999px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-ink-muted); cursor: pointer; }
 .chip-toggle[aria-pressed='true'] { background: #e1ebf6; color: #0b3d6b; }
+.runs-pick { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.95rem; font-weight: 600; color: var(--color-ink-muted); }
+.runs-detail { display: flex; flex-direction: column; gap: var(--space-2); min-height: 0; }
+.runs-detail-title { margin: 0; font-size: 1.3rem; font-weight: 800; color: var(--color-ink); }
+.runs-detail-title span { font-weight: 500; color: var(--color-ink-muted); font-size: 1rem; }
+.runs-table thead th { cursor: pointer; }
+.runs-compact td .mark { width: auto; font-size: 1.5rem; }
+.runs-compact td { text-align: center; }
+.panel .runs-compact table.runs-table.values-table td:nth-child(-n+2) { text-align: left; }

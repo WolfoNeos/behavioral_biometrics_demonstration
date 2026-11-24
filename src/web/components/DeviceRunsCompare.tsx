@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { DeviceRun } from '../../shared/types';
-import { FIELD_LABELS, display, friendlyUserAgent } from './DeviceTable';
+import { DeviceTable, FIELD_LABELS, display, friendlyUserAgent } from './DeviceTable';
 
 const MONO = ['canvasHash', 'installId', 'cookieId', 'idbId'];
 
@@ -41,6 +41,9 @@ export function runLabel(run: DeviceRun): string {
   return `Phone ${run.n}${ua ? ` · ${friendlyUserAgent(ua)}` : ''}`;
 }
 
+/** Au-delà de ce nombre d'appareils, les cellules n'affichent plus que ✓ ou ✗ (la valeur reste au survol). */
+export const COMPACT_FROM = 4;
+
 /** Garde les `limit` derniers appareils arrivés (null = tous). */
 export function limitRuns(runs: DeviceRun[], limit: number | null): DeviceRun[] {
   return limit === null || limit < 1 ? runs : runs.slice(-limit);
@@ -50,12 +53,17 @@ export function limitRuns(runs: DeviceRun[], limit: number | null): DeviceRun[] 
  * Plusieurs appareils côte à côte (étape 2 en mode « Stay on step ») : A, puis chaque téléphone.
  * Une cellule verte (✓) est identique à A ; une cellule rouge (✗) donne la valeur qui diffère.
  * Les lignes où les appareils diffèrent entre eux remontent en tête ; par défaut seuls les écarts
- * sont listés. Le nombre d'appareils comparés peut être limité (les plus récents).
+ * sont listés. Le nombre d'appareils comparés peut être limité (les plus récents) ; avec
+ * beaucoup d'appareils, seules les marques ✓ / ✗ sont affichées, et un appareil peut être choisi
+ * pour le comparer en détail au profil de A.
  */
 export function DeviceRunsCompare({ runs: allRuns }: { runs: DeviceRun[] }) {
   const [all, setAll] = useState(false);
   const [limit, setLimit] = useState<number | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
   const runs = limitRuns(allRuns, limit);
+  const compact = runs.length >= COMPACT_FROM;
+  const detail = runs.find((r) => r.phone === selected) ?? null;
   const rows = buildRows(runs);
   const differs = (r: Row) => r.match.some((m) => m === false) || r.spread > 1;
   const shown = (all ? rows : rows.filter(differs)).sort(
@@ -90,14 +98,40 @@ export function DeviceRunsCompare({ runs: allRuns }: { runs: DeviceRun[] }) {
           </button>
         </div>
       </div>
-      <div className="cmp-scroll">
+      <div className="runs-pick" role="group" aria-label="Device to compare with A">
+        <span>Compare with A:</span>
+        <button type="button" className="chip-toggle" aria-pressed={detail === null} onClick={() => setSelected(null)}>
+          All devices
+        </button>
+        {runs.map((r) => (
+          <button
+            key={r.phone}
+            type="button"
+            className="chip-toggle"
+            aria-pressed={detail?.phone === r.phone}
+            title={runLabel(r)}
+            onClick={() => setSelected(r.phone)}
+          >
+            Phone {r.n}
+          </button>
+        ))}
+      </div>
+      {detail && (
+        <div className="runs-detail" data-testid="run-detail">
+          <p className="runs-detail-title">
+            {runLabel(detail)} <span>vs A’s profile</span>
+          </p>
+          <DeviceTable lines={detail.lines} />
+        </div>
+      )}
+      <div className={compact ? 'cmp-scroll runs-compact' : 'cmp-scroll'} hidden={detail !== null}>
         <table className="values-table runs-table">
           <thead>
             <tr>
               <th>Criterion</th>
               <th>A’s profile</th>
               {runs.map((r) => (
-                <th key={r.phone} title={runLabel(r)}>
+                <th key={r.phone} title={runLabel(r)} onClick={() => setSelected(r.phone)}>
                   <span className="run-name">Phone {r.n}</span>
                   <span className="run-browser">{runLabel(r).split(' · ').slice(1).join(' · ')}</span>
                 </th>
@@ -136,7 +170,7 @@ export function DeviceRunsCompare({ runs: allRuns }: { runs: DeviceRun[] }) {
                           <span className="mark" aria-label="different">
                             ✗
                           </span>
-                          {display(row.field, a)}
+                          {!compact && display(row.field, a)}
                         </>
                       ) : (
                         <span className="mark" aria-label="identical">

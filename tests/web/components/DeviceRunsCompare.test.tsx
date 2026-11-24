@@ -75,6 +75,26 @@ describe('DeviceRunsCompare', () => {
     expect(screen.getByTestId('runs-summary')).toHaveTextContent('3 devices');
   });
 
+  it('beaucoup d’appareils : seules les marques ✓ / ✗ sont affichées', () => {
+    const many = [1, 2, 3, 4].map((n) => run(n, 50, n > 1 ? { cores: String(n * 2) } : {}));
+    render(<DeviceRunsCompare runs={many} />);
+    const cells = within(screen.getByText('CPU cores').closest('tr')!).getAllByRole('cell');
+    expect(within(cells[3]).getByLabelText('different')).toBeInTheDocument();
+    expect(cells[3]).not.toHaveTextContent('4'); // valeur masquée (au survol seulement)
+    expect(cells[3]).toHaveAttribute('title', '4');
+  });
+
+  it('choisir un appareil : comparaison détaillée avec A, puis retour à tous', async () => {
+    render(<DeviceRunsCompare runs={runs} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Phone 2' }));
+    const detail = screen.getByTestId('run-detail');
+    expect(detail).toHaveTextContent('Phone 2');
+    expect(within(detail).getByTestId('device-summary')).toHaveTextContent('differ');
+    expect(within(detail).getByText('CPU cores')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'All devices' }));
+    expect(screen.queryByTestId('run-detail')).toBeNull();
+  });
+
   it('relevé avant PIN signalé', () => {
     render(<DeviceRunsCompare runs={[run(1, 100, {}, false), run(2, 50, {})]} />);
     expect(screen.getByText(/before PIN/)).toBeInTheDocument();
