@@ -234,11 +234,14 @@ const CHECK_TIMEOUT_MS = 5000;
 export function Mobile() {
   const { id = '' } = useParams();
   const { snapshot, connected, lost, send } = usePhoneSession(id);
+  const lastTryRef = useRef<number | undefined>(undefined);
   const levelRef = useRef<number | undefined>(undefined);
   levelRef.current = snapshot?.level;
+  lastTryRef.current = snapshot?.attempts?.at(-1)?.n;
   const [phase, setPhase] = useState<Phase>('input');
   const [pad, setPad] = useState<{ digits: number; pressed: string | null }>({ digits: 0, pressed: null });
   const sentAt = useRef<number | undefined>(undefined); // niveau au moment de l'envoi
+  const sentTry = useRef(0); // numéro du dernier essai connu au moment de l'envoi
 
   const sensor = useSilentOrientation((reading) => {
     // l'aiguille du PC n'a de sens qu'au niveau 3
@@ -247,6 +250,7 @@ export function Mobile() {
 
   const level = snapshot?.level;
   const status = snapshot?.state.status;
+  const lastTry = snapshot?.attempts?.at(-1)?.n;
 
   // empreinte de l'appareil relevée dès l'ouverture du niveau 2, avant la saisie du PIN
   const deviceSent = useRef(false);
@@ -287,9 +291,14 @@ export function Mobile() {
       setPhase('step');
       return;
     }
+    // étape relancée seule : le résultat est arrivé sans changer d'étape, retour au pavé
+    if ((lastTry ?? 0) > sentTry.current) {
+      setPhase('input');
+      return;
+    }
     const t = setTimeout(() => setPhase('input'), CHECK_TIMEOUT_MS);
     return () => clearTimeout(t);
-  }, [phase, level, status]);
+  }, [phase, level, status, lastTry]);
 
   useEffect(() => {
     if (phase !== 'step') return;
@@ -353,6 +362,7 @@ export function Mobile() {
           } else return true; // niveau 1 : la saisie se fait sur le PC, le pavé est ignoré
           if (sent) {
             sentAt.current = lvl;
+            sentTry.current = lastTryRef.current ?? 0;
             setPhase('checking');
           }
           return sent;

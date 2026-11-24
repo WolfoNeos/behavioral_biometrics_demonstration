@@ -57,6 +57,8 @@ export interface Session {
   secrets: Partial<Record<Level, boolean>>;
   /** Essais soumis, du plus ancien au plus récent (bornés) ; jamais effacés par Restart. */
   attempts: Attempt[];
+  /** Étape relancée seule : tant qu'elle l'est, un résultat (réussite ou échec) ne fait pas avancer. */
+  retrying: Level | null;
   /** Horodatage de la derniere diffusion due a l'orientation en direct. */
   liveSentAt: number;
   liveTimer: ReturnType<typeof setTimeout> | null;
@@ -201,6 +203,7 @@ export class SessionManager {
       phoneView: null,
       secrets: {},
       attempts: [],
+      retrying: null,
       liveSentAt: 0,
       liveTimer: null,
     };
@@ -361,6 +364,8 @@ export class SessionManager {
     } catch (err) {
       console.error('journal des essais impossible', err);
     }
+    // étape relancée seule : le résultat est noté mais on reste sur cette étape, sans passer à la suivante
+    if (s.retrying === level) s.state = jumpTo(level);
     // une soumission quitte toujours l'etape en cours : l'orientation en direct n'a plus cours
     s.liveOrientation = null;
     this.broadcast(id);
@@ -371,6 +376,7 @@ export class SessionManager {
   jump(id: string, level: Level): void {
     const s = this.get(id);
     s.state = jumpTo(level);
+    s.retrying = null;
     if (level <= 1) delete s.live.keystroke;
     if (level <= 2) {
       delete s.live.device;
@@ -387,6 +393,7 @@ export class SessionManager {
   retry(id: string, level: Level): void {
     const s = this.get(id);
     s.state = jumpTo(level);
+    s.retrying = level;
     if (level === 1) delete s.live.keystroke;
     if (level === 2) {
       delete s.live.device;
@@ -402,6 +409,7 @@ export class SessionManager {
   reset(id: string): void {
     const s = this.get(id);
     s.state = startState();
+    s.retrying = null;
     s.live = {};
     s.secrets = {};
     s.lastVerdict = null;

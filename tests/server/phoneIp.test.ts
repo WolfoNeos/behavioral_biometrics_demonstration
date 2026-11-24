@@ -123,3 +123,31 @@ describe('journal : saisies simulées', () => {
     expect(flags).toEqual([true, false]);
   });
 });
+
+describe('étape relancée seule : pas de passage à la suivante', () => {
+  it('réussite ou échec : on reste sur l’étape, le résultat est noté', () => {
+    const m = manager();
+    const s = m.create();
+    m.jump(s.id, 2);
+    m.handleMessage(s.id, JSON.stringify({ type: 'retry', level: 2 }));
+    m.inject(s.id, 'A', 2); // réussite
+    let snap = m.snapshot(s.id);
+    expect(snap.state).toEqual({ status: 'pending', level: 2 });
+    expect(snap.live.device).toBeDefined();
+    expect(snap.attempts?.at(-1)).toMatchObject({ level: 2, granted: true });
+    m.inject(s.id, 'B', 2); // échec
+    snap = m.snapshot(s.id);
+    expect(snap.state).toEqual({ status: 'pending', level: 2 });
+    expect(snap.attempts?.at(-1)).toMatchObject({ level: 2, granted: false });
+  });
+
+  it('un saut de niveau ou Restart rend le comportement normal', () => {
+    const m = manager();
+    const s = m.create();
+    m.jump(s.id, 2);
+    m.handleMessage(s.id, JSON.stringify({ type: 'retry', level: 2 }));
+    m.jump(s.id, 2);
+    m.inject(s.id, 'B', 2);
+    expect(m.snapshot(s.id).state).toEqual({ status: 'pending', level: 3 });
+  });
+});
