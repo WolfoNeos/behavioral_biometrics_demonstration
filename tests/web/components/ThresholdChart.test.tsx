@@ -80,16 +80,35 @@ describe('ThresholdChart', () => {
     expect(band).toEqual([null, 75]); // 2e position : 60 + 15
   });
 
-  it('flight hors échelle : plafonné au bord, marqué et signalé', () => {
+  it('flight : échelle comprimée au-delà de 200 ms, la pause reste lisible', () => {
     const rows = [
       { dwell: 100, flight: 0, expectedDwell: 90, expectedFlight: 0, bandDwell: 20, bandFlight: 5, status: 'ok' as const },
       { dwell: 100, flight: 650, expectedDwell: 90, expectedFlight: 60, bandDwell: 20, bandFlight: 15, status: 'bad' as const },
+      { dwell: 100, flight: 120, expectedDwell: 90, expectedFlight: 60, bandDwell: 20, bandFlight: 15, status: 'ok' as const },
     ];
     render(<ThresholdChart rows={rows} />);
     const flight = charts()[1].data.datasets[0];
-    expect(flight.data).toEqual([null, 300]);
+    // 650 ms -> 200 + 450 / 4 ; 120 ms reste linéaire
+    expect(flight.data).toEqual([null, 312.5, 120]);
+    expect(flight.pointStyle[1]).toBe('rectRot'); // pas hors échelle : pas de triangle
+    expect(charts()[1].options.scales.y.title.text).toContain('compressed above 200');
+    expect(screen.queryByRole('note')).toBeNull();
+  });
+
+  it('flight au-delà de 1500 ms : collé au bord, triangle et note', () => {
+    const rows = [
+      { dwell: 100, flight: 0, expectedDwell: 90, expectedFlight: 0, bandDwell: 20, bandFlight: 5, status: 'ok' as const },
+      { dwell: 100, flight: 5000, expectedDwell: 90, expectedFlight: 60, bandDwell: 20, bandFlight: 15, status: 'bad' as const },
+    ];
+    render(<ThresholdChart rows={rows} />);
+    const flight = charts()[1].data.datasets[0];
+    expect(flight.data).toEqual([null, 525]); // 1500 ms comprimé
     expect(flight.pointStyle[1]).toBe('triangle');
-    expect(screen.getByRole('note')).toHaveTextContent('1 flight value off the scale');
-    expect(charts()[1].options.scales.y.max).toBe(300);
+    expect(screen.getByRole('note')).toHaveTextContent('1 flight value beyond 1500 ms');
+  });
+
+  it('flight sans pause : axe linéaire, titre simple', () => {
+    render(<ThresholdChart rows={perKey} />);
+    expect(charts()[1].options.scales.y.title.text).toBe('Flight (ms)');
   });
 });

@@ -43,10 +43,19 @@ export function legendFilter(item: { text: string }): boolean {
 
 const ms = (v: number | null) => (v === null ? '–' : `${Math.round(v)} ms`);
 
-/** Affichage borne : au-dela, le point est colle au bord et marque d'un triangle. */
-export const FLIGHT_MAX = 300;
+/**
+ * Axe du flight : lineaire jusqu'a FLIGHT_KNEE, puis comprime (pente 1/FLIGHT_SLOPE) pour que les
+ * pauses restent visibles sans ecraser le reste ; au-dela de FLIGHT_CAP le point est colle au bord
+ * et marque d'un triangle.
+ */
+export const FLIGHT_KNEE = 200;
+export const FLIGHT_SLOPE = 4;
+export const FLIGHT_CAP = 1500;
 export const FLIGHT_MIN = -100;
-const clampFlight = (v: number | null) => (v === null ? null : Math.max(FLIGHT_MIN, Math.min(FLIGHT_MAX, v)));
+export const squash = (v: number | null): number | null =>
+  v === null ? null : v <= FLIGHT_KNEE ? v : FLIGHT_KNEE + (v - FLIGHT_KNEE) / FLIGHT_SLOPE;
+export const unsquash = (t: number): number => (t <= FLIGHT_KNEE ? t : FLIGHT_KNEE + (t - FLIGHT_KNEE) * FLIGHT_SLOPE);
+const clampFlight = (v: number | null) => (v === null ? null : Math.max(FLIGHT_MIN, Math.min(FLIGHT_CAP, v)));
 
 const dwellBand = (r: KeyRow, sign: 1 | -1) =>
   r.expectedDwell === null || r.bandDwell === null ? null : r.expectedDwell + sign * r.bandDwell;
@@ -67,7 +76,7 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
   const labels = rows.map((_, i) => String(i + 1));
   const pointColors = rows.map((r) => (r.status ? token(STATUS_TOKEN[r.status]) : ink));
   const flights = rows.map((r, i) => (i === 0 ? null : r.flight));
-  const outOfRange = flights.map((v) => v !== null && (v > FLIGHT_MAX || v < FLIGHT_MIN));
+  const outOfRange = flights.map((v) => v !== null && (v > FLIGHT_CAP || v < FLIGHT_MIN));
 
   const holdData = {
     labels,
@@ -110,7 +119,7 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
       {
         // temps entre deux touches (la 1re touche n'en a pas) ; hors de l'echelle : triangle au bord
         label: 'Flight (ms)',
-        data: flights.map(clampFlight),
+        data: flights.map((v) => squash(clampFlight(v))),
         rawFlights: flights,
         borderColor: blue,
         backgroundColor: blue,
@@ -121,7 +130,7 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
       },
       {
         label: 'Flight expected (ms)',
-        data: rows.map((r, i) => (i === 0 ? null : r.expectedFlight)),
+        data: rows.map((r, i) => squash(i === 0 ? null : r.expectedFlight)),
         borderColor: blueSoft,
         backgroundColor: blueSoft,
         borderDash: [6, 4],
@@ -131,14 +140,14 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
       },
       {
         label: BAND_LABEL,
-        data: rows.map((r, i) => flightBand(r, i, 1)),
+        data: rows.map((r, i) => squash(flightBand(r, i, 1))),
         borderColor: 'transparent',
         backgroundColor: 'rgba(37, 99, 235, 0.08)',
         pointRadius: 0,
         fill: '+1',
         tension: 0.2,
       },
-      { label: LOWER_LABEL, data: rows.map((r, i) => flightBand(r, i, -1)), borderColor: 'transparent', pointRadius: 0, tension: 0.2 },
+      { label: LOWER_LABEL, data: rows.map((r, i) => squash(flightBand(r, i, -1))), borderColor: 'transparent', pointRadius: 0, tension: 0.2 },
     ],
   };
   const font = { family: "Inter, 'Segoe UI', system-ui, sans-serif", size: 13 };
@@ -172,6 +181,11 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
     },
   });
   const flightOut = outOfRange.filter(Boolean).length;
+  const compressed = [
+    ...flights,
+    ...rows.map((r) => r.expectedFlight),
+    ...rows.map((r, i) => flightBand(r, i, 1)),
+  ].some((v) => v !== null && v > FLIGHT_KNEE);
   return (
     <div className="threshold-chart" aria-label="keystroke timing chart">
       <div className="chart-canvas chart-half" aria-label="hold time chart">
@@ -180,12 +194,20 @@ export function ThresholdChart({ rows }: ThresholdChartProps) {
       <div className="chart-canvas chart-half" aria-label="flight time chart">
         <Line
           data={flightData}
-          options={options('Flight (ms)', 'Position in the password', { min: FLIGHT_MIN, max: FLIGHT_MAX })}
+          options={options(
+            compressed ? `Flight (ms · scale compressed above ${FLIGHT_KNEE})` : 'Flight (ms)',
+            'Position in the password',
+            {
+              min: FLIGHT_MIN,
+              suggestedMax: 300,
+              ticks: { font, color: muted, maxTicksLimit: 6, callback: (t: number | string) => Math.round(unsquash(Number(t))) },
+            },
+          )}
         />
       </div>
       {flightOut > 0 && (
         <p className="chart-note" role="note">
-          ▲ {flightOut} flight value{flightOut > 1 ? 's' : ''} off the scale (pause), shown at the edge
+          ▲ {flightOut} flight value{flightOut > 1 ? 's' : ''} beyond {FLIGHT_CAP} ms, shown at the edge
         </p>
       )}
       <table className="values-table">

@@ -341,14 +341,15 @@ export function Demo() {
           <section className="panel panel-score panel-recap" data-testid="panel-score" aria-label="Session summary">
             <h2>Session summary</h2>
             <SessionRecap recap={recap} />
+            <AttemptHistory attempts={snapshot.attempts ?? []} />
           </section>
         ) : (
           <section className="panel panel-score" data-testid="panel-score" aria-label="Score">
             <h2>Score</h2>
             {gauge}
+            <AttemptHistory attempts={snapshot.attempts ?? []} />
           </section>
         )}
-        <AttemptHistory attempts={snapshot.attempts ?? []} />
         <div className="control-zone">
           <PhoneStatus connected={snapshot.phoneConnected} />
           <ControlBar onJump={onJump} onReset={onReset} onRetry={onRetry} level={level} />
